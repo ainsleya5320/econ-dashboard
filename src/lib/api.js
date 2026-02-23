@@ -107,9 +107,19 @@ async function fetchOpenRouterRankings() {
 }
 
 async function fetchFMPNews(fmpKey, limit = 40) {
-  const data = await fetchFMP(`/news?limit=${limit}`, fmpKey);
+  const data = await fetchFMP(`/fmp-articles?limit=${limit}`, fmpKey);
   if (!Array.isArray(data)) return [];
-  return data.filter(n => n.title && n.url);
+  // Normalize fields: fmp-articles uses "link" not "url", "date" not "publishedDate", "content" (HTML) not "text"
+  return data.filter(n => n.title && n.link).map(n => ({
+    title: n.title,
+    url: n.link,
+    site: n.site || "FMP",
+    image: n.image,
+    publishedDate: n.date,
+    text: n.content ? n.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "",
+    author: n.author,
+    tickers: n.tickers,
+  }));
 }
 
 export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews };

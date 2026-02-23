@@ -10,6 +10,7 @@ import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
 import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
+import HousingTab from "./tabs/HousingTab.jsx";
 
 export default function Dashboard() {
   const [fredKey, setFredKey] = useState("242945c79ff76bec9082797eb56dea77"); const [fmpKey, setFmpKey] = useState("3ccQfvWcHnuzsOVTKL2YHYxWAdpu91HP");
