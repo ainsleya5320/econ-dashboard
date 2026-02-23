@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+*.local
+src/App.jsx.bak
+split.mjs
+do_split.py
