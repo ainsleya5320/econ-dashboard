@@ -106,4 +106,10 @@ async function fetchOpenRouterRankings() {
   return JSON.parse(text.substring(arrStart, end));
 }
 
-export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings };
+async function fetchFMPNews(fmpKey, limit = 40) {
+  const data = await fetchFMP(`/news?limit=${limit}`, fmpKey);
+  if (!Array.isArray(data)) return [];
+  return data.filter(n => n.title && n.url);
+}
+
+export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews };

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
+import NewsTicker from "./components/NewsTicker.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [csm, setCsm] = useState(FB.consumer);
   const [aiModels, setAiModels] = useState([]); const [aiLoading, setAiLoading] = useState(false);
   const [rankingsData, setRankingsData] = useState([]); const [rankingsLoading, setRankingsLoading] = useState(false);
+  const [newsItems, setNewsItems] = useState([]); const [newsLoading, setNewsLoading] = useState(false);
   const [choroplethMetric, setChoroplethMetric] = useState("unemployment");
   const [choroplethCache, setChoroplethCache] = useState(() => {
     // Start with bundled snapshot, overlay any fresher localStorage data
@@ -120,6 +122,18 @@ export default function Dashboard() {
     setRankingsLoading(true);
     fetchOpenRouterRankings().then(setRankingsData).catch(e => console.error("OpenRouter rankings error:", e)).finally(() => setRankingsLoading(false));
   }, []);
+
+  // Fetch FMP news on mount and refresh every 30 minutes
+  useEffect(() => {
+    if (!fmpKey) return;
+    const load = () => {
+      setNewsLoading(true);
+      fetchFMPNews(fmpKey).then(setNewsItems).catch(e => console.error("News fetch error:", e)).finally(() => setNewsLoading(false));
+    };
+    load();
+    const interval = setInterval(load, 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fmpKey]);
 
   const fetchFredData = useCallback(async () => {
     if (!fredKey) return; setFredStatus("loading");
@@ -240,6 +254,9 @@ export default function Dashboard() {
             <button onClick={() => { fetchFredData(); fetchFMPRates(); }} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "4px 10px", fontSize: 10, color: "#94a3b8", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Now</button>
           </div>
         </div>
+
+        {/* News Ticker */}
+        <NewsTicker items={newsItems} loading={newsLoading} />
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: 4, marginBottom: 20 }}>
