@@ -83,4 +83,27 @@ async function fetchOpenRouterModels() {
   return j.data || [];
 }
 
-export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels };
+async function fetchOpenRouterRankings() {
+  // Fetch the rankings page via our Vite proxy using Next.js RSC protocol
+  const r = await fetch("/or-rankings", {
+    method: "POST",
+    headers: { "RSC": "1", "Next-Action": "true" },
+  });
+  if (!r.ok) throw new Error("OpenRouter rankings error " + r.status);
+  const text = await r.text();
+
+  // Parse rankingData from the RSC flight response
+  const idx = text.indexOf('"rankingData":');
+  if (idx === -1) throw new Error("rankingData not found in RSC response");
+  const arrStart = text.indexOf("[", idx);
+  let depth = 0, end = -1;
+  for (let i = arrStart; i < text.length; i++) {
+    if (text[i] === "[") depth++;
+    if (text[i] === "]") depth--;
+    if (depth === 0) { end = i + 1; break; }
+  }
+  if (end === -1) throw new Error("Could not parse rankingData array");
+  return JSON.parse(text.substring(arrStart, end));
+}
+
+export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings };

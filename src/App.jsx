@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [td, setTd] = useState(FB.treasury); const [cd, setCd] = useState(FB.cpi); const [hd, setHd] = useState(FB.housing);
   const [csm, setCsm] = useState(FB.consumer);
   const [aiModels, setAiModels] = useState([]); const [aiLoading, setAiLoading] = useState(false);
+  const [rankingsData, setRankingsData] = useState([]); const [rankingsLoading, setRankingsLoading] = useState(false);
   const [choroplethMetric, setChoroplethMetric] = useState("unemployment");
   const [choroplethCache, setChoroplethCache] = useState(() => {
     // Start with bundled snapshot, overlay any fresher localStorage data
@@ -112,10 +113,12 @@ export default function Dashboard() {
     setChoroplethProgress("");
   }, [fredKey]);
 
-  // Auto-fetch OpenRouter models on mount
+  // Auto-fetch OpenRouter models + rankings on mount
   useEffect(() => {
     setAiLoading(true);
     fetchOpenRouterModels().then(setAiModels).catch(e => console.error("OpenRouter fetch error:", e)).finally(() => setAiLoading(false));
+    setRankingsLoading(true);
+    fetchOpenRouterRankings().then(setRankingsData).catch(e => console.error("OpenRouter rankings error:", e)).finally(() => setRankingsLoading(false));
   }, []);
 
   const fetchFredData = useCallback(async () => {
@@ -255,7 +258,7 @@ export default function Dashboard() {
         {tab === "intl" && <InternationalTab fmpKey={fmpKey} />}
         {tab === "housing" && <HousingTab hd={hd} md={md} />}
         {tab === "stocks" && <StocksTab fmpKey={fmpKey} />}
-        {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} />}
+        {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
         {tab === "history" && <HistoricalReturnsTab />}
 
         {/* Footer */}

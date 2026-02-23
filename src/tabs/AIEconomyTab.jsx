@@ -347,232 +347,259 @@ function ModelMarketTab({ models }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// SUB-TAB 3: RANKINGS
+// SUB-TAB 3: RANKINGS (live OpenRouter token usage data)
 // ═══════════════════════════════════════════════════════════
-const SORT_COLS = [
-  { id: "rank",    label: "#"         },
-  { id: "name",    label: "Model"     },
-  { id: "provider",label: "Provider"  },
-  { id: "inPrice", label: "Input $/M" },
-  { id: "outPrice",label: "Out $/M"   },
-  { id: "context", label: "Context"   },
-  { id: "created", label: "Released"  },
-];
+const fmtTokens = n => {
+  if (n >= 1e12) return `${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9)  return `${(n / 1e9).toFixed(n >= 1e11 ? 0 : 1)}B`;
+  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
+  return String(n);
+};
+const fmtReqs = n => {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}K`;
+  return String(n);
+};
+const fmtPct = v => {
+  if (v == null) return "new";
+  const pct = (v * 100).toFixed(1);
+  return v >= 0 ? `+${pct}%` : `${pct}%`;
+};
+const pctColor = v => v == null ? "#8B5CF6" : v >= 0 ? "#10B981" : "#f87171";
 
-function RankingsTab({ models }) {
-  const [search,      setSearch]      = useState("");
-  const [sortCol,     setSortCol]     = useState("inPrice");
-  const [sortAsc,     setSortAsc]     = useState(false);
-  const [filterProv,  setFilterProv]  = useState("All");
-  const [filterTier,  setFilterTier]  = useState("All");
-  const [filterMod,   setFilterMod]   = useState("All");
-  const [filterCtx,   setFilterCtx]   = useState("All");
-  const [page,        setPage]        = useState(0);
+const RANK_COLORS = ["#E8553A","#3B82F6","#10B981","#F59E0B","#8B5CF6","#EC4899","#6366F1","#14B8A6","#F97316","#D946EF","#F2A93B","#4ECDC4","#818cf8","#94a3b8","#fb923c","#a78bfa","#34d399","#fbbf24","#f472b6","#67e8f9"];
+
+function RankingsTab({ rankings, rankingsLoading }) {
+  const [sortCol, setSortCol] = useState("totalTokens");
+  const [sortAsc, setSortAsc]  = useState(false);
+  const [search, setSearch]    = useState("");
+  const [filterProv, setFilterProv] = useState("All");
+  const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
 
-  // Enrich models with derived fields
-  const enriched = useMemo(() => models.map(m => ({
-    ...m,
-    provider:  m.id.split("/")[0],
-    inPrice:   parseFloat(m.pricing?.prompt     || "0") * 1e6,
-    outPrice:  parseFloat(m.pricing?.completion || "0") * 1e6,
-    context:   m.context_length || 0,
-    modality:  m.architecture?.modality || "unknown",
-    createdTs: m.created || 0,
-  })), [models]);
+  // Process rankings: get latest date, aggregate, sort
+  const { leaderboard, providerShare, trendData, heroStats, latestDate, allProviders } = useMemo(() => {
+    if (!rankings || !rankings.length) return { leaderboard: [], providerShare: [], trendData: [], heroStats: {}, latestDate: null, allProviders: [] };
 
-  // Unique filter options
-  const providers = useMemo(() => ["All", ...Array.from(new Set(enriched.map(m => m.provider))).sort()], [enriched]);
-  const modalities = useMemo(() => ["All", ...Array.from(new Set(enriched.map(m => m.modality))).sort()], [enriched]);
+    const dates = [...new Set(rankings.map(r => r.date))].sort();
+    const latest = dates[dates.length - 1];
+    const latestRows = rankings.filter(r => r.date === latest);
 
-  // Filter
+    // Build leaderboard from latest date
+    const lb = latestRows.map(r => {
+      const parts = r.model_permaslug.split("/");
+      const provider = parts[0];
+      const modelName = parts.slice(1).join("/").replace(/-\d{8}$/, "").replace(/-preview$/, " Preview");
+      return {
+        slug: r.model_permaslug,
+        name: modelName,
+        provider,
+        totalTokens: r.total_prompt_tokens + r.total_completion_tokens,
+        promptTokens: r.total_prompt_tokens,
+        completionTokens: r.total_completion_tokens,
+        reasoningTokens: r.total_native_tokens_reasoning,
+        cachedTokens: r.total_native_tokens_cached,
+        requests: r.count,
+        toolCalls: r.total_tool_calls,
+        mediaPrompts: r.num_media_prompt,
+        change: r.change,
+      };
+    }).sort((a, b) => b.totalTokens - a.totalTokens);
+
+    // Provider market share
+    const provMap = {};
+    lb.forEach(m => { provMap[m.provider] = (provMap[m.provider] || 0) + m.totalTokens; });
+    const totalTok = lb.reduce((s, m) => s + m.totalTokens, 0);
+    const ps = Object.entries(provMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, tokens]) => ({ name, tokens, pct: ((tokens / totalTok) * 100).toFixed(1) }));
+
+    // Trend data: top 8 models across all dates
+    const top8slugs = lb.slice(0, 8).map(m => m.slug);
+    const td = dates.map(date => {
+      const row = { date: date.slice(5, 10) }; // "02-16"
+      const dayRows = rankings.filter(r => r.date === date);
+      top8slugs.forEach(slug => {
+        const match = dayRows.find(r => r.model_permaslug === slug);
+        row[slug] = match ? (match.total_prompt_tokens + match.total_completion_tokens) / 1e9 : 0;
+      });
+      return row;
+    });
+
+    const hs = {
+      totalTokens: totalTok,
+      totalRequests: latestRows.reduce((s, r) => s + r.count, 0),
+      activeModels: latestRows.length,
+      topModel: lb[0]?.name || "—",
+      topProvider: ps[0]?.name || "—",
+    };
+
+    const ap = ["All", ...ps.map(p => p.name)];
+
+    return { leaderboard: lb, providerShare: ps, trendData: td, heroStats: hs, latestDate: latest, allProviders: ap };
+  }, [rankings]);
+
+  // Filter + sort the leaderboard
   const filtered = useMemo(() => {
-    let out = enriched;
-    if (search)           out = out.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.id.toLowerCase().includes(search.toLowerCase()));
-    if (filterProv !== "All")  out = out.filter(m => m.provider === filterProv);
-    if (filterTier !== "All")  out = out.filter(m => PRICING_TIERS.find(t => t.label === filterTier)?.test(m.inPrice));
-    if (filterMod  !== "All")  out = out.filter(m => m.modality === filterMod);
-    if (filterCtx  !== "All")  out = out.filter(m => CTX_TIERS.find(t => t.label === filterCtx)?.test(m.context));
+    let out = leaderboard;
+    if (search) out = out.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.slug.toLowerCase().includes(search.toLowerCase()) || m.provider.toLowerCase().includes(search.toLowerCase()));
+    if (filterProv !== "All") out = out.filter(m => m.provider === filterProv);
     return out;
-  }, [enriched, search, filterProv, filterTier, filterMod, filterCtx]);
+  }, [leaderboard, search, filterProv]);
 
-  // Sort
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
       let va, vb;
-      if (sortCol === "name")     { va = a.name;      vb = b.name;      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va); }
-      if (sortCol === "provider") { va = a.provider;  vb = b.provider;  return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va); }
-      if (sortCol === "inPrice")  { va = a.inPrice;   vb = b.inPrice; }
-      if (sortCol === "outPrice") { va = a.outPrice;  vb = b.outPrice; }
-      if (sortCol === "context")  { va = a.context;   vb = b.context; }
-      if (sortCol === "created")  { va = a.createdTs; vb = b.createdTs; }
-      if (sortCol === "rank")     { va = a.inPrice;   vb = b.inPrice; } // rank by price by default
-      return sortAsc ? (va ?? 0) - (vb ?? 0) : (vb ?? 0) - (va ?? 0);
+      if (sortCol === "name")     return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      if (sortCol === "provider") return sortAsc ? a.provider.localeCompare(b.provider) : b.provider.localeCompare(a.provider);
+      va = a[sortCol] ?? 0; vb = b[sortCol] ?? 0;
+      return sortAsc ? va - vb : vb - va;
     });
     return arr;
   }, [filtered, sortCol, sortAsc]);
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const pageData   = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageData = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const toggleSort = col => { if (sortCol === col) setSortAsc(a => !a); else { setSortCol(col); setSortAsc(col === "name" || col === "provider"); } setPage(0); };
 
-  const toggleSort = col => {
-    if (sortCol === col) setSortAsc(a => !a);
-    else { setSortCol(col); setSortAsc(col === "name" || col === "provider"); }
-    setPage(0);
-  };
+  const selectStyle = { background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#cbd5e1", fontSize: 11, fontFamily: fonts.mono, padding: "6px 10px", cursor: "pointer" };
+  const thStyle = { padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", background: "#0a0f1e" };
 
-  const resetFilters = () => { setSearch(""); setFilterProv("All"); setFilterTier("All"); setFilterMod("All"); setFilterCtx("All"); setPage(0); };
+  if (rankingsLoading) return <div style={{ textAlign: "center", padding: 60, color: "#94a3b8", fontFamily: fonts.heading }}><div style={{ fontSize: 18 }}>Loading rankings from OpenRouter...</div></div>;
+  if (!rankings.length) return <div style={{ textAlign: "center", padding: 60, color: "#64748b", fontFamily: fonts.heading }}>No rankings data available. Rankings are fetched from OpenRouter's live usage data.</div>;
 
-  const fmtCtx  = v => v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(0)}K` : `${v}`;
-  const fmtDate = ts => { if (!ts) return "—"; const d = new Date(ts * 1000); return `${d.toLocaleString("default",{month:"short"})} ${d.getFullYear()}`; };
-  const tierFor = price => PRICING_TIERS.find(t => t.test(price));
-
-  const selectStyle = {
-    background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
-    color: "#cbd5e1", fontSize: 11, fontFamily: fonts.mono, padding: "6px 10px", cursor: "pointer",
-  };
-  const thStyle = {
-    padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono,
-    letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.08)",
-    cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
-    background: "#0a0f1e",
-  };
+  const top8 = leaderboard.slice(0, 8);
 
   return (<>
     {/* Header */}
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5, marginBottom: 4 }}>
-        AI Model Rankings
-      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5, marginBottom: 4 }}>AI Model Rankings</div>
       <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>
-        {enriched.length} models across {providers.length - 1} providers · Live data from{" "}
+        Based on real usage data from millions of users · Week of {latestDate?.slice(0, 10)} · Source:{" "}
         <a href="https://openrouter.ai/rankings" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>OpenRouter</a>
       </div>
     </div>
 
-    {/* Filters */}
+    {/* Hero Stats */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, marginBottom: 18 }}>
+      <StatCard label="Total Tokens (Week)" val={fmtTokens(heroStats.totalTokens)} sub="Prompt + completion" color="#6366F1" />
+      <StatCard label="Total Requests"      val={fmtReqs(heroStats.totalRequests)} sub="API calls this week" color="#3B82F6" />
+      <StatCard label="Active Models"        val={heroStats.activeModels}           sub="With recorded usage" color="#10B981" />
+      <StatCard label="#1 Model"             val={heroStats.topModel}               sub={`by ${heroStats.topProvider}`} color="#E8553A" />
+    </div>
+
+    {/* LLM Leaderboard - Top 10 */}
+    <SH>LLM Leaderboard — Top 10 by Token Usage</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+      {[leaderboard.slice(0, 5), leaderboard.slice(5, 10)].map((col, ci) => (
+        <div key={ci} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {col.map((m, i) => {
+            const rank = ci * 5 + i + 1;
+            const maxTok = leaderboard[0]?.totalTokens || 1;
+            const barPct = Math.max(4, (m.totalTokens / maxTok) * 100);
+            return (
+              <div key={m.slug} style={{ background: cardBg, border: cardBorder, borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${barPct}%`, background: `${RANK_COLORS[rank - 1]}0D`, borderRadius: 12 }} />
+                <span style={{ fontSize: 16, fontWeight: 700, color: rank <= 3 ? "#f59e0b" : "#475569", fontFamily: fonts.mono, minWidth: 28, textAlign: "right", position: "relative" }}>
+                  {rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `${rank}.`}
+                </span>
+                <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", fontFamily: fonts.heading, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
+                  <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>by {m.provider}</div>
+                </div>
+                <div style={{ textAlign: "right", position: "relative" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.mono }}>{fmtTokens(m.totalTokens)}</div>
+                  <div style={{ fontSize: 10, color: pctColor(m.change), fontFamily: fonts.mono, fontWeight: 600 }}>{fmtPct(m.change)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+
+    {/* Provider Market Share */}
+    <SH>Provider Market Share by Token Volume</SH>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 18 }}>
+      <ResponsiveContainer width="100%" height={340}>
+        <BarChart layout="vertical" data={providerShare.slice(0, 12)} margin={{ top: 0, right: 20, left: 5, bottom: 0 }}>
+          <XAxis type="number" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => fmtTokens(v)} />
+          <YAxis type="category" dataKey="name" width={90} tick={{ fill: "#cbd5e1", fontSize: 10, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, name, props) => [`${fmtTokens(v)} tokens (${props.payload.pct}%)`, "Volume"]} />
+          <Bar dataKey="tokens" radius={[0, 4, 4, 0]}>
+            {providerShare.slice(0, 12).map((_, i) => <Cell key={i} fill={RANK_COLORS[i % RANK_COLORS.length]} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+
+    {/* Token Usage Trend */}
+    <SH>Weekly Token Trend — Top 8 Models</SH>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 18 }}>
+      <ResponsiveContainer width="100%" height={280}>
+        <AreaChart data={trendData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
+          <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} />
+          <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}B`} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 10 }} formatter={v => [`${v.toFixed(1)}B tokens`]} />
+          <Legend wrapperStyle={{ fontSize: 9, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={6} />
+          {top8.map((m, i) => (
+            <Area key={m.slug} type="monotone" dataKey={m.slug} name={m.name.length > 24 ? m.name.slice(0, 22) + ".." : m.name} stroke={RANK_COLORS[i]} fill={RANK_COLORS[i]} fillOpacity={0.08} strokeWidth={1.5} dot={false} />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+
+    {/* Quick Stats Row */}
+    <SH>Usage Breakdown — Latest Week</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, marginBottom: 18 }}>
+      <StatCard label="Tool Calls" val={fmtReqs(leaderboard.reduce((s, m) => s + m.toolCalls, 0))} sub="Function/tool invocations" color="#8B5CF6" />
+      <StatCard label="Reasoning Tokens" val={fmtTokens(leaderboard.reduce((s, m) => s + m.reasoningTokens, 0))} sub="Chain-of-thought" color="#F59E0B" />
+      <StatCard label="Cached Tokens" val={fmtTokens(leaderboard.reduce((s, m) => s + m.cachedTokens, 0))} sub="Prompt cache hits" color="#14B8A6" />
+      <StatCard label="Media Inputs" val={fmtReqs(leaderboard.reduce((s, m) => s + m.mediaPrompts, 0))} sub="Images/files in prompts" color="#EC4899" />
+    </div>
+
+    {/* Full Table */}
+    <SH>Full Model Rankings</SH>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-        {/* Search */}
-        <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(0); }}
-          placeholder="Search models..."
-          style={{ ...selectStyle, flex: "1 1 180px", minWidth: 160, padding: "6px 12px" }}
-        />
-        {/* Provider */}
+        <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Search models..." style={{ ...selectStyle, flex: "1 1 180px", minWidth: 160, padding: "6px 12px" }} />
         <select value={filterProv} onChange={e => { setFilterProv(e.target.value); setPage(0); }} style={selectStyle}>
-          {providers.map(p => <option key={p}>{p}</option>)}
+          {allProviders.map(p => <option key={p}>{p}</option>)}
         </select>
-        {/* Pricing tier */}
-        <select value={filterTier} onChange={e => { setFilterTier(e.target.value); setPage(0); }} style={selectStyle}>
-          <option>All</option>
-          {PRICING_TIERS.map(t => <option key={t.label}>{t.label}</option>)}
-        </select>
-        {/* Context */}
-        <select value={filterCtx} onChange={e => { setFilterCtx(e.target.value); setPage(0); }} style={selectStyle}>
-          <option>All</option>
-          {CTX_TIERS.map(t => <option key={t.label}>{t.label}</option>)}
-        </select>
-        {/* Modality */}
-        <select value={filterMod} onChange={e => { setFilterMod(e.target.value); setPage(0); }} style={{ ...selectStyle, maxWidth: 220 }}>
-          {modalities.map(m => <option key={m} value={m}>{MOD_LABELS[m] || m}</option>)}
-        </select>
-        {/* Reset */}
-        {(search || filterProv !== "All" || filterTier !== "All" || filterMod !== "All" || filterCtx !== "All") && (
-          <button onClick={resetFilters} style={{ ...selectStyle, color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", background: "rgba(248,113,113,0.07)" }}>
-            Clear filters
-          </button>
-        )}
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#475569", fontFamily: fonts.mono, whiteSpace: "nowrap" }}>
-          {sorted.length} result{sorted.length !== 1 ? "s" : ""}
-        </span>
+        {(search || filterProv !== "All") && <button onClick={() => { setSearch(""); setFilterProv("All"); setPage(0); }} style={{ ...selectStyle, color: "#f87171", border: "1px solid rgba(248,113,113,0.25)", background: "rgba(248,113,113,0.07)" }}>Clear</button>}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#475569", fontFamily: fonts.mono }}>{sorted.length} models</span>
       </div>
     </div>
 
-    {/* Table */}
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 12 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
-        <thead>
-          <tr>
-            <th style={{ ...thStyle, textAlign: "center", width: 44 }} onClick={() => toggleSort("rank")}>#</th>
-            <th style={{ ...thStyle, textAlign: "left" }} onClick={() => toggleSort("name")}>
-              Model <SortIcon col="name" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-            <th style={{ ...thStyle, textAlign: "left" }} onClick={() => toggleSort("provider")}>
-              Provider <SortIcon col="provider" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-            <th style={{ ...thStyle, textAlign: "center" }}>Tier</th>
-            <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("inPrice")}>
-              Input $/M <SortIcon col="inPrice" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-            <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("outPrice")}>
-              Output $/M <SortIcon col="outPrice" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-            <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("context")}>
-              Context <SortIcon col="context" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-            <th style={{ ...thStyle, textAlign: "left", maxWidth: 160 }}>Modality</th>
-            <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("created")}>
-              Released <SortIcon col="created" sortCol={sortCol} sortAsc={sortAsc} />
-            </th>
-          </tr>
-        </thead>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+        <thead><tr>
+          <th style={{ ...thStyle, textAlign: "center", width: 40 }}>#</th>
+          <th style={{ ...thStyle, textAlign: "left" }} onClick={() => toggleSort("name")}>Model <SortIcon col="name" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "left" }} onClick={() => toggleSort("provider")}>Provider <SortIcon col="provider" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("totalTokens")}>Total Tokens <SortIcon col="totalTokens" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("requests")}>Requests <SortIcon col="requests" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("toolCalls")}>Tool Calls <SortIcon col="toolCalls" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("cachedTokens")}>Cached <SortIcon col="cachedTokens" sortCol={sortCol} sortAsc={sortAsc} /></th>
+          <th style={{ ...thStyle, textAlign: "right" }} onClick={() => toggleSort("change")}>Change <SortIcon col="change" sortCol={sortCol} sortAsc={sortAsc} /></th>
+        </tr></thead>
         <tbody>
           {pageData.map((m, i) => {
-            const globalRank = page * PAGE_SIZE + i + 1;
-            const tier = tierFor(m.inPrice);
+            const rank = page * PAGE_SIZE + i + 1;
             return (
-              <tr
-                key={m.id}
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", transition: "background 0.1s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.025)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                {/* Rank */}
-                <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 12, fontFamily: fonts.mono, color: globalRank <= 3 ? "#f59e0b" : "#475569", fontWeight: globalRank <= 3 ? 700 : 400 }}>
-                  {globalRank <= 3 ? ["🥇","🥈","🥉"][globalRank - 1] : globalRank}
-                </td>
-                {/* Model name */}
+              <tr key={m.slug} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", transition: "background 0.1s" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.025)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 12, fontFamily: fonts.mono, color: rank <= 3 ? "#f59e0b" : "#475569", fontWeight: rank <= 3 ? 700 : 400 }}>{rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : rank}</td>
                 <td style={{ padding: "10px 12px", maxWidth: 260 }}>
                   <div style={{ fontSize: 12, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
-                  <div style={{ fontSize: 10, fontFamily: fonts.mono, color: "#475569", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.id}</div>
                 </td>
-                {/* Provider */}
-                <td style={{ padding: "10px 12px" }}>
-                  <span style={{ fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 6 }}>
-                    {m.provider}
-                  </span>
-                </td>
-                {/* Tier badge */}
-                <td style={{ padding: "10px 8px", textAlign: "center" }}>
-                  {tier && (
-                    <span style={{ fontSize: 10, fontFamily: fonts.mono, color: tier.color, background: `${tier.color}18`, border: `1px solid ${tier.color}30`, padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap" }}>
-                      {tier.label}
-                    </span>
-                  )}
-                </td>
-                {/* Input price */}
-                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, fontWeight: 600, color: m.inPrice === 0 ? "#4ade80" : m.inPrice < 1 ? "#4ade80" : m.inPrice < 10 ? "#f1f5f9" : "#f87171" }}>
-                  {m.inPrice === 0 ? "Free" : `$${m.inPrice < 0.01 ? m.inPrice.toFixed(4) : m.inPrice.toFixed(2)}`}
-                </td>
-                {/* Output price */}
-                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, color: m.outPrice === 0 ? "#4ade80" : "#94a3b8" }}>
-                  {m.outPrice === 0 ? "—" : `$${m.outPrice < 0.01 ? m.outPrice.toFixed(4) : m.outPrice.toFixed(2)}`}
-                </td>
-                {/* Context */}
-                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, color: m.context >= 1e6 ? "#f59e0b" : m.context >= 200000 ? "#10B981" : "#94a3b8" }}>
-                  {fmtCtx(m.context)}
-                </td>
-                {/* Modality */}
-                <td style={{ padding: "10px 12px", fontSize: 10, fontFamily: fonts.mono, color: "#64748b", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {MOD_LABELS[m.modality] || m.modality}
-                </td>
-                {/* Released */}
-                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 11, color: "#475569" }}>
-                  {fmtDate(m.createdTs)}
-                </td>
+                <td style={{ padding: "10px 12px" }}><span style={{ fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", background: "rgba(255,255,255,0.05)", padding: "2px 8px", borderRadius: 6 }}>{m.provider}</span></td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, fontWeight: 600, color: "#f1f5f9" }}>{fmtTokens(m.totalTokens)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, color: "#94a3b8" }}>{fmtReqs(m.requests)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, color: m.toolCalls > 0 ? "#a5b4fc" : "#334155" }}>{m.toolCalls > 0 ? fmtReqs(m.toolCalls) : "—"}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, color: m.cachedTokens > 0 ? "#5eead4" : "#334155" }}>{m.cachedTokens > 0 ? fmtTokens(m.cachedTokens) : "—"}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: fonts.mono, fontSize: 12, fontWeight: 600, color: pctColor(m.change) }}>{fmtPct(m.change)}</td>
               </tr>
             );
           })}
@@ -580,14 +607,11 @@ function RankingsTab({ models }) {
       </table>
     </div>
 
-    {/* Pagination */}
     {totalPages > 1 && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <button onClick={() => setPage(0)}         disabled={page === 0}            style={{ ...selectStyle, opacity: page === 0 ? 0.3 : 1 }}>«</button>
-        <button onClick={() => setPage(p => p - 1)} disabled={page === 0}           style={{ ...selectStyle, opacity: page === 0 ? 0.3 : 1 }}>‹</button>
-        <span style={{ fontSize: 11, fontFamily: fonts.mono, color: "#64748b", padding: "0 8px" }}>
-          Page {page + 1} of {totalPages} · {sorted.length} models
-        </span>
+        <button onClick={() => setPage(0)} disabled={page === 0} style={{ ...selectStyle, opacity: page === 0 ? 0.3 : 1 }}>«</button>
+        <button onClick={() => setPage(p => p - 1)} disabled={page === 0} style={{ ...selectStyle, opacity: page === 0 ? 0.3 : 1 }}>‹</button>
+        <span style={{ fontSize: 11, fontFamily: fonts.mono, color: "#64748b", padding: "0 8px" }}>Page {page + 1} of {totalPages}</span>
         <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1} style={{ ...selectStyle, opacity: page >= totalPages - 1 ? 0.3 : 1 }}>›</button>
         <button onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} style={{ ...selectStyle, opacity: page >= totalPages - 1 ? 0.3 : 1 }}>»</button>
       </div>
@@ -598,24 +622,13 @@ function RankingsTab({ models }) {
 // ═══════════════════════════════════════════════════════════
 // MAIN: AIEconomyTab
 // ═══════════════════════════════════════════════════════════
-function AIEconomyTab({ models, loading }) {
-  const [subTab, setSubTab] = useState("index");
-
-  if (loading) return (
-    <div style={{ textAlign: "center", padding: 60, color: "#94a3b8", fontFamily: fonts.heading }}>
-      <div style={{ fontSize: 18 }}>Loading model data from OpenRouter...</div>
-    </div>
-  );
-  if (!models.length) return (
-    <div style={{ textAlign: "center", padding: 60, color: "#64748b", fontFamily: fonts.heading }}>
-      No model data loaded yet.
-    </div>
-  );
+function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
+  const [subTab, setSubTab] = useState("rankings");
 
   const SUB_TABS = [
-    { id: "index",    label: "Economic Index" },
-    { id: "market",   label: "Model Market"   },
-    { id: "rankings", label: "Rankings"       },
+    { id: "rankings", label: "Rankings"        },
+    { id: "index",    label: "Economic Index"  },
+    { id: "market",   label: "Model Market"    },
   ];
 
   return (<>
@@ -626,9 +639,9 @@ function AIEconomyTab({ models, loading }) {
       ))}
     </div>
 
+    {subTab === "rankings" && <RankingsTab rankings={rankings} rankingsLoading={rankingsLoading} />}
     {subTab === "index"    && <EconomicIndexTab />}
     {subTab === "market"   && <ModelMarketTab models={models} />}
-    {subTab === "rankings" && <RankingsTab     models={models} />}
   </>);
 }
 

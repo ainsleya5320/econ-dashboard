@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, LineChart, Line, CartesianGrid } from "recharts";
-import createPlotlyComponent from "react-plotly.js/factory";
-import Plotly from "plotly.js-dist-min";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, LineChart, Line, CartesianGrid, ReferenceLine } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { GLOBAL_RATE_SERIES } from "../lib/constants.js";
 import { fetchFMP } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
-
-const Plot = createPlotlyComponent(Plotly);
 
 const INTL_ETFS = [
   { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "🌍", color: "#818cf8" },

@@ -16,6 +16,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: path => path.replace(/^\/fred-api/, ''),
         secure: true,
+      },
+      '/or-rankings': {
+        target: 'https://openrouter.ai',
+        changeOrigin: true,
+        rewrite: () => '/rankings',
+        secure: true,
       }
     }
   }
