@@ -85,25 +85,25 @@ function GdpSubTab({ gdpData }) {
   const gdpChart = (gdpData.real || [])
     .filter(d => d.value != null)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(d => ({ date: d.date, value: d.value / 1e3 }));
+    .map(d => ({ d: d.date, value: d.value / 1e3 }));
 
   // Unemployment chart
   const unempChart = (gdpData.unemployment || [])
     .filter(d => d.value != null)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(d => ({ date: d.date, value: d.value }));
+    .map(d => ({ d: d.date, value: d.value }));
 
   // Consumer Sentiment chart
   const sentimentChart = (gdpData.sentiment || [])
     .filter(d => d.value != null)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(d => ({ date: d.date, value: d.value }));
+    .map(d => ({ d: d.date, value: d.value }));
 
   // Retail Sales chart
   const retailChart = (gdpData.retailSales || [])
     .filter(d => d.value != null)
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(d => ({ date: d.date, value: d.value / 1e3 }));
+    .map(d => ({ d: d.date, value: d.value / 1e3 }));
 
   return (<>
     <SH>Economic Overview (FMP)</SH>
