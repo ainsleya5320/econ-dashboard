@@ -4,7 +4,8 @@ import createPlotlyComponent from "react-plotly.js/factory";
 import Plotly from "plotly.js-dist-min";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
-import { fmtDate, fmtAxisDate, SH, InfoBox } from "../components/shared.jsx";
+import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
+import CSPScreener from "./stocks/CSPScreener.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -813,6 +814,7 @@ function StocksTab({ fmpKey }) {
   const [detailSymbol, setDetailSymbol] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [stockView, setStockView] = useState("screener"); // "screener" | "csp"
 
   const loadData = useCallback(async () => {
     if (!fmpKey) { setError("Enter your FMP API key above to load stock data."); return; }
@@ -891,7 +893,30 @@ function StocksTab({ fmpKey }) {
     </>);
   }
 
+  // View toggle
+  const viewToggle = (
+    <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
+      {[["screener", "📊 Stock Screener"], ["csp", "💰 Cash-Secured Puts"]].map(([id, label]) => (
+        <button key={id} onClick={() => setStockView(id)} style={{
+          flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
+          background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
+          color: stockView === id ? "#f1f5f9" : "#64748b", fontSize: 12, fontWeight: stockView === id ? 600 : 400,
+          fontFamily: fonts.heading, cursor: "pointer", transition: "all 0.2s",
+          boxShadow: stockView === id ? "0 2px 8px rgba(0,0,0,0.3)" : "none",
+        }}>{label}</button>
+      ))}
+    </div>
+  );
+
+  if (stockView === "csp") {
+    return (<>
+      {viewToggle}
+      <CSPScreener tickers={tickers} />
+    </>);
+  }
+
   return (<>
+    {viewToggle}
     <SH>Stock Fundamentals Screener</SH>
     <InfoBox color="#6366F1">
       <strong style={{ color: "#cbd5e1" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
