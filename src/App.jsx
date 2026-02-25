@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
-import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
+import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
 import NewsTicker from "./components/NewsTicker.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
@@ -10,7 +10,6 @@ import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
 import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
-import HousingTab from "./tabs/HousingTab.jsx";
 
 export default function Dashboard() {
   const [fredKey, setFredKey] = useState("242945c79ff76bec9082797eb56dea77"); const [fmpKey, setFmpKey] = useState("3ccQfvWcHnuzsOVTKL2YHYxWAdpu91HP");
@@ -22,6 +21,7 @@ export default function Dashboard() {
   const [aiModels, setAiModels] = useState([]); const [aiLoading, setAiLoading] = useState(false);
   const [rankingsData, setRankingsData] = useState([]); const [rankingsLoading, setRankingsLoading] = useState(false);
   const [newsItems, setNewsItems] = useState([]); const [newsLoading, setNewsLoading] = useState(false);
+  const [zillowData, setZillowData] = useState(null);
   const [choroplethMetric, setChoroplethMetric] = useState("unemployment");
   const [choroplethCache, setChoroplethCache] = useState(() => {
     // Start with bundled snapshot, overlay any fresher localStorage data
@@ -68,6 +68,8 @@ export default function Dashboard() {
     }
     const metric = CHOROPLETH_METRICS.find(m => m.key === metricKey);
     if (!metric) return;
+    // Zillow-sourced metrics are populated via CSV fetch, not FRED API
+    if (metric.source === "zillow") return;
     if (!background) { setChoroplethLoading(true); setChoroplethProgress("Loading 0/" + ALL_STATES.length); }
     const results = {};
     let done = 0;
@@ -136,6 +138,43 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fmpKey]);
 
+  // Fetch Zillow CSV data on mount and populate choropleth cache
+  useEffect(() => {
+    fetchZillowData().then(zd => {
+      setZillowData(zd);
+      // Populate choropleth cache with Zillow state-level data
+      if (zd.states?.zhvi) {
+        const zhviResults = {};
+        for (const [st, data] of Object.entries(zd.states.zhvi)) {
+          zhviResults[st] = { v: data.v, d: data.d };
+        }
+        // Add national benchmark from metro data
+        if (zd.national?.zhvi) zhviResults._national = { v: zd.national.zhvi.current, d: zd.national.zhvi.lastDate };
+        choroplethCacheRef.current.zillowHomeValue = zhviResults;
+        freshlyFetchedRef.current.zillowHomeValue = true;
+        setChoroplethCache(prev => {
+          const next = { ...prev, zillowHomeValue: zhviResults };
+          try { localStorage.setItem("choroplethCache_v2", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+      if (zd.states?.inventory) {
+        const invResults = {};
+        for (const [st, data] of Object.entries(zd.states.inventory)) {
+          invResults[st] = { v: data.v, d: data.d };
+        }
+        if (zd.national?.inventory) invResults._national = { v: zd.national.inventory.current, d: zd.national.inventory.lastDate };
+        choroplethCacheRef.current.zillowInventory = invResults;
+        freshlyFetchedRef.current.zillowInventory = true;
+        setChoroplethCache(prev => {
+          const next = { ...prev, zillowInventory: invResults };
+          try { localStorage.setItem("choroplethCache_v2", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+    }).catch(e => console.error("Zillow fetch error:", e));
+  }, []);
+
   const fetchFredData = useCallback(async () => {
     if (!fredKey) return; setFredStatus("loading");
     try {
@@ -149,6 +188,14 @@ export default function Dashboard() {
           const o = await fetchFred(id, fredKey, m.isIndex ? 24 : 10);
           if (m.isIndex && o.length >= 13) { const h = []; for (let i = 12; i < o.length; i++) h.push({ d: o[i].d, v: parseFloat((((o[i].v - o[i-12].v) / o[i-12].v) * 100).toFixed(1)) }); cr[id] = { yoy: h[h.length-1]?.v, lastDate: h[h.length-1]?.d, history: h }; }
           else if (!m.isIndex && o.length) cr[id] = { current: o[o.length-1].v, lastDate: o[o.length-1].d, history: o };
+        } catch {}
+      }
+      // Fetch CPI & PCE component breakdowns (all monthly index → YoY %)
+      const compSeries = { ...CPI_COMPONENTS, ...PCE_COMPONENTS };
+      for (const [id] of Object.entries(compSeries)) {
+        try {
+          const o = await fetchFred(id, fredKey, 24);
+          if (o.length >= 13) { const h = []; for (let i = 12; i < o.length; i++) h.push({ d: o[i].d, v: parseFloat((((o[i].v - o[i-12].v) / o[i-12].v) * 100).toFixed(1)) }); cr[id] = { yoy: h[h.length-1]?.v, lastDate: h[h.length-1]?.d, history: h }; }
         } catch {}
       }
       if (Object.keys(cr).length) setCd(p => ({ ...p, ...cr }));
@@ -227,7 +274,6 @@ export default function Dashboard() {
   const tabs = [
     { id: "economy", label: "U.S. Economy", icon: <img src="https://flagcdn.com/w40/us.png" alt="US" style={{ width: 18, height: 13, verticalAlign: "middle" }} /> },
     { id: "intl", label: "International", icon: "🌍" },
-    { id: "housing", label: "Housing", icon: "🏠" },
     { id: "stocks", label: "Stocks", icon: "🏛" },
     { id: "ai", label: "AI Economy", icon: "🤖" },
     { id: "history", label: "Historical", icon: "📜" },
@@ -272,9 +318,8 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
+        {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
         {tab === "intl" && <InternationalTab fmpKey={fmpKey} />}
-        {tab === "housing" && <HousingTab hd={hd} md={md} />}
         {tab === "stocks" && <StocksTab fmpKey={fmpKey} />}
         {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
         {tab === "history" && <HistoricalReturnsTab />}

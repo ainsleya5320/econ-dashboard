@@ -22,6 +22,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: () => '/rankings',
         secure: true,
+      },
+      '/zillow-csv': {
+        target: 'https://files.zillowstatic.com/research/public_csvs',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/zillow-csv/, ''),
+        secure: true,
       }
     }
   }

@@ -122,4 +122,166 @@ async function fetchFMPNews(fmpKey, limit = 40) {
   }));
 }
 
-export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews };
+// ── Zillow CSV helpers ──
+function parseCSVLine(line) {
+  const result = [];
+  let current = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') { if (line[i + 1] === '"') { current += '"'; i++; } else inQ = false; }
+      else current += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { result.push(current.trim()); current = ""; }
+      else current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function parseZillowWideCSV(csvText, { lastNMonths = 60 } = {}) {
+  const lines = csvText.split("\n").filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  const dateStartIdx = headers.findIndex(h => /^\d{4}-\d{2}-\d{2}$/.test(h));
+  if (dateStartIdx === -1) return [];
+  const allDates = headers.slice(dateStartIdx);
+  const datesToUse = lastNMonths ? allDates.slice(-lastNMonths) : allDates;
+  const dateOffset = allDates.length - datesToUse.length;
+
+  return lines.slice(1).map(line => {
+    const vals = parseCSVLine(line);
+    const meta = {};
+    for (let i = 0; i < dateStartIdx; i++) meta[headers[i]] = vals[i];
+    const history = [];
+    for (let i = 0; i < datesToUse.length; i++) {
+      const raw = vals[dateStartIdx + dateOffset + i];
+      if (raw && raw !== "") history.push({ d: datesToUse[i], v: parseFloat(raw) });
+    }
+    const current = history.length ? history[history.length - 1].v : null;
+    const lastDate = history.length ? history[history.length - 1].d : null;
+    // YoY: compare current to value ~12 months ago
+    let yoy = null;
+    if (history.length >= 13) {
+      const prev = history[history.length - 13].v;
+      if (prev > 0) yoy = ((current - prev) / prev) * 100;
+    }
+    return { ...meta, history, current, lastDate, yoy };
+  });
+}
+
+const ZILLOW_URLS = {
+  zhviState: "/zillow-csv/zhvi/State_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv",
+  zhviMetro: "/zillow-csv/zhvi/Metro_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv",
+  zoriMetro: "/zillow-csv/zori/Metro_zori_uc_sfrcondomfr_sm_sa_month.csv",
+  inventoryState: "/zillow-csv/invt_fs/State_invt_fs_uc_sfrcondo_sm_month.csv",
+  inventoryMetro: "/zillow-csv/invt_fs/Metro_invt_fs_uc_sfrcondo_sm_month.csv",
+  newListingsMetro: "/zillow-csv/new_listings/Metro_new_listings_uc_sfrcondo_sm_month.csv",
+  medianListMetro: "/zillow-csv/mlp/Metro_mlp_uc_sfrcondo_sm_month.csv",
+};
+
+// Reverse map: "California" → "CA"
+const NAME_TO_ABBR = {};
+const ST = { AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming" };
+for (const [abbr, name] of Object.entries(ST)) NAME_TO_ABBR[name] = abbr;
+
+async function fetchZillowData() {
+  const fetchCSV = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`Zillow CSV error ${r.status}`); return r.text(); };
+
+  // Fetch all CSVs in parallel
+  const [zhviStateCSV, zhviMetroCSV, zoriMetroCSV, invStateCSV, invMetroCSV, newListCSV, mlpCSV] = await Promise.all([
+    fetchCSV(ZILLOW_URLS.zhviState).catch(() => null),
+    fetchCSV(ZILLOW_URLS.zhviMetro).catch(() => null),
+    fetchCSV(ZILLOW_URLS.zoriMetro).catch(() => null),
+    fetchCSV(ZILLOW_URLS.inventoryState).catch(() => null),
+    fetchCSV(ZILLOW_URLS.inventoryMetro).catch(() => null),
+    fetchCSV(ZILLOW_URLS.newListingsMetro).catch(() => null),
+    fetchCSV(ZILLOW_URLS.medianListMetro).catch(() => null),
+  ]);
+
+  const result = { national: {}, states: {}, metros: [] };
+
+  // Parse ZHVI state data (for choropleth)
+  if (zhviStateCSV) {
+    const rows = parseZillowWideCSV(zhviStateCSV, { lastNMonths: 60 });
+    const zhviStates = {};
+    for (const row of rows) {
+      const abbr = NAME_TO_ABBR[row.RegionName];
+      if (abbr) zhviStates[abbr] = { v: row.current, d: row.lastDate, yoy: row.yoy, history: row.history };
+    }
+    result.states.zhvi = zhviStates;
+  }
+
+  // Parse inventory state data (for choropleth)
+  if (invStateCSV) {
+    const rows = parseZillowWideCSV(invStateCSV, { lastNMonths: 60 });
+    const invStates = {};
+    for (const row of rows) {
+      const abbr = NAME_TO_ABBR[row.RegionName];
+      if (abbr) invStates[abbr] = { v: row.current, d: row.lastDate, history: row.history };
+    }
+    result.states.inventory = invStates;
+  }
+
+  // Parse ZHVI metro data — extract national row + top 50 metros
+  if (zhviMetroCSV) {
+    const rows = parseZillowWideCSV(zhviMetroCSV, { lastNMonths: 60 });
+    const national = rows.find(r => r.RegionName === "United States");
+    if (national) result.national.zhvi = { current: national.current, lastDate: national.lastDate, yoy: national.yoy, history: national.history };
+    // Top 50 metros by SizeRank (lower = bigger)
+    const metroRows = rows.filter(r => r.RegionType === "msa").sort((a, b) => +a.SizeRank - +b.SizeRank).slice(0, 50);
+    for (const m of metroRows) {
+      const existing = result.metros.find(x => x.name === m.RegionName) || { name: m.RegionName, state: m.StateName, sizeRank: +m.SizeRank };
+      existing.zhvi = m.current;
+      existing.zhviYoy = m.yoy;
+      existing.zhviHistory = m.history;
+      if (!result.metros.find(x => x.name === m.RegionName)) result.metros.push(existing);
+    }
+  }
+
+  // Parse ZORI metro data
+  if (zoriMetroCSV) {
+    const rows = parseZillowWideCSV(zoriMetroCSV, { lastNMonths: 60 });
+    const national = rows.find(r => r.RegionName === "United States");
+    if (national) result.national.zori = { current: national.current, lastDate: national.lastDate, yoy: national.yoy, history: national.history };
+    for (const m of rows.filter(r => r.RegionType === "msa")) {
+      const existing = result.metros.find(x => x.name === m.RegionName);
+      if (existing) { existing.zori = m.current; existing.zoriYoy = m.yoy; }
+    }
+  }
+
+  // Parse inventory metro data
+  if (invMetroCSV) {
+    const rows = parseZillowWideCSV(invMetroCSV, { lastNMonths: 60 });
+    const national = rows.find(r => r.RegionName === "United States");
+    if (national) result.national.inventory = { current: national.current, lastDate: national.lastDate, yoy: national.yoy, history: national.history };
+    for (const m of rows.filter(r => r.RegionType === "msa")) {
+      const existing = result.metros.find(x => x.name === m.RegionName);
+      if (existing) existing.inventory = m.current;
+    }
+  }
+
+  // Parse new listings metro data
+  if (newListCSV) {
+    const rows = parseZillowWideCSV(newListCSV, { lastNMonths: 60 });
+    const national = rows.find(r => r.RegionName === "United States");
+    if (national) result.national.newListings = { current: national.current, lastDate: national.lastDate, yoy: national.yoy, history: national.history };
+  }
+
+  // Parse median list price metro data
+  if (mlpCSV) {
+    const rows = parseZillowWideCSV(mlpCSV, { lastNMonths: 60 });
+    const national = rows.find(r => r.RegionName === "United States");
+    if (national) result.national.medianListPrice = { current: national.current, lastDate: national.lastDate, yoy: national.yoy, history: national.history };
+    for (const m of rows.filter(r => r.RegionType === "msa")) {
+      const existing = result.metros.find(x => x.name === m.RegionName);
+      if (existing) existing.listPrice = m.current;
+    }
+  }
+
+  return result;
+}
+
+export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData };

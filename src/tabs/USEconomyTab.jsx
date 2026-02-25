@@ -6,11 +6,11 @@ import { fetchFMP } from "../lib/api.js";
 import { fmtDate, SH, InfoBox } from "../components/shared.jsx";
 import RatesTab from "./RatesTab.jsx";
 import CpiTab from "./CpiTab.jsx";
-import HousingTab from "./HousingTab.jsx";
+import HousingSubTab from "./HousingSubTab.jsx";
 import ConsumerTab from "./ConsumerTab.jsx";
 import GdpSubTab from "./GdpSubTab.jsx";
 
-function USEconomyTab({ md, td, gd, cd, csm, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
+function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
   const [econSubTab, setEconSubTab] = useState("rates");
   const [tooltipContent, setTooltipContent] = useState("");
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -46,6 +46,7 @@ function USEconomyTab({ md, td, gd, cd, csm, fredKey, fmpKey, choroplethCache, c
   const ECON_SUB_TABS = [
     { id: "rates", label: "Rates" },
     { id: "gdp", label: "GDP" },
+    { id: "housing", label: "Housing" },
     { id: "cpi", label: "CPI" },
     { id: "stateLevel", label: "State-Level" },
     { id: "consumer", label: "Consumer" },
@@ -103,6 +104,9 @@ function USEconomyTab({ md, td, gd, cd, csm, fredKey, fmpKey, choroplethCache, c
 
     {/* GDP sub-tab */}
     {econSubTab === "gdp" && <GdpSubTab gdpData={gdpData} />}
+
+    {/* Housing sub-tab */}
+    {econSubTab === "housing" && <HousingSubTab hd={hd} md={md} zillow={zillowData} />}
 
     {/* CPI sub-tab */}
     {econSubTab === "cpi" && <CpiTab cd={cd} />}

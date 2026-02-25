@@ -6,6 +6,7 @@ import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import CSPScreener from "./stocks/CSPScreener.jsx";
+import ProfitSankey from "./stocks/ProfitSankey.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -31,19 +32,23 @@ const STOCK_COLS = [
 const DETAIL_SECTIONS = [
   { title: "Financials", rows: [
     { label: "Revenue", fmt: "bigdollar", get: (d, i) => d.inc[i]?.revenue },
+    { label: "  ↳ Rev Growth %", fmt: "pct", isGrowth: true, get: (d, i) => { const cur = d.inc[i]?.revenue, prev = d.inc[i - 1]?.revenue; return prev ? (cur - prev) / Math.abs(prev) : null; } },
     { label: "  Gross Profit", fmt: "bigdollar", get: (d, i) => d.inc[i]?.grossProfit },
     { label: "  Operating Income", fmt: "bigdollar", get: (d, i) => d.inc[i]?.operatingIncome },
+    { label: "  ↳ Op Inc Growth %", fmt: "pct", isGrowth: true, get: (d, i) => { const cur = d.inc[i]?.operatingIncome, prev = d.inc[i - 1]?.operatingIncome; return prev ? (cur - prev) / Math.abs(prev) : null; } },
     { label: "  Net Income", fmt: "bigdollar", get: (d, i) => d.inc[i]?.netIncome },
+    { label: "  ↳ Net Inc Growth %", fmt: "pct", isGrowth: true, get: (d, i) => { const cur = d.inc[i]?.netIncome, prev = d.inc[i - 1]?.netIncome; return prev ? (cur - prev) / Math.abs(prev) : null; } },
     { label: "EBITDA", fmt: "bigdollar", get: (d, i) => d.inc[i]?.ebitda },
-    { label: "EPS (Diluted)", fmt: "num2", get: (d, i) => d.inc[i]?.epsdiluted },
-    { label: "Dividends/Share", fmt: "num2", get: (d, i) => { const div = Math.abs(d.cf[i]?.dividendsPaid || 0), sh = d.inc[i]?.weightedAverageShsOutDil; return sh ? div / sh : null; } },
+    { label: "EPS (Diluted)", fmt: "num2", get: (d, i) => d.inc[i]?.epsDiluted },
+    { label: "  ↳ EPS Growth %", fmt: "pct", isGrowth: true, get: (d, i) => { const cur = d.inc[i]?.epsDiluted, prev = d.inc[i - 1]?.epsDiluted; return prev ? (cur - prev) / Math.abs(prev) : null; } },
+    { label: "Dividends/Share", fmt: "num2", get: (d, i) => { const div = Math.abs(d.cf[i]?.netDividendsPaid || 0), sh = d.inc[i]?.weightedAverageShsOutDil; return sh ? div / sh : null; } },
     { label: "Shares Out (Dil)", fmt: "bignum", get: (d, i) => d.inc[i]?.weightedAverageShsOutDil },
   ]},
   { title: "Profitability", rows: [
     { label: "Tax Rate %", fmt: "pct", get: (d, i) => d.inc[i]?.incomeTaxExpense != null && d.inc[i]?.incomeBeforeTax ? d.inc[i].incomeTaxExpense / d.inc[i].incomeBeforeTax : null },
-    { label: "Gross Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.grossProfitMargin ?? d.inc[i]?.grossProfitRatio },
-    { label: "Operating Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.operatingProfitMargin ?? d.inc[i]?.operatingIncomeRatio },
-    { label: "Net Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.netProfitMargin ?? d.inc[i]?.netIncomeRatio },
+    { label: "Gross Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.grossProfitMargin ?? (d.inc[i]?.revenue ? d.inc[i].grossProfit / d.inc[i].revenue : null) },
+    { label: "Operating Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.operatingProfitMargin ?? (d.inc[i]?.revenue ? d.inc[i].operatingIncome / d.inc[i].revenue : null) },
+    { label: "Net Margin %", fmt: "pct", get: (d, i) => d.rat[i]?.netProfitMargin ?? (d.inc[i]?.revenue ? d.inc[i].netIncome / d.inc[i].revenue : null) },
     { label: "FCF Margin %", fmt: "pct", get: (d, i) => { const fcf = d.cf[i]?.freeCashFlow, rev = d.inc[i]?.revenue; return rev ? fcf / rev : null; } },
   ]},
   { title: "Profitability — Returns", rows: [
@@ -53,19 +58,13 @@ const DETAIL_SECTIONS = [
     { label: "Asset Turnover", fmt: "num2", get: (d, i) => { const rev = d.inc[i]?.revenue, ta = d.bs[i]?.totalAssets; return ta ? rev / ta : null; } },
     { label: "Inventory Turnover", fmt: "num2", get: (d, i) => { const cogs = d.inc[i]?.costOfRevenue, inv = d.bs[i]?.inventory; return inv ? cogs / inv : null; } },
   ]},
-  { title: "Growth (YoY %)", rows: [
-    { label: "Revenue Growth %", fmt: "pct", get: (d, i) => { const cur = d.inc[i]?.revenue, prev = d.inc[i - 1]?.revenue; return prev ? (cur - prev) / Math.abs(prev) : null; } },
-    { label: "Operating Income Growth %", fmt: "pct", get: (d, i) => { const cur = d.inc[i]?.operatingIncome, prev = d.inc[i - 1]?.operatingIncome; return prev ? (cur - prev) / Math.abs(prev) : null; } },
-    { label: "Net Income Growth %", fmt: "pct", get: (d, i) => { const cur = d.inc[i]?.netIncome, prev = d.inc[i - 1]?.netIncome; return prev ? (cur - prev) / Math.abs(prev) : null; } },
-    { label: "EPS Growth %", fmt: "pct", get: (d, i) => { const cur = d.inc[i]?.epsdiluted, prev = d.inc[i - 1]?.epsdiluted; return prev ? (cur - prev) / Math.abs(prev) : null; } },
-    { label: "FCF Growth %", fmt: "pct", get: (d, i) => { const cur = d.cf[i]?.freeCashFlow, prev = d.cf[i - 1]?.freeCashFlow; return prev ? (cur - prev) / Math.abs(prev) : null; } },
-  ]},
   { title: "Cash Flow", rows: [
     { label: "Operating Cash Flow", fmt: "bigdollar", get: (d, i) => d.cf[i]?.operatingCashFlow },
     { label: "Capital Expenditure", fmt: "bigdollar", get: (d, i) => d.cf[i]?.capitalExpenditure },
     { label: "Free Cash Flow", fmt: "bigdollar", get: (d, i) => d.cf[i]?.freeCashFlow },
+    { label: "  ↳ FCF Growth %", fmt: "pct", isGrowth: true, get: (d, i) => { const cur = d.cf[i]?.freeCashFlow, prev = d.cf[i - 1]?.freeCashFlow; return prev ? (cur - prev) / Math.abs(prev) : null; } },
     { label: "FCF/Share", fmt: "num2", get: (d, i) => { const fcf = d.cf[i]?.freeCashFlow, sh = d.inc[i]?.weightedAverageShsOutDil; return sh ? fcf / sh : null; } },
-    { label: "Dividends Paid", fmt: "bigdollar", get: (d, i) => d.cf[i]?.dividendsPaid },
+    { label: "Dividends Paid", fmt: "bigdollar", get: (d, i) => d.cf[i]?.netDividendsPaid },
     { label: "Stock Buybacks", fmt: "bigdollar", get: (d, i) => d.cf[i]?.commonStockRepurchased },
     { label: "SBC", fmt: "bigdollar", get: (d, i) => d.cf[i]?.stockBasedCompensation },
     { label: "FCF/Net Income", fmt: "pct", get: (d, i) => { const fcf = d.cf[i]?.freeCashFlow, ni = d.inc[i]?.netIncome; return ni ? fcf / ni : null; } },
@@ -133,34 +132,25 @@ async function fetchStockData(symbol, fmpKey) {
   if (!inc || !bs) return null;
   const mktCap = prof?.mktCap || km?.marketCap;
   const rev = inc.revenue || 1;
-  const ni = inc.netIncome; const ebit = inc.operatingIncome;
   const equity = bs.totalStockholdersEquity; const totalAssets = bs.totalAssets;
-  const fcf = cf?.freeCashFlow; const sbc = cf?.stockBasedCompensation;
   const cash = bs.cashAndShortTermInvestments || bs.cashAndCashEquivalents;
   const debt = bs.totalDebt;
   const tax = inc.incomeTaxExpense;
-  const investedCapital = (equity || 0) + (debt || 0) - (cash || 0);
-  const earningsYield = mktCap ? ni / mktCap : null;
-  const fcfYield = mktCap && fcf ? fcf / mktCap : null;
-  const roe = equity ? ni / equity : null;
-  const roic = investedCapital > 0 && ebit ? ebit * (1 - 0.21) / investedCapital : null;
-  // 5Y averages
-  const roes = ratArr?.slice(0, 5).map(r => r.returnOnEquity).filter(v => v != null) || [];
-  const roics = [];
-  for (let i = 0; i < Math.min(5, (bsArr||[]).length, (incArr||[]).length); i++) {
-    const e = bsArr[i]?.totalStockholdersEquity || 0;
-    const d2 = bsArr[i]?.totalDebt || 0;
-    const c2 = bsArr[i]?.cashAndShortTermInvestments || bsArr[i]?.cashAndCashEquivalents || 0;
-    const ic = e + d2 - c2;
-    const op = incArr[i]?.operatingIncome;
-    if (ic > 0 && op) roics.push(op * 0.79 / ic);
-  }
-  const peg = rat?.priceEarningsToGrowthRatio;
+  // Use FMP's pre-computed metrics (no hardcoded tax rates)
+  const earningsYield = km?.earningsYield ?? null;
+  const fcfYield = km?.freeCashFlowYield ?? null;
+  const roe = km?.returnOnEquity ?? null;
+  const roic = km?.returnOnInvestedCapital ?? null;
+  // 5Y averages from key-metrics
+  const roes = kmArr?.slice(0, 5).map(r => r.returnOnEquity).filter(v => v != null) || [];
+  const roics = kmArr?.slice(0, 5).map(r => r.returnOnInvestedCapital).filter(v => v != null) || [];
+  const peg = rat?.priceToEarningsGrowthRatio;
+  const sbcPct = km?.stockBasedCompensationToRevenue ?? null;
   return {
     symbol, mktCap, totalAssets, equity, earningsYield, fcfYield, roe,
     roe5y: avg(roes), roic, roic5y: avg(roics),
     peg: peg != null && isFinite(peg) ? peg : null,
-    sbcPct: sbc ? sbc / rev : null,
+    sbcPct,
     cash, debt,
     taxPct: tax != null ? tax / rev : null,
   };
@@ -181,7 +171,7 @@ async function fetchStockDetail(symbol, fmpKey) {
   const quote = Array.isArray(fullQuote) ? fullQuote[0] : fullQuote;
   const price = quote?.price || prof?.price || null;
   const hist = Array.isArray(priceHist) ? [...priceHist].reverse().slice(-90) : (priceHist?.historical ? [...priceHist.historical].reverse().slice(-90) : []);
-  const years = (incArr || []).map(r => r.calendarYear || r.date?.slice(0, 4)).reverse();
+  const years = (incArr || []).map(r => r.fiscalYear || r.date?.slice(0, 4)).reverse();
   return { symbol, price, quote, hist, years, inc: [...(incArr || [])].reverse(), bs: [...(bsArr || [])].reverse(), cf: [...(cfArr || [])].reverse(), rat: [...(ratArr || [])].reverse(), km: [...(kmArr || [])].reverse(), prof };
 }
 
@@ -751,8 +741,8 @@ function StockDetailView({ data, onBack }) {
             {statCell("Volume", fmtVol(q.volume))}
             {statCell("Avg Volume", fmtVol(q.avgVolume ?? prof?.volAvg))}
             {statCell("Market Cap", fmtBig(q.marketCap ?? prof?.mktCap))}
-            {statCell("P/E", fmtNum(q.pe ?? (prof?.price && data.km?.[data.km.length-1]?.peRatio ? data.km[data.km.length-1].peRatio : null)))}
-            {statCell("EPS", `$${fmtNum(q.eps ?? data.inc?.[data.inc.length-1]?.epsdiluted)}`)}
+            {statCell("P/E", fmtNum(q.pe ?? data.rat?.[data.rat.length-1]?.priceToEarningsRatio))}
+            {statCell("EPS", `$${fmtNum(q.eps ?? data.inc?.[data.inc.length-1]?.epsDiluted)}`)}
             {statCell("50-Day Avg", `$${fmtNum(q.priceAvg50 ?? prof?.priceAvg50)}`)}
             {statCell("200-Day Avg", `$${fmtNum(q.priceAvg200 ?? prof?.priceAvg200)}`)}
           </div>
@@ -761,7 +751,8 @@ function StockDetailView({ data, onBack }) {
     })()}
     {viewMode === "dcf" && <ReverseDCF data={data} />}
     {viewMode === "vol" && <VolSurface symbol={data.symbol} spot={data.price} />}
-    {viewMode === "ratios" && (
+    {viewMode === "ratios" && (<>
+      <ProfitSankey data={data} />
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
           <thead style={{ position: "sticky", top: 0, zIndex: 3 }}>
@@ -781,14 +772,15 @@ function StockDetailView({ data, onBack }) {
               {/* Data rows */}
               {section.rows.map((row, ri) => {
                 const isIndented = row.label.startsWith("  ");
+                const isGrowth = row.isGrowth;
                 const label = isIndented ? row.label.trim() : row.label;
                 return (
-                  <tr key={row.label} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}
+                  <tr key={`${section.title}-${ri}`} style={{ borderBottom: isGrowth ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(255,255,255,0.03)" }}
                     onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <td style={{ padding: isIndented ? "6px 14px 6px 28px" : "6px 14px", fontSize: 11, color: isIndented ? "#64748b" : "#94a3b8", fontFamily: fonts.heading, fontWeight: isIndented ? 400 : 500, position: "sticky", left: 0, background: "#161a30", zIndex: 1, whiteSpace: "nowrap" }}>{label}</td>
+                    <td style={{ padding: isGrowth ? "3px 14px 3px 38px" : isIndented ? "6px 14px 6px 28px" : "6px 14px", fontSize: isGrowth ? 10 : 11, color: isGrowth ? "#6366f1" : isIndented ? "#64748b" : "#94a3b8", fontFamily: isGrowth ? fonts.mono : fonts.heading, fontWeight: isGrowth ? 400 : isIndented ? 400 : 500, fontStyle: isGrowth ? "italic" : "normal", position: "sticky", left: 0, background: "#161a30", zIndex: 1, whiteSpace: "nowrap" }}>{label}</td>
                     {years.map((y, yi) => { const val = row.get(data, yi); return (
-                      <td key={y} style={{ padding: "6px 8px", fontSize: 11, color: val != null && val < 0 ? "#f87171" : "#cbd5e1", fontFamily: fonts.mono, textAlign: "right", whiteSpace: "nowrap" }}>{fmtVal(val, row.fmt)}</td>
+                      <td key={y} style={{ padding: isGrowth ? "3px 8px" : "6px 8px", fontSize: isGrowth ? 10 : 11, color: isGrowth ? (val != null && val < 0 ? "#f87171" : val != null && val > 0 ? "#4ade80" : "#475569") : (val != null && val < 0 ? "#f87171" : "#cbd5e1"), fontFamily: fonts.mono, textAlign: "right", whiteSpace: "nowrap" }}>{fmtVal(val, row.fmt)}</td>
                     ); })}
                   </tr>
                 );
@@ -797,7 +789,7 @@ function StockDetailView({ data, onBack }) {
           </tbody>
         </table>
       </div>
-    )}
+    </>)}
   </>);
 }
 
@@ -908,31 +900,18 @@ function StocksTab({ fmpKey }) {
     </div>
   );
 
-  if (stockView === "csp") {
-    return (<>
-      {viewToggle}
-      <CSPScreener tickers={tickers} />
-    </>);
-  }
-
-  return (<>
-    {viewToggle}
-    <SH>Stock Fundamentals Screener</SH>
-    <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
-    </InfoBox>
-
-    {/* Ticker management */}
+  // Shared ticker management (visible on both screener and CSP views)
+  const tickerBar = (<>
     <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
       <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTicker()} placeholder="Add ticker (e.g. COST)"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", color: "#e2e8f0", fontSize: 12, fontFamily: fonts.mono, outline: "none", width: 140 }} />
       <button onClick={addTicker} style={{ background: "#6366F1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: fonts.heading }}>Add</button>
-      <button onClick={loadData} disabled={loading} style={{ background: "#E8553A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: fonts.heading, opacity: loading ? 0.6 : 1 }}>
-        {loading ? "Loading..." : "Fetch Data"}
-      </button>
+      {stockView === "screener" && (
+        <button onClick={loadData} disabled={loading} style={{ background: "#E8553A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: fonts.heading, opacity: loading ? 0.6 : 1 }}>
+          {loading ? "Loading..." : "Fetch Data"}
+        </button>
+      )}
     </div>
-
-    {/* Ticker pills */}
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
       {tickers.map(t => (
         <span key={t} style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontFamily: fonts.mono, color: "#c7d2fe", display: "flex", alignItems: "center", gap: 6 }}>
@@ -941,6 +920,23 @@ function StocksTab({ fmpKey }) {
         </span>
       ))}
     </div>
+  </>);
+
+  if (stockView === "csp") {
+    return (<>
+      {viewToggle}
+      {tickerBar}
+      <CSPScreener tickers={tickers} />
+    </>);
+  }
+
+  return (<>
+    {viewToggle}
+    {tickerBar}
+    <SH>Stock Fundamentals Screener</SH>
+    <InfoBox color="#6366F1">
+      <strong style={{ color: "#cbd5e1" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
+    </InfoBox>
 
     {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
