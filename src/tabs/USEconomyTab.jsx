@@ -9,6 +9,9 @@ import CpiTab from "./CpiTab.jsx";
 import HousingSubTab from "./HousingSubTab.jsx";
 import ConsumerTab from "./ConsumerTab.jsx";
 import GdpSubTab from "./GdpSubTab.jsx";
+import BudgetSubTab from "./BudgetSubTab.jsx";
+import LaborSubTab from "./LaborSubTab.jsx";
+import FedSubTab from "./FedSubTab.jsx";
 
 function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
   const [econSubTab, setEconSubTab] = useState("rates");
@@ -44,12 +47,15 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
   }, [econSubTab, gdpData, fmpKey]);
 
   const ECON_SUB_TABS = [
-    { id: "rates", label: "Rates" },
-    { id: "gdp", label: "GDP" },
-    { id: "housing", label: "Housing" },
-    { id: "cpi", label: "CPI" },
-    { id: "stateLevel", label: "State-Level" },
-    { id: "consumer", label: "Consumer" },
+    { id: "rates",      label: "Rates"               },
+    { id: "fed",        label: "Fed Balance Sheet"   },
+    { id: "gdp",        label: "GDP"                 },
+    { id: "housing",    label: "Housing"             },
+    { id: "cpi",        label: "CPI"                 },
+    { id: "stateLevel", label: "State-Level"         },
+    { id: "consumer",   label: "Consumer"            },
+    { id: "budget",     label: "Fed. Budget"         },
+    { id: "labor",      label: "Labor"               },
   ];
 
   const metricCfg = CHOROPLETH_METRICS.find(m => m.key === choroplethMetric);
@@ -87,12 +93,13 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
   return (<>
     {/* Economy sub-tab bar */}
-    <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, background: "var(--bg-subtle)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
       {ECON_SUB_TABS.map(t => (
         <button key={t.id} onClick={() => setEconSubTab(t.id)} style={{
-          flex: 1, padding: "8px 10px", border: "none", borderRadius: 8,
+          flex: "1 1 auto", padding: "8px 10px", border: "none", borderRadius: 8,
           background: econSubTab === t.id ? "linear-gradient(135deg, rgba(129,140,248,0.2), rgba(99,102,241,0.1))" : "transparent",
-          color: econSubTab === t.id ? "#c7d2fe" : "#64748b", fontSize: 12, fontWeight: econSubTab === t.id ? 600 : 400,
+          color: econSubTab === t.id ? "var(--tab-active-color)" : "var(--tab-inactive-color)",
+          fontSize: 12, fontWeight: econSubTab === t.id ? 600 : 400,
           fontFamily: fonts.heading, cursor: "pointer", transition: "all 0.15s",
           borderBottom: econSubTab === t.id ? "2px solid #818cf8" : "2px solid transparent",
         }}>{t.label}</button>
@@ -101,6 +108,9 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
     {/* Rates sub-tab */}
     {econSubTab === "rates" && <RatesTab md={md} td={td} fmpKey={fmpKey} />}
+
+    {/* Fed Balance Sheet sub-tab */}
+    {econSubTab === "fed" && <FedSubTab fredKey={fredKey} />}
 
     {/* GDP sub-tab */}
     {econSubTab === "gdp" && <GdpSubTab gdpData={gdpData} />}
@@ -130,7 +140,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 20px", marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 10, color: "#818cf8", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>National {metricCfg.label}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading }}>
+          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading }}>
             {nationalData ? metricCfg.fmt(nationalData.v) : choroplethLoading ? "..." : "—"}
           </div>
           {nationalData?.d && <div style={{ fontSize: 9, color: "#4ade80", fontFamily: fonts.mono, marginTop: 2 }}>{fmtDate(nationalData.d)}</div>}
@@ -139,17 +149,17 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
           <React.Fragment>
             <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: 20 }}>
               <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textTransform: "uppercase" }}>State Avg</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#cbd5e1", fontFamily: fonts.mono }}>{metricCfg.fmt(avgVal)}</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.mono }}>{metricCfg.fmt(avgVal)}</div>
             </div>
             <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: 20 }}>
               <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textTransform: "uppercase" }}>Lowest</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: metricCfg.sortAsc ? "#4ade80" : "#f87171", fontFamily: fonts.mono }}>{metricCfg.fmt(minVal)}</div>
-              <div style={{ fontSize: 9, color: "#94a3b8", fontFamily: fonts.mono }}>{ranked.length ? STATE_NAMES[ranked[metricCfg.sortAsc ? 0 : ranked.length - 1]?.st] || "" : ""}</div>
+              <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: fonts.mono }}>{ranked.length ? STATE_NAMES[ranked[metricCfg.sortAsc ? 0 : ranked.length - 1]?.st] || "" : ""}</div>
             </div>
             <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: 20 }}>
               <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textTransform: "uppercase" }}>Highest</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: metricCfg.sortAsc ? "#f87171" : "#4ade80", fontFamily: fonts.mono }}>{metricCfg.fmt(maxVal)}</div>
-              <div style={{ fontSize: 9, color: "#94a3b8", fontFamily: fonts.mono }}>{ranked.length ? STATE_NAMES[ranked[metricCfg.sortAsc ? ranked.length - 1 : 0]?.st] || "" : ""}</div>
+              <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: fonts.mono }}>{ranked.length ? STATE_NAMES[ranked[metricCfg.sortAsc ? ranked.length - 1 : 0]?.st] || "" : ""}</div>
             </div>
           </React.Fragment>
         )}
@@ -193,7 +203,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
         </Geographies>
       </ComposableMap>
       {tooltipContent && (
-        <div style={{ position: "fixed", left: tooltipPos.x + 14, top: tooltipPos.y - 12, background: "#0f172aee", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 8, padding: "6px 12px", pointerEvents: "none", zIndex: 1000, fontSize: 12, color: "#f1f5f9", fontFamily: fonts.heading, fontWeight: 600, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "fixed", left: tooltipPos.x + 14, top: tooltipPos.y - 12, background: "#0f172aee", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 8, padding: "6px 12px", pointerEvents: "none", zIndex: 1000, fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.heading, fontWeight: 600, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
           {tooltipContent}
         </div>
       )}
@@ -201,9 +211,9 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
       {/* Gradient legend */}
       {values.length > 0 && metricCfg && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center", marginTop: 8, padding: "0 20px" }}>
-          <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, minWidth: 60, textAlign: "right" }}>{metricCfg.fmt(minVal)}</span>
+          <span style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: fonts.mono, minWidth: 60, textAlign: "right" }}>{metricCfg.fmt(minVal)}</span>
           <div style={{ flex: 1, maxWidth: 300, height: 10, borderRadius: 5, background: `linear-gradient(to right, ${choroplethColor(minVal, minVal, maxVal, metricCfg.scale)}, ${choroplethColor((minVal+maxVal)/2, minVal, maxVal, metricCfg.scale)}, ${choroplethColor(maxVal, minVal, maxVal, metricCfg.scale)})` }} />
-          <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, minWidth: 60 }}>{metricCfg.fmt(maxVal)}</span>
+          <span style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: fonts.mono, minWidth: 60 }}>{metricCfg.fmt(maxVal)}</span>
         </div>
       )}
     </div>
@@ -241,7 +251,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
                     {STATE_NAMES[row.st] || row.st}
                     <span style={{ color: "#64748b", fontSize: 10, marginLeft: 6 }}>{row.st}</span>
                   </td>
-                  <td style={{ padding: "8px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#f1f5f9", textAlign: "right", fontWeight: 600 }}>{metricCfg.fmt(row.v)}</td>
+                  <td style={{ padding: "8px 12px", fontSize: 12, fontFamily: fonts.mono, color: "var(--text-primary)", textAlign: "right", fontWeight: 600 }}>{metricCfg.fmt(row.v)}</td>
                   <td style={{ padding: "8px 12px", fontSize: 11, fontFamily: fonts.mono, color: diffColor, textAlign: "right" }}>{fmtDiff(diff)}</td>
                   <td style={{ padding: "8px 12px", fontSize: 10, fontFamily: fonts.mono, color: "#64748b" }}>{fmtDate(row.d)}</td>
                 </tr>
@@ -256,6 +266,12 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
     {/* Consumer sub-tab */}
     {econSubTab === "consumer" && <ConsumerTab csm={csm} />}
+
+    {/* Federal Budget sub-tab */}
+    {econSubTab === "budget" && <BudgetSubTab fredKey={fredKey} />}
+
+    {/* Labor Market sub-tab */}
+    {econSubTab === "labor" && <LaborSubTab fredKey={fredKey} />}
   </>);
 }
 

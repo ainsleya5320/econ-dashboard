@@ -17,22 +17,49 @@ const GLOBAL_RATE_SERIES = {
 const TREASURY_SERIES = { DGS2: { label: "2-Year", color: "#10B981" }, DGS5: { label: "5-Year", color: "#3B82F6" }, DGS10: { label: "10-Year", color: "#8B5CF6" }, DGS30: { label: "30-Year", color: "#E8553A" } };
 const CPI_SERIES = { CPIAUCSL: { label: "CPI (All Items)", color: "#E8553A", isIndex: true }, CPILFESL: { label: "Core CPI", color: "#3B82F6", isIndex: true }, PCEPI: { label: "PCE (All Items)", color: "#F97316", isIndex: true }, PCEPILFE: { label: "Core PCE", color: "#10B981", isIndex: true }, T10YIE: { label: "10Y Breakeven", color: "#F59E0B", isIndex: false }, T10Y2Y: { label: "10Y-2Y Spread", color: "#8B5CF6", isIndex: false } };
 const CPI_COMPONENTS = {
-  CPIUFDSL:  { label: "Food",                   color: "#F97316", parent: "CPI" },
-  CPIHOSSL:  { label: "Housing",                 color: "#3B82F6", parent: "CPI" },
-  CPITRNSL:  { label: "Transportation",           color: "#10B981", parent: "CPI" },
-  CPIMEDSL:  { label: "Medical Care",             color: "#EC4899", parent: "CPI" },
-  CPIENGSL:  { label: "Energy",                   color: "#F59E0B", parent: "CPI" },
-  CPIAPPSL:  { label: "Apparel",                  color: "#8B5CF6", parent: "CPI" },
-  CPIRECSL:  { label: "Recreation",               color: "#14B8A6", parent: "CPI" },
-  CPIEDUSL:  { label: "Education & Communication",color: "#6366F1", parent: "CPI" },
-  CPIOGSSL:  { label: "Other Goods & Services",   color: "#D946EF", parent: "CPI" },
+  // ── Food ──
+  CUSR0000SAF11:  { label: "Food at Home",          color: "#F97316", group: "Food" },
+  CUSR0000SEFV:   { label: "Food Away from Home",   color: "#FB923C", group: "Food" },
+  CUSR0000SAF112: { label: "Meats & Poultry",       color: "#EA580C", group: "Food" },
+  CUSR0000SEFJ:   { label: "Alcoholic Beverages",   color: "#C2410C", group: "Food" },
+  // ── Shelter ──
+  CUSR0000SEHA:   { label: "Rent of Primary",       color: "#3B82F6", group: "Shelter" },
+  CUSR0000SEHC:   { label: "Owners' Equiv. Rent",   color: "#60A5FA", group: "Shelter" },
+  CUSR0000SEHB:   { label: "Lodging Away",          color: "#2563EB", group: "Shelter" },
+  // ── Energy ──
+  CUSR0000SETB01: { label: "Gasoline",              color: "#F59E0B", group: "Energy" },
+  CUSR0000SEHF01: { label: "Electricity",           color: "#FBBF24", group: "Energy" },
+  CUSR0000SEHF02: { label: "Piped Gas (Utility)",   color: "#D97706", group: "Energy" },
+  // ── Transportation ──
+  CUSR0000SETA01: { label: "New Vehicles",           color: "#10B981", group: "Transport" },
+  CUSR0000SETA02: { label: "Used Vehicles",          color: "#34D399", group: "Transport" },
+  CUSR0000SETG01: { label: "Airline Fares",          color: "#059669", group: "Transport" },
+  // ── Medical ──
+  CUSR0000SAM1:   { label: "Medical Commodities",   color: "#EC4899", group: "Medical" },
+  CUSR0000SAM2:   { label: "Medical Services",      color: "#F472B6", group: "Medical" },
+  // ── Other ──
+  CPIAPPSL:       { label: "Apparel",               color: "#8B5CF6", group: "Other" },
+  CPIRECSL:       { label: "Recreation",             color: "#14B8A6", group: "Other" },
+  CUSR0000SEEB:   { label: "Tuition & Childcare",   color: "#6366F1", group: "Other" },
+  CUSR0000SEGA:   { label: "Tobacco & Smoking",     color: "#D946EF", group: "Other" },
 };
 const PCE_COMPONENTS = {
-  DSERRG3M086SBEA:  { label: "Services",           color: "#3B82F6", parent: "PCE" },
-  DGDSRG3M086SBEA:  { label: "Goods",              color: "#10B981", parent: "PCE" },
-  DFXARG3M086SBEA:  { label: "Food",               color: "#F97316", parent: "PCE" },
-  DNDGRG3M086SBEA:  { label: "Nondurable Goods",   color: "#F59E0B", parent: "PCE" },
-  DPCCRC1M027SBEA:  { label: "Ex Food & Energy",   color: "#8B5CF6", parent: "PCE" },
+  // ── Monthly aggregates ──
+  DSERRG3M086SBEA:  { label: "Services (Total)",    color: "#3B82F6", group: "Aggregate" },
+  DGDSRG3M086SBEA:  { label: "Goods (Total)",       color: "#10B981", group: "Aggregate" },
+  DPCCRC1M027SBEA:  { label: "Ex Food & Energy",    color: "#8B5CF6", group: "Aggregate" },
+  // ── Quarterly Services breakdown ──
+  DHUTRG3Q086SBEA:  { label: "Housing & Utilities", color: "#60A5FA", group: "Services", freq: "Q" },
+  DHLCRG3Q086SBEA:  { label: "Healthcare",          color: "#EC4899", group: "Services", freq: "Q" },
+  DIFSRG3Q086SBEA:  { label: "Financial Svc & Ins", color: "#F59E0B", group: "Services", freq: "Q" },
+  DFSARG3Q086SBEA:  { label: "Food Svc & Accomm",   color: "#FB923C", group: "Services", freq: "Q" },
+  DRCARG3Q086SBEA:  { label: "Recreation Svc",      color: "#14B8A6", group: "Services", freq: "Q" },
+  DTRSRG3Q086SBEA:  { label: "Transportation Svc",  color: "#34D399", group: "Services", freq: "Q" },
+  // ── Quarterly Goods breakdown ──
+  DGOERG3Q086SBEA:  { label: "Gas & Energy Goods",  color: "#FBBF24", group: "Goods", freq: "Q" },
+  DMOTRG3Q086SBEA:  { label: "Motor Vehicles",      color: "#4ADE80", group: "Goods", freq: "Q" },
+  DFDHRG3Q086SBEA:  { label: "Furnishings & Dur",   color: "#A78BFA", group: "Goods", freq: "Q" },
+  DCLORG3Q086SBEA:  { label: "Clothing & Footwear", color: "#D946EF", group: "Goods", freq: "Q" },
 };
 const HOUSING_SERIES = { MSPUS: { label: "Median Home Price", color: "#E8553A" }, CSUSHPINSA: { label: "Case-Shiller Index", color: "#3B82F6" }, HOUST: { label: "Housing Starts", color: "#10B981" }, EXHOSLUSM495S: { label: "Existing Home Sales", color: "#F59E0B" }, PERMIT: { label: "Building Permits", color: "#8B5CF6" }, MSACSR: { label: "Months Supply", color: "#D946EF" } };
 

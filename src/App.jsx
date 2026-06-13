@@ -1,20 +1,73 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
 import NewsTicker from "./components/NewsTicker.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
+import OptionsTab from "./tabs/OptionsTab.jsx";
+import OverviewTab from "./tabs/OverviewTab.jsx";
 import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
+import CommoditiesTab from "./tabs/CommoditiesTab.jsx";
+import ChatDrawer from "./components/ChatDrawer.jsx";
+import DataHealthPanel from "./components/DataHealthPanel.jsx";
+import { collectLatestDate, sourceStatus } from "./lib/dataHealth.js";
 
 export default function Dashboard() {
-  const [fredKey, setFredKey] = useState("242945c79ff76bec9082797eb56dea77"); const [fmpKey, setFmpKey] = useState("3ccQfvWcHnuzsOVTKL2YHYxWAdpu91HP");
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem("econ-dash-theme") !== "light"; } catch { return true; }
+  });
+
+  // Apply CSS variables to :root whenever darkMode changes - runs before paint to avoid flash
+  useLayoutEffect(() => {
+    const r = document.documentElement;
+    if (darkMode) {
+      r.style.setProperty("--page-bg",          "#0c0f1a");
+      r.style.setProperty("--card-bg",           "linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)");
+      r.style.setProperty("--card-border",       "1px solid rgba(255,255,255,0.06)");
+      r.style.setProperty("--text-primary",      "#f1f5f9");
+      r.style.setProperty("--text-secondary",    "#94a3b8");
+      r.style.setProperty("--text-muted",        "#64748b");
+      r.style.setProperty("--border-subtle",     "rgba(255,255,255,0.06)");
+      r.style.setProperty("--bg-subtle",         "rgba(255,255,255,0.03)");
+      r.style.setProperty("--tab-active-bg",     "linear-gradient(135deg, #1e293b, #1a1a2e)");
+      r.style.setProperty("--tab-active-color",  "#f1f5f9");
+      r.style.setProperty("--tab-inactive-color","#64748b");
+      r.style.setProperty("--toggle-bg",         "rgba(255,255,255,0.07)");
+      r.style.setProperty("--toggle-border",     "rgba(255,255,255,0.14)");
+      r.style.setProperty("--toggle-color",      "#94a3b8");
+      r.style.setProperty("--status-input-bg",   "rgba(255,255,255,0.05)");
+      r.style.setProperty("--status-input-border","rgba(255,255,255,0.1)");
+      r.style.setProperty("--tooltip-bg",        "#0f172a");
+    } else {
+      r.style.setProperty("--page-bg",          "#f0f4f8");
+      r.style.setProperty("--card-bg",           "linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)");
+      r.style.setProperty("--card-border",       "1px solid rgba(0,0,0,0.09)");
+      r.style.setProperty("--text-primary",      "#0f172a");
+      r.style.setProperty("--text-secondary",    "#1e293b");
+      r.style.setProperty("--text-muted",        "#334155");
+      r.style.setProperty("--border-subtle",     "rgba(0,0,0,0.10)");
+      r.style.setProperty("--bg-subtle",         "rgba(0,0,0,0.04)");
+      r.style.setProperty("--tab-active-bg",     "linear-gradient(135deg, #e8edf5, #ffffff)");
+      r.style.setProperty("--tab-active-color",  "#0f172a");
+      r.style.setProperty("--tab-inactive-color","#334155");
+      r.style.setProperty("--toggle-bg",         "rgba(0,0,0,0.06)");
+      r.style.setProperty("--toggle-border",     "rgba(0,0,0,0.13)");
+      r.style.setProperty("--toggle-color",      "#334155");
+      r.style.setProperty("--status-input-bg",   "rgba(0,0,0,0.05)");
+      r.style.setProperty("--status-input-border","rgba(0,0,0,0.1)");
+      r.style.setProperty("--tooltip-bg",        "#ffffff");
+    }
+    try { localStorage.setItem("econ-dash-theme", darkMode ? "dark" : "light"); } catch {}
+  }, [darkMode]);
+
+  const [fredKey, setFredKey] = useState(import.meta.env.VITE_FRED_KEY || ""); const [fmpKey, setFmpKey] = useState(import.meta.env.VITE_FMP_KEY || "");
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState("economy");
+  const [tab, setTab] = useState("overview");
   const [md, setMd] = useState(FB.mortgage); const [gd, setGd] = useState(FB.global);
   const [td, setTd] = useState(FB.treasury); const [cd, setCd] = useState(FB.cpi); const [hd, setHd] = useState(FB.housing);
   const [csm, setCsm] = useState(FB.consumer);
@@ -190,13 +243,24 @@ export default function Dashboard() {
           else if (!m.isIndex && o.length) cr[id] = { current: o[o.length-1].v, lastDate: o[o.length-1].d, history: o };
         } catch {}
       }
-      // Fetch CPI & PCE component breakdowns (all monthly index → YoY %)
+      // Fetch CPI & PCE component breakdowns (monthly + quarterly index -> YoY %)
       const compSeries = { ...CPI_COMPONENTS, ...PCE_COMPONENTS };
-      for (const [id] of Object.entries(compSeries)) {
-        try {
-          const o = await fetchFred(id, fredKey, 24);
-          if (o.length >= 13) { const h = []; for (let i = 12; i < o.length; i++) h.push({ d: o[i].d, v: parseFloat((((o[i].v - o[i-12].v) / o[i-12].v) * 100).toFixed(1)) }); cr[id] = { yoy: h[h.length-1]?.v, lastDate: h[h.length-1]?.d, history: h }; }
-        } catch {}
+      const compEntries = Object.entries(compSeries);
+      const COMP_BATCH = 5;
+      for (let b = 0; b < compEntries.length; b += COMP_BATCH) {
+        const batch = compEntries.slice(b, b + COMP_BATCH);
+        const results = await Promise.all(batch.map(async ([id, meta]) => {
+          try {
+            const isQ = meta.freq === "Q";
+            const o = await fetchFred(id, fredKey, isQ ? 12 : 24);
+            const lookback = isQ ? 4 : 12;
+            const minLen = lookback + 1;
+            if (o.length >= minLen) { const h = []; for (let i = lookback; i < o.length; i++) h.push({ d: o[i].d, v: parseFloat((((o[i].v - o[i-lookback].v) / o[i-lookback].v) * 100).toFixed(1)) }); return [id, { yoy: h[h.length-1]?.v, lastDate: h[h.length-1]?.d, history: h, freq: meta.freq }]; }
+          } catch {}
+          return null;
+        }));
+        results.forEach(r => { if (r) cr[r[0]] = r[1]; });
+        if (b + COMP_BATCH < compEntries.length) await new Promise(r => setTimeout(r, 300));
       }
       if (Object.keys(cr).length) setCd(p => ({ ...p, ...cr }));
       await fb(HOUSING_SERIES, setHd, o => ({ current: o[o.length-1].v, lastDate: o[o.length-1].d, history: o }));
@@ -228,10 +292,11 @@ export default function Dashboard() {
   const fetchFMPRates = useCallback(async () => {
     if (!fmpKey) return;
     try {
-      const [fmpTreasury, fmpMortgage, fmpFedFunds] = await Promise.all([
+      const [fmpTreasury, fmpMortgage, fmpFedFunds, fmpCPI] = await Promise.all([
         fetchFMPTreasuryRates(fmpKey, 180).catch(() => null),
         fetchFMPMortgageRates(fmpKey).catch(() => null),
         fetchFMP(`/economic-indicators?name=federalFunds&from=${new Date(Date.now()-90*86400000).toISOString().slice(0,10)}&to=${new Date().toISOString().slice(0,10)}`, fmpKey).catch(() => null),
+        fetchFMPCPI(fmpKey).catch(() => null),
       ]);
       if (fmpTreasury) setTd(prev => {
         const merged = { ...prev };
@@ -260,6 +325,16 @@ export default function Dashboard() {
           });
         }
       }
+      // Overlay FMP CPI data if more current than FRED/fallback
+      if (fmpCPI) {
+        setCd(prev => {
+          const merged = { ...prev };
+          for (const [id, data] of Object.entries(fmpCPI)) {
+            if (!merged[id]?.lastDate || data.lastDate > merged[id].lastDate) merged[id] = data;
+          }
+          return merged;
+        });
+      }
     } catch (e) { console.error("FMP rate fetch error:", e); }
   }, [fmpKey]);
 
@@ -271,65 +346,91 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fmpKey, fetchFMPRates]);
 
+  const dataSources = useMemo(() => [
+    sourceStatus({ label: "FRED macro", date: collectLatestDate({ md, gd, td, cd, hd, csm }), loading: fredStatus === "loading", error: fredStatus === "error", live: isLive, staleDays: 60 }),
+    sourceStatus({ label: "FMP market data", date: collectLatestDate({ md, gd, td, cd }), live: !!fmpKey, staleDays: 14 }),
+    sourceStatus({ label: "Zillow housing", date: collectLatestDate(zillowData), loading: !zillowData, live: !!zillowData, staleDays: 90 }),
+    sourceStatus({ label: "OpenRouter (pricing) + HF (rankings)", date: rankingsData?.[rankingsData.length - 1]?.date, loading: aiLoading || rankingsLoading, live: aiModels.length > 0 || rankingsData.length > 0, staleDays: 14 }),
+    sourceStatus({ label: "News", date: newsItems?.[0]?.publishedDate, loading: newsLoading, live: newsItems.length > 0, staleDays: 3 }),
+  ], [md, gd, td, cd, hd, csm, fredStatus, isLive, fmpKey, zillowData, rankingsData, aiLoading, rankingsLoading, aiModels.length, newsItems, newsLoading]);
+
   const tabs = [
+    { id: "overview", label: "Overview", icon: null },
     { id: "economy", label: "U.S. Economy", icon: <img src="https://flagcdn.com/w40/us.png" alt="US" style={{ width: 18, height: 13, verticalAlign: "middle" }} /> },
-    { id: "intl", label: "International", icon: "🌍" },
-    { id: "stocks", label: "Stocks", icon: "🏛" },
-    { id: "ai", label: "AI Economy", icon: "🤖" },
-    { id: "history", label: "Historical", icon: "📜" },
+    { id: "intl", label: "International", icon: null },
+    { id: "stocks", label: "Stocks", icon: null },
+    { id: "options", label: "Options", icon: null },
+    { id: "commodities", label: "Commodities", icon: null },
+    { id: "ai", label: "AI Economy", icon: null },
+    { id: "history", label: "Historical", icon: null },
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0c0f1a", color: "#e2e8f0", fontFamily: fonts.heading, padding: "20px 16px 60px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--page-bg)", color: "var(--text-primary)", fontFamily: fonts.heading, padding: "20px 16px 60px", transition: "background 0.25s, color 0.25s" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 3 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: -1, margin: 0, background: "linear-gradient(135deg, #f1f5f9, #94a3b8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Economic Dashboard</h1>
-          <span style={{ fontSize: 9, color: isLive ? "#10B981" : "#F59E0B", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 1, background: isLive ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: 4, border: `1px solid ${isLive ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}` }}>{isLive ? "● Live" : "Sample"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flex: 1 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: -1, margin: 0, background: darkMode ? "linear-gradient(135deg, #f1f5f9, #94a3b8)" : "linear-gradient(135deg, #1e293b, #475569)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Economic Dashboard</h1>
+            <span style={{ fontSize: 9, color: isLive ? "#10B981" : "#F59E0B", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 1, background: isLive ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)", padding: "2px 7px", borderRadius: 4, border: `1px solid ${isLive ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}` }}>{isLive ? "Live" : "Sample"}</span>
+          </div>
+          {/* Light / Dark toggle */}
+          <button
+            onClick={() => setDarkMode(d => !d)}
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            style={{ background: "var(--toggle-bg)", border: "1px solid var(--toggle-border)", borderRadius: 8, padding: "6px 11px", fontSize: 15, cursor: "pointer", color: "var(--toggle-color)", lineHeight: 1, flexShrink: 0 }}
+          >{darkMode ? "Light" : "Dark"}</button>
         </div>
-        <p style={{ color: "#64748b", fontSize: 12, margin: "3px 0 16px", fontFamily: fonts.mono }}>Rates, inflation, housing, stock fundamentals, and historical returns</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: "3px 0 16px", fontFamily: fonts.mono }}>Rates, inflation, housing, stock fundamentals, and historical returns</p>
 
         {/* API Status Bar */}
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
             <span style={{ fontSize: 10, color: fredStatus === "connected" ? "#10B981" : fredStatus === "loading" ? "#F59E0B" : "#64748b", fontFamily: fonts.mono }}>
-              {fredStatus === "connected" ? "● FRED Connected" : fredStatus === "loading" ? "● FRED Loading..." : "○ FRED"}
+              {fredStatus === "connected" ? "FRED Connected" : fredStatus === "loading" ? "FRED Loading..." : "FRED"}
             </span>
-            <span style={{ fontSize: 10, color: "#10B981", fontFamily: fonts.mono }}>● FMP Connected</span>
-            <span style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginLeft: "auto" }}>Auto-refresh: FRED 30min · FMP 15min</span>
-            <button onClick={() => { fetchFredData(); fetchFMPRates(); }} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "4px 10px", fontSize: 10, color: "#94a3b8", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Now</button>
+            <span style={{ fontSize: 10, color: "#10B981", fontFamily: fonts.mono }}>FMP Connected</span>
+            <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono, marginLeft: "auto" }}>Auto-refresh: FRED 30min | FMP 15min</span>
+            <button onClick={() => { fetchFredData(); fetchFMPRates(); }} style={{ background: "var(--bg-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 6, padding: "4px 10px", fontSize: 10, color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Now</button>
           </div>
         </div>
+
+        <DataHealthPanel sources={dataSources} />
 
         {/* News Ticker */}
         <NewsTicker items={newsItems} loading={newsLoading} />
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", borderRadius: 12, padding: 4, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 4, background: "var(--bg-subtle)", borderRadius: 12, padding: 4, marginBottom: 20 }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: "10px 12px", border: "none", borderRadius: 10,
-              background: tab === t.id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
-              color: tab === t.id ? "#f1f5f9" : "#64748b", fontSize: 12, fontWeight: tab === t.id ? 600 : 400,
+              background: tab === t.id ? "var(--tab-active-bg)" : "transparent",
+              color: tab === t.id ? "var(--tab-active-color)" : "var(--tab-inactive-color)",
+              fontSize: 12, fontWeight: tab === t.id ? 600 : 400,
               fontFamily: fonts.heading, cursor: "pointer", transition: "all 0.2s",
-              boxShadow: tab === t.id ? "0 2px 8px rgba(0,0,0,0.3)" : "none",
-            }}><span style={{ marginRight: 5 }}>{t.icon}</span>{t.label}</button>
+              boxShadow: tab === t.id ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+            }}>{t.icon && <span style={{ marginRight: 5 }}>{t.icon}</span>}{t.label}</button>
           ))}
         </div>
 
+        {tab === "overview" && <OverviewTab />}
         {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
-        {tab === "intl" && <InternationalTab fmpKey={fmpKey} />}
+        {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
         {tab === "stocks" && <StocksTab fmpKey={fmpKey} />}
+        {tab === "options" && <OptionsTab />}
+        {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
         {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
         {tab === "history" && <HistoricalReturnsTab />}
 
         {/* Footer */}
-        <div style={{ marginTop: 28, padding: "14px 0", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-          <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono }}>Data: FRED (St. Louis Fed) + Financial Modeling Prep</span>
-          <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono }}>{isLive ? "FRED: Live" : "FRED: Sample data"}</span>
+        <div style={{ marginTop: 28, padding: "14px 0", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono }}>Data: FRED (St. Louis Fed) + BLS + Financial Modeling Prep</span>
+          <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono }}>{isLive ? "FRED: Live" : "FRED: Sample data"}</span>
         </div>
       </div>
+      <ChatDrawer tab={tab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} aiModels={aiModels} zillowData={zillowData} />
     </div>
   );
 }

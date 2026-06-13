@@ -1,21 +1,46 @@
 import { FRED_BASE, FMP_BASE } from './constants.js';
 
-async function fetchFred(id, key, limit = 12, _retries = 3) {
-  const r = await fetch(`${FRED_BASE}?series_id=${id}&api_key=${key}&file_type=json&sort_order=desc&limit=${limit}`);
-  if (r.status === 429 && _retries > 0) {
-    await new Promise(res => setTimeout(res, 2000));
-    return fetchFred(id, key, limit, _retries - 1);
+async function fetchWithTimeout(url, { timeoutMs = 15000, ...options } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
-  if (!r.ok) throw new Error(`FRED ${r.status} for ${id}`);
-  const d = await r.json();
+}
+
+async function fetchJson(url, { label = "Request", timeoutMs = 15000, retries = 0, retryDelayMs = 1000, ...options } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const r = await fetchWithTimeout(url, { timeoutMs, ...options });
+      if (r.status === 429 && attempt < retries) {
+        await new Promise(res => setTimeout(res, retryDelayMs));
+        continue;
+      }
+      if (!r.ok) throw new Error(`${label} failed with ${r.status}`);
+      return r.json();
+    } catch (e) {
+      lastError = e;
+      if (attempt < retries) await new Promise(res => setTimeout(res, retryDelayMs));
+    }
+  }
+  throw lastError;
+}
+
+async function fetchFred(id, key, limit = 12, _retries = 3) {
+  const d = await fetchJson(`${FRED_BASE}?series_id=${id}&api_key=${key}&file_type=json&sort_order=desc&limit=${limit}`, {
+    label: `FRED ${id}`,
+    retries: _retries,
+    retryDelayMs: 2000,
+  });
   return d.observations.filter(o => o.value !== ".").map(o => ({ d: o.date, v: parseFloat(o.value) })).reverse();
 }
 
 async function fetchFMP(endpoint, fmpKey) {
   const sep = endpoint.includes("?") ? "&" : "?";
-  const r = await fetch(`${FMP_BASE}${endpoint}${sep}apikey=${fmpKey}`);
-  if (!r.ok) throw new Error("FMP error");
-  return r.json();
+  return fetchJson(`${FMP_BASE}${endpoint}${sep}apikey=${fmpKey}`, { label: `FMP ${endpoint}`, retries: 1 });
 }
 
 // FMP-based rate fetches (more current than FRED)
@@ -54,7 +79,7 @@ async function fetchFMPMortgageRates(fmpKey) {
 }
 
 async function fetchOptionsChain(ticker) {
-  const r = await fetch(`/cboe-api/${ticker}.json`);
+  const r = await fetchWithTimeout(`/cboe-api/${ticker}.json`, { timeoutMs: 15000 });
   if (!r.ok) throw new Error("CBOE options error");
   const j = await r.json();
   const raw = j.data?.options || [];
@@ -77,33 +102,19 @@ async function fetchOptionsChain(ticker) {
 }
 
 async function fetchOpenRouterModels() {
-  const r = await fetch("https://openrouter.ai/api/v1/models");
-  if (!r.ok) throw new Error("OpenRouter error");
-  const j = await r.json();
+  const j = await fetchJson("https://openrouter.ai/api/v1/models", { label: "OpenRouter models", retries: 1 });
   return j.data || [];
 }
 
 async function fetchOpenRouterRankings() {
-  // Fetch the rankings page via our Vite proxy using Next.js RSC protocol
-  const r = await fetch("/or-rankings", {
-    method: "POST",
-    headers: { "RSC": "1", "Next-Action": "true" },
-  });
-  if (!r.ok) throw new Error("OpenRouter rankings error " + r.status);
-  const text = await r.text();
-
-  // Parse rankingData from the RSC flight response
-  const idx = text.indexOf('"rankingData":');
-  if (idx === -1) throw new Error("rankingData not found in RSC response");
-  const arrStart = text.indexOf("[", idx);
-  let depth = 0, end = -1;
-  for (let i = arrStart; i < text.length; i++) {
-    if (text[i] === "[") depth++;
-    if (text[i] === "]") depth--;
-    if (depth === 0) { end = i + 1; break; }
-  }
-  if (end === -1) throw new Error("Could not parse rankingData array");
-  return JSON.parse(text.substring(arrStart, end));
+  // OpenRouter broke their /rankings endpoint in their Next.js infra upgrade
+  // (HTTP 500). We now use Hugging Face's model API as the source: top
+  // text-generation models ranked by past-30-day download count, snapshotted
+  // daily server-side so the trend chart accumulates real history. Rows have
+  // shape { date, rank, id, author, downloads, likes, lastModified, ... }.
+  const j = await fetchJson("/api/hf-rankings", { label: "Hugging Face rankings", retries: 1 });
+  if (j.error) throw new Error(j.error);
+  return j.rows || [];
 }
 
 async function fetchFMPNews(fmpKey, limit = 40) {
@@ -188,7 +199,11 @@ const ST = { AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California"
 for (const [abbr, name] of Object.entries(ST)) NAME_TO_ABBR[name] = abbr;
 
 async function fetchZillowData() {
-  const fetchCSV = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`Zillow CSV error ${r.status}`); return r.text(); };
+  const fetchCSV = async (url) => {
+    const r = await fetchWithTimeout(url, { timeoutMs: 20000 });
+    if (!r.ok) throw new Error(`Zillow CSV error ${r.status}`);
+    return r.text();
+  };
 
   // Fetch all CSVs in parallel
   const [zhviStateCSV, zhviMetroCSV, zoriMetroCSV, invStateCSV, invMetroCSV, newListCSV, mlpCSV] = await Promise.all([
@@ -284,4 +299,22 @@ async function fetchZillowData() {
   return result;
 }
 
-export { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData };
+async function fetchFMPCPI(fmpKey) {
+  const to = new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.now() - 900 * 86400000).toISOString().slice(0, 10); // ~30 months for YoY calc
+  const data = await fetchFMP(`/economic-indicators?name=CPI&from=${from}&to=${to}`, fmpKey);
+  if (!Array.isArray(data) || data.length < 13) return null;
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  const indexed = sorted.map(r => ({ d: r.date.slice(0, 7), v: parseFloat(r.value) })).filter(r => !isNaN(r.v));
+  if (indexed.length < 13) return null;
+  // Compute YoY % change from index values (same as FRED CPIAUCSL logic)
+  const history = [];
+  for (let i = 12; i < indexed.length; i++) {
+    const yoy = parseFloat((((indexed[i].v - indexed[i - 12].v) / indexed[i - 12].v) * 100).toFixed(1));
+    history.push({ d: indexed[i].d, v: yoy });
+  }
+  if (!history.length) return null;
+  return { CPIAUCSL: { yoy: history[history.length - 1].v, lastDate: history[history.length - 1].d, history } };
+}
+
+export { fetchJson, fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData };

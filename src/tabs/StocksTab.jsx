@@ -5,14 +5,16 @@ import Plotly from "plotly.js-dist-min";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
-import CSPScreener from "./stocks/CSPScreener.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
+import SP500Screener from "./stocks/SP500Screener.jsx";
+import FearGreedGauge from "../components/FearGreedGauge.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
 const DEFAULT_TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "BRK-B", "JPM", "V"];
 const STOCK_COLS = [
   { key: "symbol", label: "Ticker", width: 70 },
+  { key: "changePct", label: "Day %", format: "chgpct", width: 68 },
   { key: "mktCap", label: "Mkt Cap", format: "bigdollar", width: 85 },
   { key: "totalAssets", label: "Assets", format: "bigdollar", width: 80 },
   { key: "equity", label: "Equity", format: "bigdollar", width: 80 },
@@ -113,6 +115,7 @@ function fmtVal(v, fmt) {
     return v.toLocaleString();
   }
   if (fmt === "pct") return `${(v * 100).toFixed(1)}%`;
+  if (fmt === "chgpct") return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
   if (fmt === "num2") return v.toFixed(2);
   return String(v);
 }
@@ -146,6 +149,8 @@ async function fetchStockData(symbol, fmpKey) {
   const roics = kmArr?.slice(0, 5).map(r => r.returnOnInvestedCapital).filter(v => v != null) || [];
   const peg = rat?.priceToEarningsGrowthRatio;
   const sbcPct = km?.stockBasedCompensationToRevenue ?? null;
+  const changePct = prof?.changePercentage ?? null;
+  const price = prof?.price ?? null;
   return {
     symbol, mktCap, totalAssets, equity, earningsYield, fcfYield, roe,
     roe5y: avg(roes), roic, roic5y: avg(roics),
@@ -153,6 +158,7 @@ async function fetchStockData(symbol, fmpKey) {
     sbcPct,
     cash, debt,
     taxPct: tax != null ? tax / rev : null,
+    changePct, price,
   };
 }
 
@@ -210,7 +216,7 @@ function SliderInput({ label, value, onChange, min, max, step, fmt }) {
     <div style={{ flex: 1, minWidth: 180 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
-        <span style={{ fontSize: 13, color: "#f1f5f9", fontFamily: fonts.mono, fontWeight: 700 }}>{fmt(value)}</span>
+        <span style={{ fontSize: 13, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 700 }}>{fmt(value)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))}
         style={{ width: "100%", accentColor: "#818cf8", height: 4, cursor: "pointer" }} />
@@ -297,16 +303,16 @@ function ReverseDCF({ data }) {
         <thead>
           <tr>
             <th style={{ padding: "10px 12px", fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>WACC \ Term Growth</th>
-            {termRates.map(tr => <th key={tr} style={{ padding: "10px 8px", fontSize: 9, color: tr === termGrowth ? "#818cf8" : "#94a3b8", fontFamily: fonts.mono, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: tr === termGrowth ? 700 : 400 }}>{(tr*100).toFixed(1)}%</th>)}
+            {termRates.map(tr => <th key={tr} style={{ padding: "10px 8px", fontSize: 9, color: tr === termGrowth ? "#818cf8" : "var(--text-secondary)", fontFamily: fonts.mono, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: tr === termGrowth ? 700 : 400 }}>{(tr*100).toFixed(1)}%</th>)}
           </tr>
         </thead>
         <tbody>
           {sensData.map((row, ri) => (
             <tr key={ri}>
-              <td style={{ padding: "8px 12px", fontSize: 11, color: discRates[ri] === discRate ? "#818cf8" : "#94a3b8", fontFamily: fonts.mono, fontWeight: discRates[ri] === discRate ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>{(discRates[ri]*100).toFixed(1)}%</td>
+              <td style={{ padding: "8px 12px", fontSize: 11, color: discRates[ri] === discRate ? "#818cf8" : "var(--text-secondary)", fontFamily: fonts.mono, fontWeight: discRates[ri] === discRate ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>{(discRates[ri]*100).toFixed(1)}%</td>
               {row.map((val, ci) => {
                 const isActive = discRates[ri] === discRate && termRates[ci] === termGrowth;
-                return <td key={ci} style={{ padding: "8px 8px", fontSize: 11, fontFamily: fonts.mono, textAlign: "center", color: val == null ? "#334155" : val < 0 ? "#f87171" : "#cbd5e1", background: isActive ? "rgba(129,140,248,0.12)" : "transparent", fontWeight: isActive ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", borderRadius: isActive ? 6 : 0 }}>{val != null ? `${(val*100).toFixed(1)}%` : "—"}</td>;
+                return <td key={ci} style={{ padding: "8px 8px", fontSize: 11, fontFamily: fonts.mono, textAlign: "center", color: val == null ? "#334155" : val < 0 ? "#f87171" : "var(--text-primary)", background: isActive ? "rgba(129,140,248,0.12)" : "transparent", fontWeight: isActive ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", borderRadius: isActive ? 6 : 0 }}>{val != null ? `${(val*100).toFixed(1)}%` : "—"}</td>;
               })}
             </tr>
           ))}
@@ -325,14 +331,14 @@ function ReverseDCF({ data }) {
         <tbody>
           {projRows.map((row, i) => (
             <tr key={i} style={{ borderBottom: i < projRows.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-              <td style={{ padding: "8px 12px", fontSize: 11, color: row.year === "Terminal" ? "#818cf8" : "#94a3b8", fontFamily: fonts.mono, fontWeight: row.year === "Terminal" ? 600 : 400 }}>{row.year === "Terminal" ? "Terminal Value" : `Year ${row.year}`}</td>
-              <td style={{ padding: "8px 12px", fontSize: 12, color: "#cbd5e1", fontFamily: fonts.mono, textAlign: "right" }}>{fmtVal(row.fcf, "bigdollar")}</td>
-              <td style={{ padding: "8px 12px", fontSize: 12, color: "#cbd5e1", fontFamily: fonts.mono, textAlign: "right" }}>{fmtVal(row.pv, "bigdollar")}</td>
+              <td style={{ padding: "8px 12px", fontSize: 11, color: row.year === "Terminal" ? "#818cf8" : "var(--text-secondary)", fontFamily: fonts.mono, fontWeight: row.year === "Terminal" ? 600 : 400 }}>{row.year === "Terminal" ? "Terminal Value" : `Year ${row.year}`}</td>
+              <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, textAlign: "right" }}>{fmtVal(row.fcf, "bigdollar")}</td>
+              <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, textAlign: "right" }}>{fmtVal(row.pv, "bigdollar")}</td>
             </tr>
           ))}
           {projRows.length > 0 && (
             <tr style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-              <td style={{ padding: "10px 12px", fontSize: 11, color: "#f1f5f9", fontFamily: fonts.mono, fontWeight: 700 }}>Total (= Mkt Cap)</td>
+              <td style={{ padding: "10px 12px", fontSize: 11, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 700 }}>Total (= Mkt Cap)</td>
               <td />
               <td style={{ padding: "10px 12px", fontSize: 13, color: "#4ade80", fontFamily: fonts.mono, textAlign: "right", fontWeight: 700 }}>{fmtVal(projRows.reduce((s, r) => s + r.pv, 0), "bigdollar")}</td>
             </tr>
@@ -342,8 +348,162 @@ function ReverseDCF({ data }) {
     </div>
 
     <InfoBox color="#818cf8">
-      <strong style={{ color: "#cbd5e1" }}>How to read this:</strong> The implied growth rate is the annual FCF growth the market is pricing into the current stock price, given your discount rate and terminal assumptions. If it's much higher than historical growth, the market has high expectations baked in. If lower, the stock may be undervalued — or the market sees risk to future cash flows.
+      <strong style={{ color: "var(--text-primary)" }}>How to read this:</strong> The implied growth rate is the annual FCF growth the market is pricing into the current stock price, given your discount rate and terminal assumptions. If it's much higher than historical growth, the market has high expectations baked in. If lower, the stock may be undervalued — or the market sees risk to future cash flows.
     </InfoBox>
+  </>);
+}
+
+// ── Hover-help tooltips for options terminology ──
+// Wrap any label/word with <HelpTip term="atmIV">ATM IV</HelpTip> to get a
+// dotted underline + rich pop-over definition on hover. The tooltip uses fixed
+// positioning so it escapes parent overflow:hidden containers (like cards).
+const OPT_TERMS = {
+  spot: {
+    title: "Spot Price",
+    def: "The current trading price of the underlying stock or ETF — what someone would pay to buy or sell one share right now.",
+  },
+  atmIV: {
+    title: "At-the-Money Implied Volatility (ATM IV)",
+    def: "The implied volatility of options whose strike is closest to the current spot price. Best single-number summary of how much movement the market is pricing in.",
+    sub: "Annualized. SPY ATM IV of 18% implies ~±0.9% daily moves (18% ÷ √252).",
+  },
+  ivRange: {
+    title: "IV Range",
+    def: "The lowest and highest implied volatility across all listed options. Wide ranges mean deep OTM strikes price extreme tail risk relative to ATM.",
+  },
+  pcSkew: {
+    title: "Put/Call Skew",
+    def: "Implied vol of OTM puts minus implied vol of OTM calls. Positive skew = investors paying more for downside protection than upside speculation.",
+    sub: "Equities normally show positive skew (crash premium). When skew compresses or inverts, sentiment is unusually bullish — historically a contrarian signal.",
+  },
+  totalOI: {
+    title: "Total Open Interest",
+    def: "Total number of option contracts currently held open across all strikes and expirations. Higher OI = deeper liquidity and bigger dealer hedging flows.",
+  },
+  expirations: {
+    title: "Expirations",
+    def: "Number of distinct expiration dates listed for this ticker. Liquid names like SPY have weekly, monthly, and quarterly expirations stretching out to multi-year LEAPS.",
+  },
+  totalVolume: {
+    title: "Total Volume",
+    def: "Total option contracts traded today across all strikes and expirations. Volume shows where the action is right now (vs OI which is cumulative).",
+  },
+  impliedMove: {
+    title: "Implied Move",
+    def: "The market's expected price range of ±1 standard deviation over a given horizon, derived from ATM IV. Roughly 68% of the time, the underlying should stay within this range.",
+    sub: "Math: spot × IV × √(days/365). Used for sizing CSP strikes and sanity-checking client expectations on weekly moves.",
+  },
+  volSurface: {
+    title: "Volatility Surface",
+    def: "A 2D or 3D view of implied volatility plotted against strike price (X axis) and days to expiration (Y axis). Reveals where the market is pricing event risk or crash-protection premium.",
+  },
+  volSmile: {
+    title: "Volatility Smile",
+    def: "A cross-section of the surface at one expiration — IV across strikes. Equities usually show a 'skew' (downward slope from low strikes to high) rather than a true U-shape, reflecting the OTM-put crash premium.",
+  },
+  termStructure: {
+    title: "Term Structure",
+    def: "ATM implied vol across expirations. Normally upward-sloping (longer-dated options price more uncertainty). Inversion (near-term IV > longer-term) signals an imminent catalyst like earnings or FOMC.",
+  },
+  greeks: {
+    title: "Greeks",
+    def: "Partial derivatives of an option's theoretical price with respect to spot, IV, and time. Tell you how the position will behave under various changes.",
+  },
+  delta: {
+    title: "Delta (Δ)",
+    def: "Change in option price per $1 change in the underlying. |Delta| also approximates the probability the option expires in-the-money.",
+    sub: "ATM calls have Δ ≈ 0.50; deep ITM calls approach 1.00; deep OTM calls approach 0.00. Puts are negative.",
+  },
+  gamma: {
+    title: "Gamma (Γ)",
+    def: "Change in Delta per $1 change in the underlying. Highest at ATM and for short-dated options. Tells you how reactive the position is to spot moves.",
+    sub: "Long-gamma positions accelerate as the market moves in your favor.",
+  },
+  theta: {
+    title: "Theta (Θ)",
+    def: "Dollar value lost per day from time decay, all else equal. Most negative for ATM and short-dated options. This is the rent option buyers pay.",
+    sub: "CSP / covered-call sellers harvest theta. Long calls/puts bleed it.",
+  },
+  vega: {
+    title: "Vega (ν)",
+    def: "Change in option price per 1 percentage point change in IV. Highest for ATM and longer-dated options. Tells you how exposed the position is to volatility shifts.",
+    sub: "Selling premium right before an IV crush (e.g., post-earnings) profits from vega collapse.",
+  },
+  maxPain: {
+    title: "Max Pain",
+    def: "The strike at which the total in-the-money value across all open option contracts is minimized — where option holders collectively make the least money (= writers pay the least).",
+    sub: "Historically a magnet for prices into Friday op-ex as dealers unwind hedges. Strongest pin-effect for SPY/QQQ.",
+  },
+  callOI: {
+    title: "Total Call Open Interest",
+    def: "Number of currently-open call contracts at this expiration. High call OI often signals bullish positioning or upside speculation.",
+  },
+  putOI: {
+    title: "Total Put Open Interest",
+    def: "Number of currently-open put contracts at this expiration. High put OI usually means downside protection or bearish positioning.",
+  },
+  pcRatio: {
+    title: "Put/Call Ratio (OI)",
+    def: "Total put OI divided by total call OI at this expiration. Above 1.0 = more puts than calls open (bearish); below 1.0 = call-heavy.",
+    sub: "Extreme readings (>1.5 or <0.5) are typically contrarian signals.",
+  },
+  spotVsMaxPain: {
+    title: "Spot vs Max Pain",
+    def: "Percentage distance between current spot and the max-pain strike. Larger gaps create stronger gravitational pull into expiration.",
+  },
+};
+
+function HelpTip({ term, children }) {
+  const [pos, setPos] = useState(null);
+  const ref = useRef(null);
+  const data = OPT_TERMS[term];
+  if (!data) return <>{children}</>;
+
+  const onEnter = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    // Position above the label, horizontally aligned to its left edge,
+    // clamped to viewport
+    const clampedLeft = Math.min(rect.left, window.innerWidth - 340);
+    setPos({ x: Math.max(8, clampedLeft), y: rect.top });
+  };
+
+  return (<>
+    <span
+      ref={ref}
+      onMouseEnter={onEnter}
+      onMouseLeave={() => setPos(null)}
+      style={{ borderBottom: "1px dotted rgba(129,140,248,0.55)", cursor: "help" }}
+    >{children}</span>
+    {pos && (
+      <div style={{
+        position: "fixed",
+        left: pos.x,
+        top: pos.y - 8,
+        transform: "translateY(-100%)",
+        background: "#0f172a",
+        border: "1px solid rgba(129,140,248,0.4)",
+        borderRadius: 8,
+        padding: "11px 14px",
+        fontSize: 11,
+        color: "#cbd5e1",
+        fontFamily: fonts.heading,
+        fontWeight: 400,
+        minWidth: 240,
+        maxWidth: 320,
+        lineHeight: 1.55,
+        zIndex: 10000,
+        textTransform: "none",
+        letterSpacing: 0,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
+        pointerEvents: "none",
+        whiteSpace: "normal",
+      }}>
+        <div style={{ color: "#a5b4fc", fontWeight: 700, marginBottom: 5, fontSize: 11, letterSpacing: 0.3 }}>{data.title}</div>
+        <div>{data.def}</div>
+        {data.sub && <div style={{ marginTop: 7, fontSize: 10, color: "#94a3b8", fontStyle: "italic", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 6 }}>{data.sub}</div>}
+      </div>
+    )}
   </>);
 }
 
@@ -405,6 +565,109 @@ function VolSurface({ symbol, spot: initialSpot }) {
     const ivMin = allIVs[0], ivMax = allIVs[allIVs.length - 1];
     return { spot, expiries, strikes, ivGrid, termStructure, smile, smileExpiry, atmIV, totalOI, totalVol, skew, ivMin, ivMax, filtered };
   }, [optData, optType, strikeRange, selectedExpiry, initialSpot, dteRange]);
+
+  // ── Implied Move: market's expected ±1σ price range at standard tenors ──
+  // Uses spot × ATM_IV × √(DTE/365). Nearest available expiry is used when an
+  // exact tenor isn't listed (so 1D may pull from the 2-3d expiry, etc.)
+  const impliedMoves = useMemo(() => {
+    if (!processed) return [];
+    const { spot, termStructure } = processed;
+    if (!termStructure.length) return [];
+    const targets = [
+      { label: "1 Day",    dte: 1   },
+      { label: "1 Week",   dte: 7   },
+      { label: "1 Month",  dte: 30  },
+      { label: "3 Months", dte: 90  },
+    ];
+    return targets.map(t => {
+      let best = null, minDiff = Infinity;
+      for (const ts of termStructure) {
+        const diff = Math.abs(ts.dte - t.dte);
+        if (diff < minDiff) { minDiff = diff; best = ts; }
+      }
+      if (!best || best.iv == null) return null;
+      const iv = best.iv / 100;
+      const sigma = spot * iv * Math.sqrt(t.dte / 365);
+      return {
+        label: t.label,
+        targetDte: t.dte,
+        actualDte: best.dte,
+        iv: best.iv,
+        expectedMove: sigma,
+        pctMove: (sigma / spot) * 100,
+        upper: spot + sigma,
+        lower: spot - sigma,
+      };
+    }).filter(Boolean);
+  }, [processed]);
+
+  // ── Greeks profile for the selected expiry ──
+  // FMP already provides delta/gamma/theta/vega per contract; just shape for plotting.
+  const greeksData = useMemo(() => {
+    if (!processed) return [];
+    const { smileExpiry, filtered } = processed;
+    return filtered
+      .filter(o => o.dte === smileExpiry)
+      .sort((a, b) => a.strike - b.strike)
+      .map(o => ({
+        strike: o.strike,
+        delta: o.delta,
+        gamma: o.gamma,
+        theta: o.theta,
+        vega: o.vega,
+      }));
+  }, [processed]);
+
+  // ── Open Interest profile + Max Pain ──
+  // Max pain = strike that minimizes the total intrinsic value of all
+  // open option contracts at expiration (i.e., where option writers collectively
+  // lose the LEAST). Historically a magnet for prices into op-ex Friday.
+  const oiProfile = useMemo(() => {
+    if (!optData || !processed) return null;
+    const { smileExpiry, spot } = processed;
+    const allAtExpiry = optData.options.filter(o => o.dte === smileExpiry);
+    if (!allAtExpiry.length) return null;
+
+    const callsByStrike = new Map();
+    const putsByStrike  = new Map();
+    allAtExpiry.forEach(o => {
+      const m = o.type === "C" ? callsByStrike : putsByStrike;
+      m.set(o.strike, (m.get(o.strike) || 0) + (o.oi || 0));
+    });
+    const allStrikes = [...new Set([...callsByStrike.keys(), ...putsByStrike.keys()])].sort((a, b) => a - b);
+
+    // Brute-force max pain across all listed strikes (n² but n is small)
+    let maxPainStrike = null;
+    let minLoss = Infinity;
+    for (const s of allStrikes) {
+      let totalLoss = 0;
+      for (const k of allStrikes) {
+        const callOI = callsByStrike.get(k) || 0;
+        const putOI  = putsByStrike.get(k)  || 0;
+        if      (k < s) totalLoss += callOI * (s - k) * 100;  // ITM calls
+        else if (k > s) totalLoss += putOI  * (k - s) * 100;  // ITM puts
+      }
+      if (totalLoss < minLoss) { minLoss = totalLoss; maxPainStrike = s; }
+    }
+
+    // Chart data: ±30% around spot, calls positive / puts negative for split bars
+    const range = 0.30;
+    const chartData = allStrikes
+      .filter(k => Math.abs(k - spot) / spot <= range)
+      .map(k => ({
+        strike: k,
+        calls: callsByStrike.get(k) || 0,
+        puts:  -(putsByStrike.get(k) || 0),
+        callsRaw: callsByStrike.get(k) || 0,
+        putsRaw:  putsByStrike.get(k)  || 0,
+      }));
+
+    const totalCallOI = [...callsByStrike.values()].reduce((s, v) => s + v, 0);
+    const totalPutOI  = [...putsByStrike.values()].reduce((s, v) => s + v, 0);
+    const pcRatio = totalCallOI > 0 ? totalPutOI / totalCallOI : null;
+
+    return { chartData, maxPainStrike, totalCallOI, totalPutOI, pcRatio };
+  }, [optData, processed]);
 
   // Canvas heatmap drawing
   useEffect(() => {
@@ -485,14 +748,35 @@ function VolSurface({ symbol, spot: initialSpot }) {
   return (<>
     <SH>Options Overview</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Spot Price" value={spot} color="#818cf8" format="plain" subtitle={`$${spot?.toFixed(2)}`} small />
-      <RateCard label="ATM IV" value={atmIV} color="#3B82F6" subtitle={atmIV ? `${atmIV.toFixed(1)}%` : "—"} small />
-      <RateCard label="IV Range" value={null} color="#10B981" format="plain" subtitle={ivMin != null ? `${ivMin.toFixed(0)}% – ${ivMax.toFixed(0)}%` : "—"} small />
-      <RateCard label="Put/Call Skew" value={skew} color={skew > 0 ? "#F59E0B" : "#10B981"} subtitle={skew != null ? `${skew > 0 ? '+' : ''}${skew.toFixed(1)}pp` : "—"} small />
-      <RateCard label="Total OI" value={totalOI} color="#8B5CF6" format="plain" subtitle={totalOI ? totalOI.toLocaleString() : "—"} small />
-      <RateCard label="Expirations" value={expiries.length} color="#EC4899" format="plain" subtitle={expiries.length ? `${expiries[0]}d – ${expiries[expiries.length-1]}d` : "—"} small />
-      <RateCard label="Total Volume" value={totalVol} color="#06B6D4" format="plain" subtitle={totalVol ? totalVol.toLocaleString() : "—"} small />
+      <RateCard label={<HelpTip term="spot">Spot Price</HelpTip>} value={spot} color="#818cf8" format="plain" subtitle={`$${spot?.toFixed(2)}`} small />
+      <RateCard label={<HelpTip term="atmIV">ATM IV</HelpTip>} value={atmIV} color="#3B82F6" subtitle={atmIV ? `${atmIV.toFixed(1)}%` : "—"} small />
+      <RateCard label={<HelpTip term="ivRange">IV Range</HelpTip>} value={null} color="#10B981" format="plain" subtitle={ivMin != null ? `${ivMin.toFixed(0)}% – ${ivMax.toFixed(0)}%` : "—"} small />
+      <RateCard label={<HelpTip term="pcSkew">Put/Call Skew</HelpTip>} value={skew} color={skew > 0 ? "#F59E0B" : "#10B981"} subtitle={skew != null ? `${skew > 0 ? '+' : ''}${skew.toFixed(1)}pp` : "—"} small />
+      <RateCard label={<HelpTip term="totalOI">Total OI</HelpTip>} value={totalOI} color="#8B5CF6" format="plain" subtitle={totalOI ? totalOI.toLocaleString() : "—"} small />
+      <RateCard label={<HelpTip term="expirations">Expirations</HelpTip>} value={expiries.length} color="#EC4899" format="plain" subtitle={expiries.length ? `${expiries[0]}d – ${expiries[expiries.length-1]}d` : "—"} small />
+      <RateCard label={<HelpTip term="totalVolume">Total Volume</HelpTip>} value={totalVol} color="#06B6D4" format="plain" subtitle={totalVol ? totalVol.toLocaleString() : "—"} small />
     </div>
+
+    {/* ── Implied Move ── */}
+    {impliedMoves.length > 0 && (<>
+      <SH><HelpTip term="impliedMove">Implied Move</HelpTip> — Market's Expected Range (±1σ from ATM IV)</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 14 }}>
+        {impliedMoves.map(im => (
+          <div key={im.label} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#818cf8", borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>
+              {im.label} <span style={{ color: "#475569" }}>· {im.actualDte}d @ {im.iv.toFixed(0)}% IV</span>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading, lineHeight: 1.1 }}>
+              ±${im.expectedMove.toFixed(2)}
+            </div>
+            <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 3 }}>
+              ±{im.pctMove.toFixed(2)}% · ${im.lower.toFixed(2)}–${im.upper.toFixed(2)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>)}
 
     {/* Controls */}
     <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -515,12 +799,12 @@ function VolSurface({ symbol, spot: initialSpot }) {
       </div>
     </div>
 
-    <SH>Volatility Surface — {optType === "C" ? "Calls" : "Puts"}</SH>
+    <SH><HelpTip term="volSurface">Volatility Surface</HelpTip> — {optType === "C" ? "Calls" : "Puts"}</SH>
 
     {surfaceView === "heatmap" && (
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: 16, marginBottom: 14, position: "relative" }}>
         <canvas ref={canvasRef} onMouseMove={handleCanvasMove} onMouseLeave={() => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; }} style={{ width: "100%", cursor: "crosshair" }} />
-        <div ref={tooltipRef} style={{ display: "none", position: "absolute", background: "#0f172aee", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 8, padding: "8px 12px", fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, pointerEvents: "none", zIndex: 10, lineHeight: 1.6 }} />
+        <div ref={tooltipRef} style={{ display: "none", position: "absolute", background: "#0f172aee", border: "1px solid rgba(129,140,248,0.3)", borderRadius: 8, padding: "8px 12px", fontSize: 11, color: "var(--text-primary)", fontFamily: fonts.mono, pointerEvents: "none", zIndex: 10, lineHeight: 1.6 }} />
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, padding: "0 70px 0 0" }}>
           <span style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono }}>Strike Price →</span>
           <span style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono }}>← Days to Expiration (Y axis)</span>
@@ -596,7 +880,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
                 const isATM = Math.abs(o.strike - spot) / spot < 0.01;
                 return (
                   <tr key={o.sym} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", background: isATM ? "rgba(129,140,248,0.08)" : "transparent" }}>
-                    {cols.map(c => <td key={c.key} style={{ padding: "7px 8px", fontSize: 11, color: c.highlight ? (isATM ? "#818cf8" : "#f1f5f9") : "#cbd5e1", fontFamily: fonts.mono, textAlign: c.align || "right", fontWeight: c.highlight ? 600 : 400, whiteSpace: "nowrap" }}>{c.fmt(o[c.key])}</td>)}
+                    {cols.map(c => <td key={c.key} style={{ padding: "7px 8px", fontSize: 11, color: c.highlight ? (isATM ? "#818cf8" : "var(--text-primary)") : "var(--text-primary)", fontFamily: fonts.mono, textAlign: c.align || "right", fontWeight: c.highlight ? 600 : 400, whiteSpace: "nowrap" }}>{c.fmt(o[c.key])}</td>)}
                   </tr>
                 );
               })}
@@ -608,7 +892,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
     })()}
 
     {/* Smile chart */}
-    <SH>Volatility Smile — {smileExpiry} DTE</SH>
+    <SH><HelpTip term="volSmile">Volatility Smile</HelpTip> — {smileExpiry} DTE</SH>
     <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
       {expiries.map(dte => {
         const d = new Date(Date.now() + dte * 86400000);
@@ -631,8 +915,76 @@ function VolSurface({ symbol, spot: initialSpot }) {
       </div>
     )}
 
+    {/* ── Greeks Profile (Delta / Gamma / Theta / Vega vs strike) ── */}
+    {greeksData.length > 0 && (<>
+      <SH><HelpTip term="greeks">Greeks Profile</HelpTip> — {smileExpiry} DTE ({optType === "C" ? "Calls" : "Puts"})</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 14, marginBottom: 14 }}>
+        {[
+          { key: "delta", label: "Delta",  color: "#10B981", desc: "Δ price per $1 spot move", precision: 3 },
+          { key: "gamma", label: "Gamma",  color: "#F59E0B", desc: "Δ delta per $1 spot move", precision: 4 },
+          { key: "theta", label: "Theta",  color: "#EF4444", desc: "$ daily time decay",        precision: 3 },
+          { key: "vega",  label: "Vega",   color: "#8B5CF6", desc: "Δ price per 1pp IV move",   precision: 3 },
+        ].map(g => (
+          <div key={g.key} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px 8px 6px" }}>
+            <div style={{ paddingLeft: 12, marginBottom: 8, display: "flex", alignItems: "baseline", gap: 10 }}>
+              <span style={{ fontSize: 12, color: g.color, fontFamily: fonts.heading, fontWeight: 700, letterSpacing: 0.5 }}>
+                <HelpTip term={g.key}>{g.label}</HelpTip>
+              </span>
+              <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>{g.desc}</span>
+            </div>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={greeksData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="strike" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={v => `$${v}`} interval={Math.max(0, Math.floor(greeksData.length / 6) - 1)} />
+                <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} domain={["auto", "auto"]} tickFormatter={v => v == null ? "—" : (g.key === "delta" ? v.toFixed(2) : g.key === "gamma" ? v.toFixed(3) : v.toFixed(1))} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v) => [v != null ? v.toFixed(g.precision) : "—", g.label]} labelFormatter={v => `Strike: $${v}`} />
+                <ReferenceLine x={spot} stroke="rgba(255,255,255,0.25)" strokeDasharray="4 4" />
+                <Line type="monotone" dataKey={g.key} stroke={g.color} strokeWidth={1.8} dot={false} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
+      </div>
+    </>)}
+
+    {/* ── Open Interest profile + Max Pain ── */}
+    {oiProfile && oiProfile.chartData.length > 0 && (<>
+      <SH>Open Interest Profile & <HelpTip term="maxPain">Max Pain</HelpTip> — {smileExpiry} DTE</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, marginBottom: 12 }}>
+        <RateCard label={<HelpTip term="maxPain">Max Pain Strike</HelpTip>} value={null} color="#F97316" format="plain" subtitle={oiProfile.maxPainStrike != null ? `$${oiProfile.maxPainStrike}` : "—"} small />
+        <RateCard label={<HelpTip term="callOI">Total Call OI</HelpTip>} value={null} color="#10B981" format="plain" subtitle={oiProfile.totalCallOI.toLocaleString()} small />
+        <RateCard label={<HelpTip term="putOI">Total Put OI</HelpTip>} value={null} color="#EF4444" format="plain" subtitle={oiProfile.totalPutOI.toLocaleString()} small />
+        <RateCard label={<HelpTip term="pcRatio">Put/Call Ratio (OI)</HelpTip>} value={oiProfile.pcRatio} color={oiProfile.pcRatio > 1 ? "#EF4444" : "#10B981"} subtitle={oiProfile.pcRatio != null ? oiProfile.pcRatio.toFixed(2) : "—"} small />
+        <RateCard label={<HelpTip term="spotVsMaxPain">Spot vs Max Pain</HelpTip>} value={null} color="#818cf8" format="plain" subtitle={oiProfile.maxPainStrike != null ? `${(((spot - oiProfile.maxPainStrike) / oiProfile.maxPainStrike) * 100).toFixed(1)}%` : "—"} small />
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={oiProfile.chartData} margin={{ top: 20, right: 8, left: -10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+            <XAxis dataKey="strike" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={v => `$${v}`} interval={Math.max(0, Math.floor(oiProfile.chartData.length / 12) - 1)} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => Math.abs(v).toLocaleString()} />
+            <Tooltip
+              contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+              labelFormatter={v => `Strike: $${v}`}
+              formatter={(v, n, p) => n === "calls"
+                ? [`${p.payload.callsRaw.toLocaleString()}`, "Call OI"]
+                : [`${p.payload.putsRaw.toLocaleString()}`, "Put OI"]}
+            />
+            <ReferenceLine x={spot} stroke="rgba(129,140,248,0.7)" strokeDasharray="4 4" label={{ value: `Spot $${spot.toFixed(0)}`, fill: "#818cf8", fontSize: 9, position: "top" }} />
+            {oiProfile.maxPainStrike != null && <ReferenceLine x={oiProfile.maxPainStrike} stroke="rgba(249,115,22,0.85)" strokeDasharray="2 2" label={{ value: `Max Pain $${oiProfile.maxPainStrike}`, fill: "#F97316", fontSize: 9, position: "insideTop" }} />}
+            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
+            <Bar dataKey="calls" name="Call OI" fill="#10B981" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="puts"  name="Put OI"  fill="#EF4444" radius={[0, 0, 3, 3]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingTop: 4 }}>
+          Calls above axis (green), puts below (red). Max-pain strike is where total in-the-money value to all option holders is minimized — historically a magnet for prices into expiration.
+        </div>
+      </div>
+    </>)}
+
     {/* Term structure */}
-    <SH>Term Structure — ATM IV by Expiration</SH>
+    <SH><HelpTip term="termStructure">Term Structure</HelpTip> — ATM IV by Expiration</SH>
     {termStructure.length > 0 && (
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
         <ResponsiveContainer width="100%" height={200}>
@@ -648,7 +1000,11 @@ function VolSurface({ symbol, spot: initialSpot }) {
     )}
 
     <InfoBox color="#818cf8">
-      <strong style={{ color: "#cbd5e1" }}>Reading the Vol Surface:</strong> The <strong>smile</strong> (strike axis) shows IV is typically higher for OTM puts (crash protection premium). The <strong>term structure</strong> (time axis) normally slopes up — if it's inverted (near-term IV higher), expect an imminent catalyst like earnings or FOMC. <strong>Humps</strong> in the surface indicate where dealers are heavily hedging or where event risk is concentrated.
+      <strong style={{ color: "var(--text-primary)" }}>Reading the tools.</strong>
+      &nbsp;<strong>Implied Move</strong>: the market's ±1σ expected price range over each tenor — useful for setting CSP strikes or sanity-checking client expectations.
+      &nbsp;<strong>Greeks</strong>: |Delta| ≈ probability of expiring ITM; Gamma peaks at ATM (where positions are most reactive); Theta is the daily $ paid to hold long options; Vega is the $ change per 1pp IV shift.
+      &nbsp;<strong>Max Pain</strong>: the strike that minimizes total in-the-money value to all option holders — historically a magnet for prices into Friday expirations, especially for SPY/QQQ.
+      &nbsp;<strong>Vol Surface</strong>: the smile shows OTM-put crash-protection premium; the term structure usually slopes up — inversion signals an imminent catalyst (earnings, FOMC).
     </InfoBox>
   </>);
 }
@@ -665,12 +1021,11 @@ function StockDetailView({ data, onBack }) {
       </button>
       <div style={{ marginLeft: "auto", display: "flex", borderRadius: 8, overflow: "hidden" }}>
         <button onClick={() => setViewMode("ratios")} style={{ ...toggleBtnStyle(viewMode === "ratios"), borderRadius: "8px 0 0 8px" }}>Key Ratios</button>
-        <button onClick={() => setViewMode("dcf")} style={{ ...toggleBtnStyle(viewMode === "dcf"), borderRadius: 0 }}>Reverse DCF</button>
-        <button onClick={() => setViewMode("vol")} style={{ ...toggleBtnStyle(viewMode === "vol"), borderRadius: "0 8px 8px 0" }}>Vol Surface</button>
+        <button onClick={() => setViewMode("dcf")} style={{ ...toggleBtnStyle(viewMode === "dcf"), borderRadius: "0 8px 8px 0" }}>Reverse DCF</button>
       </div>
     </div>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading }}>
         {prof?.companyName || symbol}
         <span style={{ color: "#818cf8", fontSize: 14, fontWeight: 600, marginLeft: 10, fontFamily: fonts.mono }}>{symbol}</span>
       </div>
@@ -692,7 +1047,7 @@ function StockDetailView({ data, onBack }) {
       const statCell = (label, val) => (
         <div key={label} style={{ padding: "8px 0" }}>
           <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 2 }}>{label}</div>
-          <div style={{ fontSize: 12, color: "#cbd5e1", fontFamily: fonts.mono, fontWeight: 500 }}>{val}</div>
+          <div style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 500 }}>{val}</div>
         </div>
       );
       const fmtNum = (n) => n != null && !isNaN(n) ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
@@ -702,7 +1057,7 @@ function StockDetailView({ data, onBack }) {
         <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
           {/* Price row */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 32, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.mono }}>${fmtNum(q.price)}</span>
+            <span style={{ fontSize: 32, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.mono }}>${fmtNum(q.price)}</span>
             <span style={{ fontSize: 16, fontWeight: 600, color: chgColor, fontFamily: fonts.mono }}>
               {isUp ? "+" : ""}{chg.toFixed(2)} ({isUp ? "+" : ""}{chgPct.toFixed(2)}%)
             </span>
@@ -750,7 +1105,6 @@ function StockDetailView({ data, onBack }) {
       );
     })()}
     {viewMode === "dcf" && <ReverseDCF data={data} />}
-    {viewMode === "vol" && <VolSurface symbol={data.symbol} spot={data.price} />}
     {viewMode === "ratios" && (<>
       <ProfitSankey data={data} />
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto" }}>
@@ -780,7 +1134,7 @@ function StockDetailView({ data, onBack }) {
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                     <td style={{ padding: isGrowth ? "3px 14px 3px 38px" : isIndented ? "6px 14px 6px 28px" : "6px 14px", fontSize: isGrowth ? 10 : 11, color: isGrowth ? "#6366f1" : isIndented ? "#64748b" : "#94a3b8", fontFamily: isGrowth ? fonts.mono : fonts.heading, fontWeight: isGrowth ? 400 : isIndented ? 400 : 500, fontStyle: isGrowth ? "italic" : "normal", position: "sticky", left: 0, background: "#161a30", zIndex: 1, whiteSpace: "nowrap" }}>{label}</td>
                     {years.map((y, yi) => { const val = row.get(data, yi); return (
-                      <td key={y} style={{ padding: isGrowth ? "3px 8px" : "6px 8px", fontSize: isGrowth ? 10 : 11, color: isGrowth ? (val != null && val < 0 ? "#f87171" : val != null && val > 0 ? "#4ade80" : "#475569") : (val != null && val < 0 ? "#f87171" : "#cbd5e1"), fontFamily: fonts.mono, textAlign: "right", whiteSpace: "nowrap" }}>{fmtVal(val, row.fmt)}</td>
+                      <td key={y} style={{ padding: isGrowth ? "3px 8px" : "6px 8px", fontSize: isGrowth ? 10 : 11, color: isGrowth ? (val != null && val < 0 ? "#f87171" : val != null && val > 0 ? "#4ade80" : "#475569") : (val != null && val < 0 ? "#f87171" : "var(--text-primary)"), fontFamily: fonts.mono, textAlign: "right", whiteSpace: "nowrap" }}>{fmtVal(val, row.fmt)}</td>
                     ); })}
                   </tr>
                 );
@@ -795,8 +1149,25 @@ function StockDetailView({ data, onBack }) {
 
 function StocksTab({ fmpKey }) {
   const [tickers, setTickers] = useState(() => {
+    // Fast initial render from localStorage; server will override on mount
     try { const saved = localStorage.getItem("econ-dash-tickers"); return saved ? JSON.parse(saved) : DEFAULT_TICKERS; } catch { return DEFAULT_TICKERS; }
   });
+
+  // On mount: pull tickers from server so all devices stay in sync
+  useEffect(() => {
+    fetch('/api/tickers')
+      .then(r => r.json())
+      .then(saved => { if (Array.isArray(saved) && saved.length) setTickers(saved); })
+      .catch(() => {}); // server unavailable → keep localStorage value
+  }, []);
+
+  // On mount: fetch index earnings yields
+  useEffect(() => {
+    fetch('/api/index-pe')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setIndexYields(d); })
+      .catch(() => {});
+  }, []);
   const [input, setInput] = useState("");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -806,7 +1177,8 @@ function StocksTab({ fmpKey }) {
   const [detailSymbol, setDetailSymbol] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [stockView, setStockView] = useState("screener"); // "screener" | "csp"
+  const [stockView, setStockView] = useState("sp500"); // "sp500" | "screener"
+  const [indexYields, setIndexYields] = useState(null);
 
   const loadData = useCallback(async () => {
     if (!fmpKey) { setError("Enter your FMP API key above to load stock data."); return; }
@@ -820,9 +1192,14 @@ function StocksTab({ fmpKey }) {
     if (!results.length) setError("No data returned. Check your FMP key or ticker symbols.");
   }, [fmpKey, tickers]);
 
-  // Persist tickers to localStorage
+  // Persist tickers to localStorage AND server whenever they change
   useEffect(() => {
     try { localStorage.setItem("econ-dash-tickers", JSON.stringify(tickers)); } catch {}
+    fetch('/api/tickers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tickers),
+    }).catch(() => {});
   }, [tickers]);
 
   // Auto-load on mount
@@ -888,11 +1265,11 @@ function StocksTab({ fmpKey }) {
   // View toggle
   const viewToggle = (
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
-      {[["screener", "📊 Stock Screener"], ["csp", "💰 Cash-Secured Puts"]].map(([id, label]) => (
+      {[["sp500", "STK️ S&P 500"], ["screener", "📊 Watchlist"]].map(([id, label]) => (
         <button key={id} onClick={() => setStockView(id)} style={{
           flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
           background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
-          color: stockView === id ? "#f1f5f9" : "#64748b", fontSize: 12, fontWeight: stockView === id ? 600 : 400,
+          color: stockView === id ? "var(--text-primary)" : "#64748b", fontSize: 12, fontWeight: stockView === id ? 600 : 400,
           fontFamily: fonts.heading, cursor: "pointer", transition: "all 0.2s",
           boxShadow: stockView === id ? "0 2px 8px rgba(0,0,0,0.3)" : "none",
         }}>{label}</button>
@@ -922,20 +1299,50 @@ function StocksTab({ fmpKey }) {
     </div>
   </>);
 
-  if (stockView === "csp") {
+  const yieldTiles = indexYields && (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 18 }}>
+      {indexYields.map(idx => {
+        const chgColor = idx.changePct > 0 ? "#4ade80" : idx.changePct < 0 ? "#f87171" : "var(--text-muted)";
+        return (
+          <div key={idx.symbol} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: fonts.heading }}>{idx.flag} {idx.name}</span>
+              {idx.changePct != null && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: chgColor, fontFamily: fonts.mono }}>
+                  {idx.changePct > 0 ? "+" : ""}{(idx.changePct * 100).toFixed(2)}%
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: idx.earningsYield != null ? "#4ade80" : "var(--text-muted)", fontFamily: fonts.heading, letterSpacing: -0.5 }}>
+              {idx.earningsYield != null ? `${idx.earningsYield.toFixed(2)}%` : "—"}
+            </div>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono, marginTop: 2 }}>
+              Earnings Yield{idx.pe != null ? ` · P/E ${idx.pe.toFixed(1)}` : ""}{idx.price != null ? ` · $${idx.price.toFixed(2)}` : ""}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if (stockView === "sp500") {
     return (<>
+      <FearGreedGauge />
       {viewToggle}
-      {tickerBar}
-      <CSPScreener tickers={tickers} />
+      {yieldTiles}
+      <SP500Screener onSelectStock={openDetail} />
     </>);
   }
 
   return (<>
+    <FearGreedGauge />
     {viewToggle}
+    {yieldTiles}
     {tickerBar}
+
     <SH>Stock Fundamentals Screener</SH>
     <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
+      <strong style={{ color: "var(--text-primary)" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
     </InfoBox>
 
     {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{error}</div>}
@@ -958,7 +1365,7 @@ function StocksTab({ fmpKey }) {
             {sorted.map((row, ri) => (
               <tr key={row.symbol} style={{ borderBottom: ri < sorted.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
                 {STOCK_COLS.map(col => (
-                  <td key={col.key} style={{ padding: "10px 8px", fontSize: 12, fontFamily: col.key === "symbol" ? fonts.mono : fonts.heading, color: col.key === "symbol" ? "#818cf8" : "#cbd5e1", textAlign: col.key === "symbol" ? "left" : "right", fontWeight: col.key === "symbol" ? 600 : 400, whiteSpace: "nowrap" }}>
+                  <td key={col.key} style={{ padding: "10px 8px", fontSize: 12, fontFamily: col.key === "symbol" ? fonts.mono : fonts.heading, color: col.key === "symbol" ? "#818cf8" : col.key === "changePct" ? (row.changePct > 0 ? "#4ade80" : row.changePct < 0 ? "#f87171" : "var(--text-muted)") : "var(--text-primary)", textAlign: col.key === "symbol" ? "left" : "right", fontWeight: col.key === "symbol" || col.key === "changePct" ? 600 : 400, whiteSpace: "nowrap" }}>
                     {col.key === "symbol" ? (
                       <span onClick={() => openDetail(row.symbol)} style={{ cursor: "pointer", borderBottom: "1px dashed rgba(129,140,248,0.4)", paddingBottom: 1 }}
                         onMouseEnter={e => e.target.style.color = "#a5b4fc"} onMouseLeave={e => e.target.style.color = "#818cf8"}>
@@ -984,3 +1391,4 @@ function StocksTab({ fmpKey }) {
 
 
 export default StocksTab;
+export { VolSurface };

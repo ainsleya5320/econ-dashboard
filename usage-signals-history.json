@@ -1,0 +1,208 @@
+{
+  "snapshots": {
+    "2026-06-09": {
+      "date": "2026-06-09",
+      "stackOverflow": [
+        {
+          "tag": "openai-api",
+          "totalQuestions": 2873,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "chatgpt-api",
+          "totalQuestions": 549,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "langchain",
+          "totalQuestions": 2175,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "huggingface-transformers",
+          "totalQuestions": 3501,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "huggingface",
+          "totalQuestions": 995,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "llama-index",
+          "totalQuestions": 345,
+          "questionsLast30Days": 1
+        },
+        {
+          "tag": "ollama",
+          "totalQuestions": 334,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "google-gemini",
+          "totalQuestions": 463,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "anthropic",
+          "totalQuestions": 12,
+          "questionsLast30Days": 0
+        }
+      ],
+      "github": [
+        {
+          "repo": "langchain-ai/langchain",
+          "stars": 138898,
+          "forks": 23001
+        },
+        {
+          "repo": "openai/openai-python",
+          "stars": 30951,
+          "forks": 4832
+        },
+        {
+          "repo": "anthropics/anthropic-sdk-python",
+          "stars": 3603,
+          "forks": 720
+        },
+        {
+          "repo": "vercel/ai",
+          "stars": 24761,
+          "forks": 4555
+        },
+        {
+          "repo": "ggml-org/llama.cpp",
+          "stars": 115790,
+          "forks": 19387
+        },
+        {
+          "repo": "huggingface/transformers",
+          "stars": 161457,
+          "forks": 33445
+        },
+        {
+          "repo": "ollama/ollama",
+          "stars": 173709,
+          "forks": 16524
+        },
+        {
+          "repo": "run-llama/llama_index",
+          "stars": 50045,
+          "forks": 7529
+        },
+        {
+          "repo": "BerriAI/litellm",
+          "stars": 49810,
+          "forks": 8731
+        },
+        {
+          "repo": "comfyanonymous/ComfyUI",
+          "stars": 116369,
+          "forks": 13612
+        }
+      ]
+    },
+    "2026-06-10": {
+      "date": "2026-06-10",
+      "stackOverflow": [
+        {
+          "tag": "openai-api",
+          "totalQuestions": 2874,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "chatgpt-api",
+          "totalQuestions": 549,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "langchain",
+          "totalQuestions": 2175,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "huggingface-transformers",
+          "totalQuestions": 3501,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "huggingface",
+          "totalQuestions": 995,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "llama-index",
+          "totalQuestions": 345,
+          "questionsLast30Days": 1
+        },
+        {
+          "tag": "ollama",
+          "totalQuestions": 334,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "google-gemini",
+          "totalQuestions": 463,
+          "questionsLast30Days": 3
+        },
+        {
+          "tag": "anthropic",
+          "totalQuestions": 12,
+          "questionsLast30Days": 0
+        }
+      ],
+      "github": [
+        {
+          "repo": "langchain-ai/langchain",
+          "stars": 138980,
+          "forks": 23022
+        },
+        {
+          "repo": "openai/openai-python",
+          "stars": 30959,
+          "forks": 4832
+        },
+        {
+          "repo": "anthropics/anthropic-sdk-python",
+          "stars": 3609,
+          "forks": 722
+        },
+        {
+          "repo": "vercel/ai",
+          "stars": 24781,
+          "forks": 4562
+        },
+        {
+          "repo": "ggml-org/llama.cpp",
+          "stars": 115946,
+          "forks": 19438
+        },
+        {
+          "repo": "huggingface/transformers",
+          "stars": 161480,
+          "forks": 33456
+        },
+        {
+          "repo": "ollama/ollama",
+          "stars": 173783,
+          "forks": 16543
+        },
+        {
+          "repo": "run-llama/llama_index",
+          "stars": 50065,
+          "forks": 7533
+        },
+        {
+          "repo": "BerriAI/litellm",
+          "stars": 49940,
+          "forks": 8770
+        },
+        {
+          "repo": "comfyanonymous/ComfyUI",
+          "stars": 116496,
+          "forks": 13633
+        }
+      ]
+    }
+  }
+}

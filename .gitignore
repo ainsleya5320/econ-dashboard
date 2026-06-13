@@ -5,3 +5,6 @@ dist
 src/App.jsx.bak
 split.mjs
 do_split.py
+tickers.json
+.claude/
+test_fred.mjs
