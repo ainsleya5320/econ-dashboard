@@ -54,7 +54,7 @@ function ChartCard({ data, series, title, height = 200, yFormatter, refLine }) {
   );
 }
 
-function SH({ children }) { return <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.heading, margin: "28px 0 14px", paddingBottom: 7, letterSpacing: -0.3, borderBottom: "1px solid var(--border-subtle)" }}>{children}</h2>; }
+function SH({ children }) { return <h2 style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.heading, margin: "26px 0 13px", paddingBottom: 7, letterSpacing: 0.1, borderBottom: "1px solid var(--border-subtle)" }}><span aria-hidden="true" style={{ width: 3, height: 13, borderRadius: 2, background: "#818cf8", flexShrink: 0 }} />{children}</h2>; }
 function InfoBox({ color, children }) { return <div style={{ background: `${color}0a`, border: `1px solid ${color}22`, borderRadius: 12, padding: "14px 18px", marginBottom: 14 }}><div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>{children}</div></div>; }
 
 export { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox };

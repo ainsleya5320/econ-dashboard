@@ -7,7 +7,6 @@ import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
-import FearGreedGauge from "../components/FearGreedGauge.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -1011,84 +1010,120 @@ function VolSurface({ symbol, spot: initialSpot }) {
 
 function StockDetailView({ data, onBack }) {
   const { symbol, years, prof } = data;
-  const [viewMode, setViewMode] = useState("ratios");
+  const [viewMode, setViewMode] = useState("summary");
   const [descExpanded, setDescExpanded] = useState(false);
-  const toggleBtnStyle = (active) => ({ background: active ? "#818cf8" : "rgba(255,255,255,0.05)", border: "1px solid " + (active ? "#818cf8" : "rgba(255,255,255,0.1)"), color: active ? "#0f172a" : "#94a3b8", padding: "8px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: fonts.heading, transition: "all 0.15s ease" });
+
+  const q = data.quote || {};
+  const chg = q.change ?? 0;
+  const chgPct = q.changePercentage ?? q.changesPercentage ?? 0;
+  const isUp = chg >= 0;
+  const chgColor = isUp ? "#4ade80" : "#f87171";
+  const fmtNum = (n) => n != null && !isNaN(n) ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
+  const fmtBig = (n) => { if (n == null) return "—"; const a = Math.abs(n); if (a >= 1e12) return `$${(n/1e12).toFixed(2)}T`; if (a >= 1e9) return `$${(n/1e9).toFixed(2)}B`; if (a >= 1e6) return `$${(n/1e6).toFixed(2)}M`; return `$${fmtNum(n)}`; };
+  const fmtVol = (n) => { if (n == null) return "—"; if (n >= 1e6) return `${(n/1e6).toFixed(2)}M`; if (n >= 1e3) return `${(n/1e3).toFixed(1)}K`; return n.toLocaleString(); };
+
+  // Morningstar-style subtabs — content areas when a stock is in context
+  const DETAIL_TABS = [
+    { id: "summary",    label: "Summary" },
+    { id: "chart",      label: "Chart" },
+    { id: "ratios",     label: "Key Ratios" },
+    { id: "financials", label: "Profitability waterfall" },
+    { id: "dcf",        label: "Valuation" },
+  ];
+
+  const priceChart = (height) => (
+    data.hist && data.hist.length > 1 ? (
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 10px", marginBottom: 16 }}>
+        <ResponsiveContainer width="100%" height={height}>
+          <AreaChart data={data.hist} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chgColor} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={chgColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="date" hide={height < 200} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} interval={Math.max(0, Math.floor((data.hist.length) / 8) - 1)} />
+            <YAxis domain={["dataMin", "dataMax"]} hide={height < 200} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${Number(v).toFixed(0)}`} orientation="right" />
+            <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontFamily: fonts.mono }} labelStyle={{ color: "#94a3b8" }} formatter={(v) => [`$${Number(v).toFixed(2)}`, "Price"]} />
+            <Area type="monotone" dataKey="close" stroke={chgColor} fill="url(#priceGrad)" strokeWidth={1.5} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginTop: 4 }}>
+          <span>{data.hist[0]?.date}</span>
+          <span style={{ color: "#64748b" }}>90-Day Price History</span>
+          <span>{data.hist[data.hist.length - 1]?.date}</span>
+        </div>
+      </div>
+    ) : null
+  );
+
+  const statCell = (label, val) => (
+    <div key={label} style={{ padding: "8px 0" }}>
+      <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 500 }}>{val}</div>
+    </div>
+  );
+
   return (<>
-    <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-      <button onClick={onBack} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 16px", color: "#818cf8", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: fonts.heading, display: "flex", alignItems: "center", gap: 6 }}>
-        ← Back to Screener
-      </button>
-      <div style={{ marginLeft: "auto", display: "flex", borderRadius: 8, overflow: "hidden" }}>
-        <button onClick={() => setViewMode("ratios")} style={{ ...toggleBtnStyle(viewMode === "ratios"), borderRadius: "8px 0 0 8px" }}>Key Ratios</button>
-        <button onClick={() => setViewMode("dcf")} style={{ ...toggleBtnStyle(viewMode === "dcf"), borderRadius: "0 8px 8px 0" }}>Reverse DCF</button>
-      </div>
+    {/* ── Breadcrumb ── */}
+    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, fontSize: 11, fontFamily: fonts.mono }}>
+      <span onClick={onBack} style={{ color: "#818cf8", cursor: "pointer", borderBottom: "1px dashed rgba(129,140,248,0.4)" }}>Stocks</span>
+      <span style={{ color: "#475569" }}>›</span>
+      <span style={{ color: "var(--text-secondary)" }}>{prof?.companyName || symbol}</span>
     </div>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading }}>
-        {prof?.companyName || symbol}
-        <span style={{ color: "#818cf8", fontSize: 14, fontWeight: 600, marginLeft: 10, fontFamily: fonts.mono }}>{symbol}</span>
-      </div>
-      {prof && <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginTop: 4 }}>{prof.sector}{prof.industry ? ` — ${prof.industry}` : ""}{prof.mktCap ? ` | Mkt Cap: ${fmtVal(prof.mktCap, "bigdollar")}` : ""}</div>}
-      {prof?.description && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, maxHeight: descExpanded ? "none" : 60, overflow: "hidden", transition: "max-height 0.3s ease" }}>{prof.description}</div>
-          <span onClick={() => setDescExpanded(p => !p)} style={{ fontSize: 10, color: "#818cf8", cursor: "pointer", fontFamily: fonts.mono, marginTop: 4, display: "inline-block" }}>{descExpanded ? "Show less ▲" : "Show more ▼"}</span>
-        </div>
-      )}
-    </div>
-    {/* Quote / Trading Info Panel */}
-    {data.quote && (() => {
-      const q = data.quote;
-      const chg = q.change ?? 0;
-      const chgPct = q.changePercentage ?? q.changesPercentage ?? 0;
-      const isUp = chg >= 0;
-      const chgColor = isUp ? "#4ade80" : "#f87171";
-      const statCell = (label, val) => (
-        <div key={label} style={{ padding: "8px 0" }}>
-          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 2 }}>{label}</div>
-          <div style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 500 }}>{val}</div>
-        </div>
-      );
-      const fmtNum = (n) => n != null && !isNaN(n) ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—";
-      const fmtBig = (n) => { if (n == null) return "—"; const a = Math.abs(n); if (a >= 1e12) return `$${(n/1e12).toFixed(2)}T`; if (a >= 1e9) return `$${(n/1e9).toFixed(2)}B`; if (a >= 1e6) return `$${(n/1e6).toFixed(2)}M`; return `$${fmtNum(n)}`; };
-      const fmtVol = (n) => { if (n == null) return "—"; if (n >= 1e6) return `${(n/1e6).toFixed(2)}M`; if (n >= 1e3) return `${(n/1e3).toFixed(1)}K`; return n.toLocaleString(); };
-      return (
-        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
-          {/* Price row */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 32, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.mono }}>${fmtNum(q.price)}</span>
-            <span style={{ fontSize: 16, fontWeight: 600, color: chgColor, fontFamily: fonts.mono }}>
-              {isUp ? "+" : ""}{chg.toFixed(2)} ({isUp ? "+" : ""}{chgPct.toFixed(2)}%)
-            </span>
-            {q.timestamp && <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>{new Date(q.timestamp * 1000).toLocaleString()}</span>}
+
+    {/* ── In-context header: identity + live price, always visible ── */}
+    <div style={{ background: cardBg, border: cardBorder, borderBottom: "none", borderRadius: "14px 14px 0 0", padding: "18px 22px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 18, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.5, lineHeight: 1.15 }}>
+            {prof?.companyName || symbol}
+            <span style={{ color: "#818cf8", fontSize: 15, fontWeight: 600, marginLeft: 10, fontFamily: fonts.mono }}>{symbol}</span>
           </div>
-          {/* Mini price chart */}
-          {data.hist && data.hist.length > 1 && (
-            <div style={{ margin: "16px 0 12px" }}>
-              <ResponsiveContainer width="100%" height={100}>
-                <AreaChart data={data.hist} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={chgColor} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={chgColor} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" hide />
-                  <YAxis domain={["dataMin", "dataMax"]} hide />
-                  <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontFamily: fonts.mono }} labelStyle={{ color: "#94a3b8" }} formatter={(v) => [`$${Number(v).toFixed(2)}`, "Price"]} />
-                  <Area type="monotone" dataKey="close" stroke={chgColor} fill="url(#priceGrad)" strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginTop: 2 }}>
-                <span>{data.hist[0]?.date}</span>
-                <span style={{ color: "#64748b" }}>90-Day Price History</span>
-                <span>{data.hist[data.hist.length - 1]?.date}</span>
-              </div>
+          <div style={{ fontSize: 10.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 4 }}>
+            {prof?.exchangeShortName || "Stock"}{prof?.sector ? ` · ${prof.sector}` : ""}{prof?.industry ? ` · ${prof.industry}` : ""}
+          </div>
+        </div>
+        {data.quote && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, justifyContent: "flex-end" }}>
+              <span style={{ fontSize: 30, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.mono, lineHeight: 1 }}>${fmtNum(q.price)}</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: chgColor, fontFamily: fonts.mono }}>
+                {isUp ? "+" : ""}{chg.toFixed(2)} ({isUp ? "+" : ""}{chgPct.toFixed(2)}%)
+              </span>
             </div>
-          )}
-          {/* Trading stats grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0 24px", borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12, marginTop: 8 }}>
+            <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 4 }}>
+              {q.timestamp ? `As of ${new Date(q.timestamp * 1000).toLocaleString()}` : ""}{q.marketCap || prof?.mktCap ? ` · Mkt Cap ${fmtBig(q.marketCap ?? prof?.mktCap)}` : ""}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* ── Morningstar-style subtab bar, attached to header ── */}
+    <div style={{ display: "flex", gap: 2, background: cardBg, border: cardBorder, borderTop: "1px solid var(--border-subtle)", borderRadius: "0 0 14px 14px", padding: "0 14px", marginBottom: 18, overflowX: "auto" }}>
+      {DETAIL_TABS.map(t => {
+        const active = viewMode === t.id;
+        return (
+          <button key={t.id} onClick={() => setViewMode(t.id)} style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            padding: "11px 14px", fontSize: 12.5, fontFamily: fonts.heading,
+            fontWeight: active ? 700 : 400,
+            color: active ? "var(--text-primary)" : "var(--tab-inactive-color)",
+            borderBottom: active ? "2px solid #818cf8" : "2px solid transparent",
+            whiteSpace: "nowrap", transition: "all 0.12s",
+          }}>{t.label}</button>
+        );
+      })}
+    </div>
+
+    {/* ═══ SUMMARY ═══ */}
+    {viewMode === "summary" && (<>
+      {priceChart(120)}
+      {data.quote && (
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 22px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 }}>Trading Information</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0 24px" }}>
             {statCell("Open", `$${fmtNum(q.open)}`)}
             {statCell("Prev Close", `$${fmtNum(q.previousClose)}`)}
             {statCell("Day Range", `$${fmtNum(q.dayLow)} – $${fmtNum(q.dayHigh)}`)}
@@ -1102,11 +1137,27 @@ function StockDetailView({ data, onBack }) {
             {statCell("200-Day Avg", `$${fmtNum(q.priceAvg200 ?? prof?.priceAvg200)}`)}
           </div>
         </div>
-      );
-    })()}
+      )}
+      {prof?.description && (
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 22px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>About {prof?.companyName || symbol}</div>
+          <div style={{ fontSize: 11.5, color: "#94a3b8", lineHeight: 1.65, maxHeight: descExpanded ? "none" : 78, overflow: "hidden" }}>{prof.description}</div>
+          <span onClick={() => setDescExpanded(p => !p)} style={{ fontSize: 10, color: "#818cf8", cursor: "pointer", fontFamily: fonts.mono, marginTop: 6, display: "inline-block" }}>{descExpanded ? "Show less ▲" : "Show more ▼"}</span>
+        </div>
+      )}
+    </>)}
+
+    {/* ═══ CHART ═══ */}
+    {viewMode === "chart" && priceChart(360)}
+
+    {/* ═══ FINANCIALS — profit waterfall ═══ */}
+    {viewMode === "financials" && <ProfitSankey data={data} />}
+
+    {/* ═══ VALUATION — reverse DCF ═══ */}
     {viewMode === "dcf" && <ReverseDCF data={data} />}
+
+    {/* ═══ KEY RATIOS ═══ */}
     {viewMode === "ratios" && (<>
-      <ProfitSankey data={data} />
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
           <thead style={{ position: "sticky", top: 0, zIndex: 3 }}>
@@ -1147,7 +1198,7 @@ function StockDetailView({ data, onBack }) {
   </>);
 }
 
-function StocksTab({ fmpKey }) {
+function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   const [tickers, setTickers] = useState(() => {
     // Fast initial render from localStorage; server will override on mount
     try { const saved = localStorage.getItem("econ-dash-tickers"); return saved ? JSON.parse(saved) : DEFAULT_TICKERS; } catch { return DEFAULT_TICKERS; }
@@ -1244,6 +1295,15 @@ function StocksTab({ fmpKey }) {
 
   const closeDetail = () => { setDetailSymbol(null); setDetailData(null); };
 
+  // Global ticker search from the app header opens that stock's detail view
+  useEffect(() => {
+    if (openTicker) {
+      openDetail(openTicker);
+      onTickerOpened && onTickerOpened();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTicker]);
+
   if (detailSymbol) {
     return (<>
       {detailLoading ? (
@@ -1327,7 +1387,6 @@ function StocksTab({ fmpKey }) {
 
   if (stockView === "sp500") {
     return (<>
-      <FearGreedGauge />
       {viewToggle}
       {yieldTiles}
       <SP500Screener onSelectStock={openDetail} />
@@ -1335,7 +1394,6 @@ function StocksTab({ fmpKey }) {
   }
 
   return (<>
-    <FearGreedGauge />
     {viewToggle}
     {yieldTiles}
     {tickerBar}

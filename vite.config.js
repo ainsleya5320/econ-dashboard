@@ -482,6 +482,94 @@ async function fetchIndexPE() {
   return results
 }
 
+/* ── Equity Risk Premium (S&P earnings yield − 10Y) with 25yr history ──────
+   The fundamental "am I paid to own stocks vs bonds" spread. Earnings-yield
+   history from multpl.com (monthly, since 1871); 10Y from FRED DGS10. */
+let erpCache = { data: null, ts: 0 }
+const ERP_TTL = 6 * 60 * 60 * 1000
+let eyHistCache = { data: null, ts: 0 }
+const EY_HIST_TTL = 24 * 60 * 60 * 1000
+
+const MON = { Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12' }
+
+// Parse multpl.com monthly S&P 500 earnings-yield table → { 'YYYY-MM': value }
+async function fetchEarningsYieldHistory() {
+  if (eyHistCache.data && Date.now() - eyHistCache.ts < EY_HIST_TTL) return eyHistCache.data
+  try {
+    const resp = await fetch('https://www.multpl.com/s-p-500-earnings-yield/table/by-month', { headers: { 'User-Agent': UA } })
+    if (!resp.ok) throw new Error(`multpl HTTP ${resp.status}`)
+    const html = await resp.text()
+    const i = html.indexOf('id="datatable"')
+    const seg = i >= 0 ? html.slice(i) : html
+    const re = /<td>\s*([A-Z][a-z]{2}) \d{1,2}, (\d{4})\s*<\/td>\s*<td>(?:[\s\S]*?)([0-9]+\.[0-9]+)%/g
+    const out = {}
+    let m
+    while ((m = re.exec(seg)) !== null) {
+      const [, mon, yr, val] = m
+      if (MON[mon]) out[`${yr}-${MON[mon]}`] = parseFloat(val)
+    }
+    eyHistCache = { data: out, ts: Date.now() }
+    return out
+  } catch (e) {
+    console.warn('Earnings-yield history:', e.message)
+    return eyHistCache.data || {}
+  }
+}
+
+async function fetchErp() {
+  if (erpCache.data && Date.now() - erpCache.ts < ERP_TTL) return erpCache.data
+
+  // Current earnings yield (SPY) + current & historical 10Y
+  const [pe, dgs10obs, eyHist] = await Promise.all([
+    fetchIndexPE().catch(() => []),
+    fetchFredSeries('DGS10', 8000).catch(() => []),
+    fetchEarningsYieldHistory(),
+  ])
+  const spy = (pe || []).find(x => x.symbol === 'SPY')
+  const curEY = spy?.earningsYield ?? null
+  const cur10Y = dgs10obs.length ? dgs10obs[dgs10obs.length - 1].v : null
+  const currentErp = (curEY != null && cur10Y != null) ? +(curEY - cur10Y).toFixed(2) : null
+
+  // Monthly 10Y map (last obs per month wins)
+  const y10ByMonth = {}
+  for (const o of dgs10obs) y10ByMonth[o.d.slice(0, 7)] = o.v
+
+  // Build ERP history over months present in both, last 25 years
+  const cutoff = `${new Date().getFullYear() - 25}-01`
+  const hist = Object.keys(eyHist)
+    .filter(mk => mk >= cutoff && y10ByMonth[mk] != null)
+    .sort()
+    .map(mk => ({ d: `${mk}-01`, ey: eyHist[mk], y10: y10ByMonth[mk], v: +(eyHist[mk] - y10ByMonth[mk]).toFixed(2) }))
+
+  // Percentile of current ERP within history (higher ERP = stocks cheaper)
+  let percentile = null
+  if (currentErp != null && hist.length) {
+    const below = hist.filter(h => h.v < currentErp).length
+    percentile = Math.round((below / hist.length) * 100)
+  }
+
+  // Verdict from percentile (regime-robust)
+  let verdict = null, tone = 'neutral'
+  if (percentile != null) {
+    if (percentile >= 66)      { verdict = 'Stocks cheap vs bonds'; tone = 'success' }
+    else if (percentile >= 40) { verdict = 'Fairly valued';         tone = 'neutral' }
+    else if (percentile >= 15) { verdict = 'Bonds competitive';     tone = 'warning' }
+    else                        { verdict = 'Bonds win';             tone = 'danger'  }
+  }
+
+  const result = {
+    currentErp, earningsYield: curEY, tenYear: cur10Y,
+    percentile, verdict, tone,
+    history: hist,
+    min: hist.length ? Math.min(...hist.map(h => h.v)) : null,
+    max: hist.length ? Math.max(...hist.map(h => h.v)) : null,
+    updated: Date.now(),
+  }
+  console.log(`ERP: ${currentErp}pp (EY ${curEY?.toFixed(2)} − 10Y ${cur10Y}) · ${percentile}th pctile · ${hist.length} months`)
+  erpCache = { data: result, ts: Date.now() }
+  return result
+}
+
 /* ── Commodity spot prices via Yahoo Finance (15-min cache) ──── */
 let commodCache = { data: null, ts: 0 }
 const COMMODITY_SYMBOLS = [
@@ -2269,6 +2357,19 @@ export default defineConfig({
           res.setHeader('Access-Control-Allow-Origin', '*')
           try {
             const data = await fetchIndexPE()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Equity Risk Premium endpoint (earnings yield − 10Y, with history)
+        server.middlewares.use('/api/erp', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { erpCache = { data: null, ts: 0 } }
+            const data = await fetchErp()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500
