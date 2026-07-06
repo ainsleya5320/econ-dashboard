@@ -7,6 +7,7 @@ import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
+import SP500Overview from "./stocks/SP500Overview.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -1228,7 +1229,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   const [detailSymbol, setDetailSymbol] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [stockView, setStockView] = useState("sp500"); // "sp500" | "screener"
+  const [stockView, setStockView] = useState("overview"); // "overview" | "sp500" | "screener"
   const [indexYields, setIndexYields] = useState(null);
 
   const loadData = useCallback(async () => {
@@ -1325,7 +1326,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   // View toggle
   const viewToggle = (
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
-      {[["sp500", "STK️ S&P 500"], ["screener", "📊 Watchlist"]].map(([id, label]) => (
+      {[["overview", "🗺️ S&P Overview"], ["sp500", "STK️ S&P 500"], ["screener", "📊 Watchlist"]].map(([id, label]) => (
         <button key={id} onClick={() => setStockView(id)} style={{
           flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
           background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
@@ -1384,6 +1385,14 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       })}
     </div>
   );
+
+  if (stockView === "overview") {
+    return (<>
+      {viewToggle}
+      {yieldTiles}
+      <SP500Overview onSelectStock={openDetail} />
+    </>);
+  }
 
   if (stockView === "sp500") {
     return (<>

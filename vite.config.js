@@ -1078,7 +1078,7 @@ function saveRankingsHistory(data) {
 // OpenRouter restored a clean public GET endpoint for rankings (their old RSC
 // POST trick broke). /rankings/models is the per-model token-usage snapshot.
 async function fetchOpenRouterRankingsFresh() {
-  const resp = await fetch('https://openrouter.ai/api/frontend/rankings/models', { headers: { 'User-Agent': UA } })
+  const resp = await fetch('https://openrouter.ai/api/frontend/v1/rankings/models', { headers: { 'User-Agent': UA } })
   if (!resp.ok) throw new Error(`OpenRouter rankings HTTP ${resp.status}`)
   const json = await resp.json()
   if (!Array.isArray(json.data)) throw new Error('OpenRouter rankings: unexpected shape')
@@ -1090,7 +1090,7 @@ async function fetchOpenRouterRankingsFresh() {
 // Shape: [{ x: "2025-06-16", ys: { google: tokens, anthropic: tokens, ... } }]
 async function fetchOpenRouterMarketShare() {
   try {
-    const resp = await fetch('https://openrouter.ai/api/frontend/rankings/market-share', { headers: { 'User-Agent': UA } })
+    const resp = await fetch('https://openrouter.ai/api/frontend/v1/rankings/market-share', { headers: { 'User-Agent': UA } })
     if (!resp.ok) return []
     const json = await resp.json()
     return Array.isArray(json.data) ? json.data : []
@@ -1167,6 +1167,440 @@ async function getRankingsWithHistory() {
   const result = { rows, marketShare, source: 'live+archive', updated: Date.now(), dates: uniqueDates }
   orRankingsCache = { data: result, ts: Date.now() }
   return result
+}
+
+/* ── Macro Dashboard — the U.S. Economy tab's at-a-glance landing ─────────
+   One batched FRED pull: headline tiles, recession lights, regime quadrant,
+   real-rate verdicts. Everything precomputed server-side. */
+let macroDashCache = { data: null, ts: 0 }
+const MACRO_DASH_TTL = 4 * 60 * 60 * 1000
+
+const MACRO_SERIES = {
+  A191RL1Q225SBEA: { label: 'Real GDP Growth (QoQ SAAR)', freq: 'Q', limit: 120 },
+  CPIAUCSL:        { label: 'CPI',                        freq: 'M', limit: 480 },
+  CPILFESL:        { label: 'Core CPI',                   freq: 'M', limit: 480 },
+  PCEPILFE:        { label: 'Core PCE',                   freq: 'M', limit: 480 },
+  UNRATE:          { label: 'Unemployment (U-3)',         freq: 'M', limit: 480 },
+  SAHMREALTIME:    { label: 'Sahm Rule',                  freq: 'M', limit: 240 },
+  PAYEMS:          { label: 'Nonfarm Payrolls',           freq: 'M', limit: 480 },
+  FEDFUNDS:        { label: 'Fed Funds Rate',             freq: 'M', limit: 480 },
+  DGS2:            { label: '2Y Treasury',                freq: 'D', limit: 120 },
+  DGS10:           { label: '10Y Treasury',               freq: 'D', limit: 120 },
+  MORTGAGE30US:    { label: '30Y Mortgage',               freq: 'W', limit: 1100 },
+  CSUSHPINSA:      { label: 'Case-Shiller Home Prices',   freq: 'M', limit: 480 },
+  UMCSENT:         { label: 'Consumer Sentiment',         freq: 'M', limit: 480 },
+  IC4WSA:          { label: 'Jobless Claims (4-wk avg)',  freq: 'W', limit: 1100 },
+  HOUST:           { label: 'Housing Starts',             freq: 'M', limit: 480 },
+  FYFSGDA188S:     { label: 'Federal Deficit % of GDP',   freq: 'A', limit: 60 },
+  CES0500000003:   { label: 'Avg Hourly Earnings',        freq: 'M', limit: 240 },
+}
+const MACRO_YOY_LAG = { M: 12, W: 52, Q: 4, A: 1, D: 251 }
+
+const pctileOf = (arr, val) => {
+  const a = (arr || []).filter(v => v != null && isFinite(v))
+  if (a.length < 8 || val == null) return null
+  return Math.round((a.filter(v => v < val).length / a.length) * 100)
+}
+
+async function fetchMacroDashboard() {
+  if (macroDashCache.data && Date.now() - macroDashCache.ts < MACRO_DASH_TTL) return macroDashCache.data
+  console.log('Macro dashboard: fetching FRED batch...')
+
+  const series = {}
+  await Promise.all(Object.entries(MACRO_SERIES).map(async ([id, meta]) => {
+    try {
+      const obs = await fetchFredSeries(id, meta.limit)
+      if (!obs.length) return
+      const vals = obs.map(o => o.v)
+      const lag = MACRO_YOY_LAG[meta.freq] || 12
+      const yoySeries = []
+      for (let i = lag; i < vals.length; i++) {
+        if (vals[i - lag]) yoySeries.push(+(((vals[i] - vals[i - lag]) / Math.abs(vals[i - lag])) * 100).toFixed(2))
+        else yoySeries.push(null)
+      }
+      const current = vals[vals.length - 1]
+      const yoy = yoySeries.length ? yoySeries[yoySeries.length - 1] : null
+      series[id] = {
+        id, label: meta.label, freq: meta.freq,
+        current, prev: vals.length > 1 ? vals[vals.length - 2] : null,
+        lastDate: obs[obs.length - 1].d,
+        yoy,
+        sparkRaw: vals.slice(-40),
+        sparkYoY: yoySeries.slice(-40),
+        pctRaw: pctileOf(vals, current),
+        pctYoY: pctileOf(yoySeries, yoy),
+        obs,   // used below for composites, stripped before respond
+      }
+    } catch (e) { console.warn(`Macro dash ${id}:`, e.message) }
+  }))
+
+  const s = series
+  const cpiYoY     = s.CPIAUCSL?.yoy ?? null
+  const coreCpiYoY = s.CPILFESL?.yoy ?? null
+  const corePceYoY = s.PCEPILFE?.yoy ?? null
+  const wageYoY    = s.CES0500000003?.yoy ?? null
+
+  // Payrolls: 3-month average monthly change (PAYEMS is in thousands)
+  let payroll3mo = null
+  if (s.PAYEMS?.obs?.length > 4) {
+    const p = s.PAYEMS.obs.map(o => o.v)
+    const diffs = [p.length - 1, p.length - 2, p.length - 3].map(i => p[i] - p[i - 1])
+    payroll3mo = Math.round(diffs.reduce((a, b) => a + b, 0) / 3)
+  }
+
+  // Regime path: last 8 GDP quarters matched with CPI YoY at quarter mid
+  const regimePath = []
+  if (s.A191RL1Q225SBEA?.obs?.length && s.CPIAUCSL?.obs?.length) {
+    const cpiObs = s.CPIAUCSL.obs
+    const lag = 12
+    const cpiYoYByMonth = {}
+    for (let i = lag; i < cpiObs.length; i++) {
+      if (cpiObs[i - lag].v) cpiYoYByMonth[cpiObs[i].d.slice(0, 7)] = +(((cpiObs[i].v - cpiObs[i - lag].v) / cpiObs[i - lag].v) * 100).toFixed(2)
+    }
+    const gdpObs = s.A191RL1Q225SBEA.obs.slice(-8)
+    for (const g of gdpObs) {
+      const [yr, mo] = g.d.split('-').map(Number)
+      let infl = null
+      for (const off of [2, 1, 0]) {
+        const m = mo + off, y2 = yr + Math.floor((m - 1) / 12), m2 = ((m - 1) % 12) + 1
+        const key = `${y2}-${String(m2).padStart(2, '0')}`
+        if (cpiYoYByMonth[key] != null) { infl = cpiYoYByMonth[key]; break }
+      }
+      if (infl != null) regimePath.push({ d: g.d, growth: g.v, inflation: infl })
+    }
+  }
+
+  const computed = {
+    cpiYoY, coreCpiYoY, corePceYoY, wageYoY,
+    homePriceYoY: s.CSUSHPINSA?.yoy ?? null,
+    spread2s10s: (s.DGS10?.current != null && s.DGS2?.current != null) ? +((s.DGS10.current - s.DGS2.current) * 100).toFixed(0) : null,
+    sahm: s.SAHMREALTIME?.current ?? null,
+    claimsYoY: s.IC4WSA?.yoy ?? null,
+    houstYoY: s.HOUST?.yoy ?? null,
+    payroll3mo,
+    realFFR:  (s.FEDFUNDS?.current != null && corePceYoY != null) ? +(s.FEDFUNDS.current - corePceYoY).toFixed(2) : null,
+    real10Y:  (s.DGS10?.current != null && cpiYoY != null) ? +(s.DGS10.current - cpiYoY).toFixed(2) : null,
+    realWages: (wageYoY != null && cpiYoY != null) ? +(wageYoY - cpiYoY).toFixed(2) : null,
+    regimePath,
+  }
+
+  // Strip the raw obs arrays before serving (payload diet)
+  Object.values(series).forEach(x => { delete x.obs })
+
+  const result = { series, computed, updated: Date.now() }
+  console.log(`Macro dashboard: ${Object.keys(series).length}/${Object.keys(MACRO_SERIES).length} series · 2s10s ${computed.spread2s10s}bp · Sahm ${computed.sahm} · realFFR ${computed.realFFR}`)
+  macroDashCache = { data: result, ts: Date.now() }
+  return result
+}
+
+/* ── Consumer Health — is the American household healthy? ─────────────────
+   Thesis: consumers are healthy when INCOME funds spending, stressed when
+   BORROWING funds spending. Batches FRED, precomputes the income/spend/borrow
+   mechanism, a stress dial, and affordability + K-shape context. */
+let consumerCache = { data: null, ts: 0 }
+const CONSUMER_TTL = 4 * 60 * 60 * 1000
+
+const CONSUMER_SERIES = {
+  TDSP:          { label: 'Debt Service Ratio',       freq: 'Q', limit: 200, unit: '%' },
+  DSPIC96:       { label: 'Real Disposable Income',   freq: 'M', limit: 480 },
+  PCEC96:        { label: 'Real Consumer Spending',   freq: 'M', limit: 480 },
+  RRSFS:         { label: 'Real Retail Sales',        freq: 'M', limit: 400 },
+  REVOLSL:       { label: 'Revolving Credit (cards)', freq: 'M', limit: 480 },
+  TERMCBCCALLNS: { label: 'Credit Card APR',          freq: 'M', limit: 240, unit: '%' },
+  GASREGW:       { label: 'Gas Price (regular)',      freq: 'W', limit: 1200, unit: '$' },
+  PSAVERT:       { label: 'Personal Savings Rate',    freq: 'M', limit: 480, unit: '%' },
+  DRCCLACBS:     { label: 'Consumer Loan Delinquency',freq: 'Q', limit: 160, unit: '%' },
+  DRCRELEXFACBS: { label: 'Credit Card Delinquency',  freq: 'Q', limit: 160, unit: '%' },
+  DRSFRMACBS:    { label: 'Mortgage Delinquency',     freq: 'Q', limit: 160, unit: '%' },
+  WFRBST01134:   { label: 'Top 1% Wealth Share',      freq: 'Q', limit: 160, unit: '%' },
+  WFRBSB50215:   { label: 'Bottom 50% Wealth Share',  freq: 'Q', limit: 160, unit: '%' },
+  UMCSENT:       { label: 'Consumer Sentiment',       freq: 'M', limit: 480 },
+}
+
+async function fetchConsumerHealth() {
+  if (consumerCache.data && Date.now() - consumerCache.ts < CONSUMER_TTL) return consumerCache.data
+  console.log('Consumer health: fetching FRED batch...')
+
+  const series = {}
+  await Promise.all(Object.entries(CONSUMER_SERIES).map(async ([id, meta]) => {
+    try {
+      const obs = await fetchFredSeries(id, meta.limit)
+      if (!obs.length) return
+      const vals = obs.map(o => o.v)
+      const lag = MACRO_YOY_LAG[meta.freq] || 12
+      const yoySeries = []
+      for (let i = 0; i < vals.length; i++) {
+        yoySeries.push(i >= lag && vals[i - lag] ? +(((vals[i] - vals[i - lag]) / Math.abs(vals[i - lag])) * 100).toFixed(2) : null)
+      }
+      const current = vals[vals.length - 1]
+      const prevYr = vals.length > lag ? vals[vals.length - 1 - lag] : null
+      series[id] = {
+        id, label: meta.label, unit: meta.unit || '', freq: meta.freq,
+        current, lastDate: obs[obs.length - 1].d,
+        yoy: yoySeries[yoySeries.length - 1],
+        deltaYr: prevYr != null ? +(current - prevYr).toFixed(2) : null,   // level change vs a year ago
+        sparkRaw: vals.slice(-40),
+        pctRaw: pctileOf(vals, current),
+        obs,
+      }
+    } catch (e) { console.warn(`Consumer ${id}:`, e.message) }
+  }))
+
+  const s = series
+  const yoyAt = (id) => {
+    const o = s[id]?.obs
+    if (!o || o.length < 13) return null
+    const map = {}
+    for (let i = 12; i < o.length; i++) if (o[i - 12].v) map[o[i].d.slice(0, 7)] = +(((o[i].v - o[i - 12].v) / o[i - 12].v) * 100).toFixed(2)
+    return map
+  }
+  const incMap = yoyAt('DSPIC96'), spMap = yoyAt('PCEC96'), revMap = yoyAt('REVOLSL')
+
+  // Mechanism chart: income vs spending vs revolving-credit YoY, last 60 months
+  let mechanism = []
+  if (incMap && spMap && revMap) {
+    const months = [...new Set([...Object.keys(incMap), ...Object.keys(spMap), ...Object.keys(revMap)])].sort().slice(-60)
+    mechanism = months.map(m => ({ d: `${m}-01`, income: incMap[m] ?? null, spend: spMap[m] ?? null, revolving: revMap[m] ?? null }))
+  }
+
+  const incomeGrowth = s.DSPIC96?.yoy ?? null
+  const spendGrowth  = s.PCEC96?.yoy ?? null
+  const borrowGrowth = s.REVOLSL?.yoy ?? null
+
+  const computed = {
+    incomeGrowth, spendGrowth, borrowGrowth,
+    spendVsIncome: (spendGrowth != null && incomeGrowth != null) ? +(spendGrowth - incomeGrowth).toFixed(2) : null,
+    retailYoY: s.RRSFS?.yoy ?? null,
+    debtService: s.TDSP?.current ?? null,
+    cardApr: s.TERMCBCCALLNS?.current ?? null,
+    gas: s.GASREGW?.current ?? null, gasYoY: s.GASREGW?.yoy ?? null,
+    savings: s.PSAVERT?.current ?? null, savingsPct: s.PSAVERT?.pctRaw ?? null,
+    cardDelinq: s.DRCRELEXFACBS?.current ?? null, cardDelinqDir: s.DRCRELEXFACBS?.deltaYr ?? null,
+    consumerDelinq: s.DRCCLACBS?.current ?? null,
+    top1: s.WFRBST01134?.current ?? null, top1Dir: s.WFRBST01134?.deltaYr ?? null,
+    bottom50: s.WFRBSB50215?.current ?? null, bottom50Dir: s.WFRBSB50215?.deltaYr ?? null,
+    sentiment: s.UMCSENT?.current ?? null, sentimentPct: s.UMCSENT?.pctRaw ?? null,
+    mechanism,
+  }
+
+  Object.values(series).forEach(x => { delete x.obs })
+  const result = { series, computed, updated: Date.now() }
+  console.log(`Consumer health: ${Object.keys(series).length}/${Object.keys(CONSUMER_SERIES).length} series · income ${incomeGrowth}% vs spend ${spendGrowth}% · savings ${computed.savings}%`)
+  consumerCache = { data: result, ts: Date.now() }
+  return result
+}
+
+/* ── Debt Market (FRED spreads + FMP basket fundamentals) ────────────────
+   Credit-cycle cockpit: HY/IG option-adjusted spreads (level + percentile),
+   long-history Baa−10Y, refi squeeze (HY yield vs corporate coverage), and
+   the early-warning pair (SLOOS tightening + C&I delinquency).
+   Micro layer: annual FMP ratios for a fixed ~30 large-cap non-financial
+   basket (quarterly ratios are premium-gated; medians are robust to the
+   AAPL-style null-interest-expense holes). Cached to disk — filed years
+   don't change. */
+let debtMarketCache = { data: null, ts: 0 }
+const DEBT_MARKET_TTL = 4 * 60 * 60 * 1000
+const DEBT_FMP_FILE = path.join(__dirname, 'debt-market-fmp.json')
+const DEBT_FMP_TTL = 7 * 24 * 60 * 60 * 1000 // annual filings — weekly refresh is plenty
+
+// limit ≈ observations to pull (daily series: ~250/yr)
+const DEBT_FRED = {
+  BAMLH0A0HYM2:      { label: 'High-Yield OAS',            freq: 'd', limit: 7600 },  // 1996→
+  BAMLC0A0CM:        { label: 'Investment-Grade OAS',      freq: 'd', limit: 7600 },  // 1996→
+  BAMLH0A0HYM2EY:    { label: 'HY Effective Yield',        freq: 'd', limit: 7600 },
+  BAA10Y:            { label: 'Baa − 10Y Spread',          freq: 'd', limit: 10200 }, // 1986→
+  DGS10:             { label: '10Y Treasury',              freq: 'd', limit: 2600 },
+  FEDFUNDS:          { label: 'Fed Funds Rate',            freq: 'm', limit: 480 },
+  DRTSCILM:          { label: 'SLOOS: Net % Tightening C&I', freq: 'q', limit: 200 }, // 1990→
+  DRBLACBS:          { label: 'C&I Delinquency Rate',      freq: 'q', limit: 200 },  // 1987→
+  BOGZ1FA106130001Q: { label: 'NF Corp Interest Paid',     freq: 'q', limit: 320 },  // Z.1, $M SAAR
+  A464RC1Q027SBEA:   { label: 'NF Corp Profits (pre-tax)', freq: 'q', limit: 320 },  // BEA, $B SAAR
+}
+
+// Fixed non-financial large-cap basket (banks' coverage ratios are meaningless).
+// Debt-heavy sectors (telecom, utilities) deliberately included.
+const DEBT_BASKET = [
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'AVGO', 'ORCL',
+  'UNH', 'JNJ', 'LLY', 'MRK', 'PFE',
+  'XOM', 'CVX', 'COP',
+  'WMT', 'PG', 'KO', 'PEP', 'COST', 'HD', 'MCD',
+  'CAT', 'HON', 'UNP', 'GE', 'DE', 'BA',
+  'T', 'VZ', 'CMCSA', 'DIS',
+  'LIN', 'NEE', 'DUK', 'SO',
+]
+
+function loadDebtFmpCache() {
+  try { if (fs.existsSync(DEBT_FMP_FILE)) return JSON.parse(fs.readFileSync(DEBT_FMP_FILE, 'utf8')) } catch {}
+  return { fetchedAt: 0, byTicker: {} }
+}
+
+async function fetchDebtBasket() {
+  const cache = loadDebtFmpCache()
+  if (Date.now() - (cache.fetchedAt || 0) < DEBT_FMP_TTL && Object.keys(cache.byTicker || {}).length) return cache.byTicker
+  console.log(`Debt market: fetching FMP ratios+key-metrics for ${DEBT_BASKET.length} tickers...`)
+  const byTicker = {}
+  // small batches to be polite to the rate limiter
+  for (let i = 0; i < DEBT_BASKET.length; i += 6) {
+    await Promise.all(DEBT_BASKET.slice(i, i + 6).map(async t => {
+      try {
+        const [ratiosResp, kmResp] = await Promise.all([
+          fetch(`https://financialmodelingprep.com/stable/ratios?symbol=${t}&limit=8&apikey=${FMP_KEY}`, { headers: { 'User-Agent': UA } }),
+          fetch(`https://financialmodelingprep.com/stable/key-metrics?symbol=${t}&limit=8&apikey=${FMP_KEY}`, { headers: { 'User-Agent': UA } }),
+        ])
+        const ratios = ratiosResp.ok ? await ratiosResp.json() : []
+        const km = kmResp.ok ? await kmResp.json() : []
+        if (!Array.isArray(ratios) || !ratios.length) return
+        const kmByYear = {}
+        if (Array.isArray(km)) for (const r of km) kmByYear[r.fiscalYear] = r
+        byTicker[t] = ratios.map(r => ({
+          fy: r.fiscalYear,
+          coverage: (r.interestCoverageRatio && isFinite(r.interestCoverageRatio) && r.interestCoverageRatio !== 0) ? +r.interestCoverageRatio.toFixed(1) : null,
+          netDebtToEbitda: kmByYear[r.fiscalYear] && isFinite(kmByYear[r.fiscalYear].netDebtToEBITDA) ? +kmByYear[r.fiscalYear].netDebtToEBITDA.toFixed(2) : null,
+        }))
+      } catch (e) { console.warn(`Debt basket ${t}:`, e.message) }
+    }))
+  }
+  if (Object.keys(byTicker).length) {
+    try { fs.writeFileSync(DEBT_FMP_FILE, JSON.stringify({ fetchedAt: Date.now(), byTicker }, null, 2)) } catch (e) { console.error('Debt FMP cache save:', e.message) }
+    return byTicker
+  }
+  return cache.byTicker || {} // fetch failed — serve stale rather than nothing
+}
+
+const median = arr => {
+  const a = arr.filter(v => v != null && isFinite(v)).sort((x, y) => x - y)
+  if (!a.length) return null
+  return a.length % 2 ? a[(a.length - 1) / 2] : +((a[a.length / 2 - 1] + a[a.length / 2]) / 2).toFixed(2)
+}
+
+// Downsample a daily obs array to weekly (last observation per ISO week)
+function toWeekly(obs) {
+  const out = []
+  let curKey = null
+  for (const o of obs) {
+    const dt = new Date(o.d + 'T00:00:00Z')
+    const wk = `${dt.getUTCFullYear()}-${Math.floor((Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()) - Date.UTC(dt.getUTCFullYear(), 0, 1)) / 604800000)}`
+    if (wk === curKey) out[out.length - 1] = o
+    else { out.push(o); curKey = wk }
+  }
+  return out
+}
+
+async function fetchDebtMarket() {
+  if (debtMarketCache.data && Date.now() - debtMarketCache.ts < DEBT_MARKET_TTL) return debtMarketCache.data
+  console.log('Debt market: fetching FRED batch...')
+
+  const s = {}
+  await Promise.all(Object.entries(DEBT_FRED).map(async ([id, meta]) => {
+    const obs = await fetchFredSeries(id, meta.limit)
+    if (obs.length) s[id] = { ...meta, obs }
+  }))
+
+  // ── Spreads: weekly HY / IG / quality spread, full-history percentiles ──
+  const hyW  = s.BAMLH0A0HYM2 ? toWeekly(s.BAMLH0A0HYM2.obs) : []
+  const igW  = s.BAMLC0A0CM   ? toWeekly(s.BAMLC0A0CM.obs)   : []
+  const baaW = s.BAA10Y       ? toWeekly(s.BAA10Y.obs)       : []
+  const igByDate = Object.fromEntries(igW.map(o => [o.d, o.v]))
+  let lastIg = null
+  const spreadWeekly = hyW.map(o => {
+    if (igByDate[o.d] != null) lastIg = igByDate[o.d]
+    return { d: o.d, hy: o.v, ig: lastIg, qs: lastIg != null ? +(o.v - lastIg).toFixed(2) : null }
+  })
+  const hyVals = hyW.map(o => o.v)
+  const hyCur  = hyVals.length ? hyVals[hyVals.length - 1] : null
+  const igCur  = igW.length ? igW[igW.length - 1].v : null
+  const baaCur = baaW.length ? baaW[baaW.length - 1].v : null
+  // 3-month change ≈ 13 weekly obs back
+  const hy3mAgo = hyVals.length > 13 ? hyVals[hyVals.length - 14] : null
+  const d3m = (hyCur != null && hy3mAgo != null) ? +(hyCur - hy3mAgo).toFixed(2) : null
+  const hyPct  = pctileOf(hyVals, hyCur)
+  const igPct  = pctileOf(igW.map(o => o.v), igCur)
+  const baaPct = pctileOf(baaW.map(o => o.v), baaCur)
+
+  // ── Verdict: level + percentile + momentum ──
+  // NOTE: ICE BofA series on FRED are license-capped to a rolling ~3-year
+  // window (count ≈ 795), so hyPct is a 3-yr percentile only. For "how tight
+  // vs history" evidence we use BAA10Y (Moody's, full history to 1987).
+  const pctLong = baaPct != null ? baaPct : hyPct
+  let verdict = { label: 'Normal', color: '#4ade80' }
+  if (hyCur != null) {
+    const rising = d3m != null && d3m > 0.75
+    if (hyCur >= 6)                          verdict = { label: 'Credit Stress',         color: '#ef4444' }
+    else if (hyCur >= 4.5 || rising)         verdict = { label: 'Stress Building',       color: '#fbbf24' }
+    else if (pctLong != null && pctLong <= 25) verdict = { label: 'Priced for Perfection', color: '#22d3ee' }
+  }
+
+  // ── Refi squeeze: HY effective yield vs macro coverage proxy ──
+  // Coverage proxy = (nonfinancial pre-tax profits + interest paid) / interest paid
+  // ≈ aggregate EBIT / interest. Z.1 interest is $M SAAR, BEA profits $B SAAR.
+  const hyYldW = s.BAMLH0A0HYM2EY ? toWeekly(s.BAMLH0A0HYM2EY.obs) : []
+  const coverage = []
+  if (s.BOGZ1FA106130001Q && s.A464RC1Q027SBEA) {
+    const intByQ = Object.fromEntries(s.BOGZ1FA106130001Q.obs.map(o => [o.d, o.v / 1000])) // → $B
+    for (const p of s.A464RC1Q027SBEA.obs) {
+      const int = intByQ[p.d]
+      if (int > 0) coverage.push({ d: p.d, v: +(((p.v + int) / int)).toFixed(2) })
+    }
+  }
+  const covCur = coverage.length ? coverage[coverage.length - 1].v : null
+  const covPct = pctileOf(coverage.map(o => o.v), covCur)
+
+  // ── Early-warning tiles ──
+  const tile = (id) => {
+    const t = s[id]
+    if (!t || !t.obs.length) return null
+    const vals = t.obs.map(o => o.v)
+    const cur = vals[vals.length - 1]
+    return {
+      label: t.label, current: cur,
+      prev: vals.length > 1 ? vals[vals.length - 2] : null,
+      lastDate: t.obs[t.obs.length - 1].d,
+      pct: pctileOf(vals, cur),
+      spark: vals.slice(-32),
+    }
+  }
+
+  // ── FMP basket: median coverage + leverage per fiscal year ──
+  const byTicker = await fetchDebtBasket()
+  const byYear = {}
+  for (const [t, rows] of Object.entries(byTicker)) {
+    for (const r of rows || []) {
+      if (!r.fy) continue
+      ;(byYear[r.fy] = byYear[r.fy] || { cov: [], nde: [] })
+      if (r.coverage != null) byYear[r.fy].cov.push(r.coverage)
+      if (r.netDebtToEbitda != null) byYear[r.fy].nde.push(r.netDebtToEbitda)
+    }
+  }
+  const basketByYear = Object.keys(byYear).sort()
+    .map(fy => ({ fy, coverage: median(byYear[fy].cov), netDebtToEbitda: median(byYear[fy].nde), n: byYear[fy].cov.length }))
+    .filter(r => r.n >= 10) // partial years (few filers yet) are misleading
+  const latestFy = basketByYear[basketByYear.length - 1] || null
+  const basketRows = Object.entries(byTicker).map(([t, rows]) => {
+    const latest = (rows || []).find(r => r.coverage != null || r.netDebtToEbitda != null)
+    return latest ? { t, fy: latest.fy, coverage: latest.coverage, netDebtToEbitda: latest.netDebtToEbitda } : null
+  }).filter(Boolean).sort((a, b) => (a.coverage ?? 1e9) - (b.coverage ?? 1e9))
+
+  const data = {
+    verdict: { ...verdict, hy: hyCur, hyPct, baaPct, d3m, asOf: hyW.length ? hyW[hyW.length - 1].d : null },
+    spreads: {
+      weekly: spreadWeekly,
+      hy: { current: hyCur, pct: hyPct }, ig: { current: igCur, pct: igPct },
+      qs: spreadWeekly.length ? spreadWeekly[spreadWeekly.length - 1].qs : null,
+      baa: { weekly: baaW, current: baaCur, pct: baaPct, since: baaW.length ? baaW[0].d.slice(0, 4) : null },
+      since: hyW.length ? hyW[0].d.slice(0, 4) : null,
+    },
+    squeeze: {
+      hyYield: hyYldW,
+      hyYieldCur: hyYldW.length ? hyYldW[hyYldW.length - 1].v : null,
+      coverage, coverageCur: covCur, coveragePct: covPct,
+    },
+    warning: { sloos: tile('DRTSCILM'), delinq: tile('DRBLACBS') },
+    rates: { fedfunds: tile('FEDFUNDS'), dgs10: tile('DGS10') },
+    basket: { byYear: basketByYear, latest: latestFy, rows: basketRows, size: DEBT_BASKET.length },
+    updated: new Date().toISOString(),
+  }
+  debtMarketCache = { data, ts: Date.now() }
+  return data
 }
 
 /* ── Global Liquidity & Debt (FRED + FX conversion) ──────────────────────
@@ -1396,6 +1830,39 @@ const NPM_PACKAGES = [
   { id: 'llamaindex',            label: 'LlamaIndex',     provider: 'Framework', color: '#818cf8' },
 ]
 
+// Agent stack — packages installed specifically to do AGENTIC work. Their
+// install curves are the cleanest public read on agent-ecosystem adoption.
+const AGENT_PYPI = [
+  { id: 'mcp',           label: 'MCP (Python)',   provider: 'MCP',       color: '#E8553A' },
+  { id: 'langgraph',     label: 'LangGraph',      provider: 'Framework', color: '#6366F1' },
+  { id: 'crewai',        label: 'CrewAI',         provider: 'Agent',     color: '#22d3ee' },
+  { id: 'openai-agents', label: 'OpenAI Agents',  provider: 'OpenAI',    color: '#10B981' },
+  { id: 'aider-chat',    label: 'Aider',          provider: 'Agent',     color: '#f472b6' },
+  { id: 'autogen-agentchat', label: 'AutoGen',    provider: 'Agent',     color: '#a78bfa' },
+]
+const AGENT_NPM = [
+  { id: '@modelcontextprotocol/sdk', label: 'MCP SDK',      provider: 'MCP',       color: '#E8553A' },
+  { id: '@openai/agents',            label: 'OpenAI Agents',provider: 'OpenAI',    color: '#10B981' },
+  { id: '@langchain/langgraph',      label: 'LangGraph',    provider: 'Framework', color: '#6366F1' },
+]
+
+// Inference-server container pulls — nobody pulls vLLM except to SERVE tokens in
+// production, so this tracks self-hosted serving capacity being stood up.
+// Docker Hub exposes only cumulative pull_count, so we snapshot daily and derive
+// a rate from the deltas (like GitHub stars).
+const DOCKER_IMAGES = [
+  { id: 'vllm/vllm-openai', label: 'vLLM',   color: '#F59E0B' },
+  { id: 'ollama/ollama',    label: 'Ollama', color: '#8B5CF6' },
+]
+async function fetchDockerPull(repo) {
+  try {
+    const resp = await fetch(`https://hub.docker.com/v2/repositories/${repo}/`, { headers: { 'User-Agent': UA } })
+    if (!resp.ok) return null
+    const j = await resp.json()
+    return typeof j.pull_count === 'number' ? j.pull_count : null
+  } catch { return null }
+}
+
 function loadSdkDownloads() {
   try {
     if (fs.existsSync(SDK_DOWNLOADS_FILE)) return JSON.parse(fs.readFileSync(SDK_DOWNLOADS_FILE, 'utf8'))
@@ -1463,41 +1930,53 @@ function mergeSeries(archive, fresh) {
 async function getSdkDownloads() {
   if (sdkDownloadsCache.data && Date.now() - sdkDownloadsCache.ts < SDK_DOWNLOADS_TTL) return sdkDownloadsCache.data
 
-  console.log('SDK downloads: fetching PyPI + npm in parallel...')
+  console.log('SDK downloads: fetching PyPI + npm + agent + docker...')
   const archive = loadSdkDownloads()
   const series = { ...archive.series }
 
-  // Fetch in parallel, but in chunks to be polite to upstream
+  // Fetch in parallel, but in chunks to be polite to upstream. category tags
+  // let the client split the "agent stack" out from the core provider SDKs.
   const all = [
-    ...PYPI_PACKAGES.map(p => ({ ...p, ecosystem: 'PyPI', fetch: () => fetchPyPiDownloads(p.id) })),
-    ...NPM_PACKAGES.map(p => ({ ...p, ecosystem: 'npm', fetch: () => fetchNpmDownloads(p.id, 365) })),
+    ...PYPI_PACKAGES.map(p => ({ ...p, ecosystem: 'PyPI', category: 'core',  fetch: () => fetchPyPiDownloads(p.id) })),
+    ...NPM_PACKAGES.map(p =>  ({ ...p, ecosystem: 'npm',  category: 'core',  fetch: () => fetchNpmDownloads(p.id, 365) })),
+    ...AGENT_PYPI.map(p =>    ({ ...p, ecosystem: 'PyPI', category: 'agent', fetch: () => fetchPyPiDownloads(p.id) })),
+    ...AGENT_NPM.map(p =>     ({ ...p, ecosystem: 'npm',  category: 'agent', fetch: () => fetchNpmDownloads(p.id, 365) })),
   ]
   const BATCH = 6
   for (let i = 0; i < all.length; i += BATCH) {
     const batch = all.slice(i, i + BATCH)
     await Promise.all(batch.map(async meta => {
-      const key = `${meta.ecosystem}::${meta.id}`
+      const key = `${meta.category === 'agent' ? 'AGENT:' : ''}${meta.ecosystem}::${meta.id}`
       const data = await meta.fetch()
       if (!data.length) return
       series[key] = {
-        key,
-        ecosystem: meta.ecosystem,
-        id: meta.id,
-        label: meta.label,
-        provider: meta.provider,
-        color: meta.color,
+        key, ecosystem: meta.ecosystem, id: meta.id, label: meta.label,
+        provider: meta.provider, color: meta.color, category: meta.category,
         data: mergeSeries(series[key]?.data, data),
       }
     }))
     if (i + BATCH < all.length) await new Promise(r => setTimeout(r, 250))
   }
 
-  const result = { series, updated: Date.now() }
+  // Docker Hub cumulative pulls → append today's snapshot to derive a rate
+  const dockerHist = archive.docker?.history || []
+  const dToday = todayStr()
+  const pulls = {}
+  await Promise.all(DOCKER_IMAGES.map(async im => { const v = await fetchDockerPull(im.id); if (v != null) pulls[im.id] = v }))
+  if (Object.keys(pulls).length) {
+    const existing = dockerHist.findIndex(s => s.date === dToday)
+    const snap = { date: dToday, pulls }
+    if (existing >= 0) dockerHist[existing] = snap; else dockerHist.push(snap)
+    while (dockerHist.length > 400) dockerHist.shift()
+  }
+  const docker = { images: DOCKER_IMAGES, history: dockerHist }
+
+  const result = { series, docker, updated: Date.now() }
   saveSdkDownloads(result)
 
   const total = Object.values(series).length
-  const totalPoints = Object.values(series).reduce((s, x) => s + (x.data?.length || 0), 0)
-  console.log(`SDK downloads: ${total} packages tracked, ${totalPoints} total data points`)
+  const agents = Object.values(series).filter(x => x.category === 'agent').length
+  console.log(`SDK downloads: ${total} packages (${agents} agent), docker snaps ${dockerHist.length}`)
   sdkDownloadsCache = { data: result, ts: Date.now() }
   return result
 }
@@ -1511,7 +1990,7 @@ async function getSdkDownloads() {
 const USAGE_SIGNALS_FILE = path.join(__dirname, 'usage-signals-history.json')
 let usageSignalsCache = { data: null, ts: 0 }
 const USAGE_SIGNALS_TTL = 6 * 60 * 60 * 1000   // 6-hour live cache
-const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '' // optional
+const CLOUDFLARE_API_TOKEN = env.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN || '' // optional; loaded from .env via loadEnv
 
 const SO_TAGS = [
   { tag: 'openai-api',              label: 'OpenAI API',           provider: 'OpenAI'    },
@@ -2357,6 +2836,47 @@ export default defineConfig({
           res.setHeader('Access-Control-Allow-Origin', '*')
           try {
             const data = await fetchIndexPE()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Consumer Health — U.S. Economy › Consumer (mechanism, stress dial)
+        server.middlewares.use('/api/consumer-health', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { consumerCache = { data: null, ts: 0 } }
+            const data = await fetchConsumerHealth()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Debt Market — credit spreads, refi squeeze, early-warning tiles,
+        // FMP basket fundamentals
+        server.middlewares.use('/api/debt-market', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { debtMarketCache = { data: null, ts: 0 } }
+            const data = await fetchDebtMarket()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Macro Dashboard — U.S. Economy tab landing (tiles, recession lights,
+        // regime quadrant, real-rate verdicts)
+        server.middlewares.use('/api/macro-dashboard', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { macroDashCache = { data: null, ts: 0 } }
+            const data = await fetchMacroDashboard()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

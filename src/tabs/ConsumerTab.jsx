@@ -1,159 +1,210 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
-import { CONSUMER_SERIES } from "../lib/constants.js";
-import { fmtDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
+import { SH, InfoBox } from "../components/shared.jsx";
 
-const DELINQ_SERIES = { DRCCLACBS: CONSUMER_SERIES.DRCCLACBS, DRSFRMACBS: CONSUMER_SERIES.DRSFRMACBS, DRCRELEXFACBS: CONSUMER_SERIES.DRCRELEXFACBS, DRBLACBS: CONSUMER_SERIES.DRBLACBS };
-const CREDIT_SERIES = { TOTALSL: CONSUMER_SERIES.TOTALSL, REVOLSL: CONSUMER_SERIES.REVOLSL, NONREVSL: CONSUMER_SERIES.NONREVSL };
-const NW_DIST_SERIES = { WFRBST01134: CONSUMER_SERIES.WFRBST01134, WFRBSN09192: CONSUMER_SERIES.WFRBSN09192, WFRBSN40188: CONSUMER_SERIES.WFRBSN40188, WFRBSB50215: CONSUMER_SERIES.WFRBSB50215 };
+/*
+ * ConsumerTab — is the American household healthy?
+ * Thesis: healthy when INCOME funds spending, stressed when BORROWING does.
+ * Data: /api/consumer-health (batched FRED, precomputed composites).
+ */
 
-function ConsumerTab({ csm }) {
-  // Delinquency chart data
-  const dqChart = (csm.DRCCLACBS?.history || []).map(h => {
-    const r = { d: h.d, DRCCLACBS: h.v };
-    ["DRSFRMACBS", "DRCRELEXFACBS", "DRBLACBS"].forEach(k => { const m = csm[k]?.history?.find(x => x.d === h.d); if (m) r[k] = m.v; });
-    return r;
-  });
+const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8";
+const TONE_C = { green: GREEN, amber: AMBER, red: RED };
+const pctS = (v, dp = 1) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(dp)}%`;
 
-  // Consumer credit chart data
-  const crChart = (csm.TOTALSL?.history || []).map(h => {
-    const r = { d: h.d, TOTALSL: h.v };
-    ["REVOLSL", "NONREVSL"].forEach(k => { const m = csm[k]?.history?.find(x => x.d === h.d); if (m) r[k] = m.v; });
-    return r;
-  });
+function Spark({ values, color = INDIGO, h = 26 }) {
+  const v = (values || []).filter(x => x != null && isFinite(x));
+  if (v.length < 3) return <div style={{ height: h }} />;
+  const min = Math.min(...v), max = Math.max(...v), range = (max - min) || 1;
+  const pts = v.map((x, i) => `${(i / (v.length - 1)) * 100},${(1 - (x - min) / range) * (h - 4) + 2}`).join(" ");
+  return (
+    <svg viewBox={`0 0 100 ${h}`} width="100%" height={h} preserveAspectRatio="none" style={{ display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
-  // Net worth distribution (SCF 2022 data, Fed Distributional Financial Accounts)
-  const nwDist = [
-    { group: "Top 1%", threshold: "> $13.7M", median: "$27.5M", mean: "$38.0M", color: "#E8553A" },
-    { group: "Top 2–5%", threshold: "$3.8M – $13.7M", median: "$6.0M", mean: "$7.2M", color: "#F97316" },
-    { group: "Top 5–10%", threshold: "$1.9M – $3.8M", median: "$2.7M", mean: "$2.8M", color: "#F59E0B" },
-    { group: "Top 10–25%", threshold: "$680K – $1.9M", median: "$1.1M", mean: "$1.2M", color: "#6366F1" },
-    { group: "25–50th Pctl", threshold: "$176K – $680K", median: "$375K", mean: "$400K", color: "#3B82F6" },
-    { group: "50–75th Pctl", threshold: "$44K – $176K", median: "$97K", mean: "$107K", color: "#8B5CF6" },
-    { group: "Bottom 25%", threshold: "< $44K", median: "$5.5K", mean: "$3.5K", color: "#10B981" },
-  ];
+function AffTile({ label, value, sub, pct, spark, sparkColor }) {
+  return (
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px", minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6 }}>
+        <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+        {pct != null && <span style={{ fontSize: 9, color: "#a5b4fc", fontFamily: fonts.mono, whiteSpace: "nowrap" }}>{pct}th %ile</span>}
+      </div>
+      <div style={{ fontSize: 21, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginTop: 3, lineHeight: 1.1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: fonts.mono, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
+      <div style={{ marginTop: 6 }}><Spark values={spark} color={sparkColor || INDIGO} /></div>
+    </div>
+  );
+}
 
-  // Net worth share over time chart
-  const nwDistKeys = ["WFRBST01134", "WFRBSN09192", "WFRBSN40188", "WFRBSB50215"];
-  const nwTimeChart = (csm.WFRBST01134?.history || []).map(h => {
-    const r = { d: h.d };
-    nwDistKeys.forEach(k => { const m = csm[k]?.history?.find(x => x.d === h.d); if (m) r[k] = m.v; });
-    return r;
-  });
+// Stress lights — each returns { tone, note }
+function stressLight(id, c) {
+  switch (id) {
+    case "delinq": {
+      const lvl = c.cardDelinq, dir = c.cardDelinqDir;
+      if (lvl == null) return null;
+      if (lvl > 4 || (dir != null && dir > 0.5)) return { tone: "red", note: "rising / elevated" };
+      if (lvl > 2.8 || (dir != null && dir > 0.15)) return { tone: "amber", note: "creeping up" };
+      return { tone: "green", note: "low & stable" };
+    }
+    case "dsr": {
+      const v = c.debtService;
+      if (v == null) return null;
+      return v < 11 ? { tone: "green", note: "affordable" } : v < 12.5 ? { tone: "amber", note: "moderate" } : { tone: "red", note: "heavy" };
+    }
+    case "savings": {
+      const p = c.savingsPct;
+      if (p == null) return null;
+      return p > 40 ? { tone: "green", note: "healthy buffer" } : p > 15 ? { tone: "amber", note: "thin cushion" } : { tone: "red", note: "near record low" };
+    }
+    case "income": {
+      const v = c.incomeGrowth;
+      if (v == null) return null;
+      return v > 1.5 ? { tone: "green", note: "real gains" } : v >= 0 ? { tone: "amber", note: "barely positive" } : { tone: "red", note: "shrinking" };
+    }
+    case "borrow": {
+      const v = c.borrowGrowth;
+      if (v == null) return null;
+      return v < 6 ? { tone: "green", note: "restrained" } : v < 9 ? { tone: "amber", note: "accelerating" } : { tone: "red", note: "borrowing to spend" };
+    }
+    default: return null;
+  }
+}
 
-  // Income distribution reference data (Census Bureau / SCF 2022–2023)
-  const incDist = [
-    { group: "Top 1%", threshold: "> $500K", median: "$785K", color: "#E8553A" },
-    { group: "Top 5%", threshold: "> $290K", median: "$380K", color: "#F97316" },
-    { group: "Top 10%", threshold: "> $210K", median: "$260K", color: "#F59E0B" },
-    { group: "Top 25%", threshold: "> $130K", median: "$165K", color: "#6366F1" },
-    { group: "Median (50th)", threshold: "$80K", median: "$80.6K", color: "#3B82F6" },
-    { group: "25th Pctl", threshold: "$38K", median: "$38K", color: "#8B5CF6" },
-    { group: "Bottom 20%", threshold: "< $30K", median: "$17K", color: "#10B981" },
-  ];
+function ConsumerTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  // Median HH income chart
-  const incChart = (csm.MEHOINUSA672N?.history || []).map(h => ({ d: h.d, MEHOINUSA672N: h.v }));
+  const load = (force = false) => {
+    setLoading(true);
+    fetch(`/api/consumer-health${force ? "?refresh=1" : ""}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setError(!!d.error); })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(false); }, []);
 
-  // Savings rate chart
-  const savChart = (csm.PSAVERT?.history || []).map(h => ({ d: h.d, PSAVERT: h.v }));
+  if (loading && !data) return <div style={{ padding: 50, textAlign: "center", color: "#94a3b8", fontFamily: fonts.heading, fontSize: 14 }}>Loading consumer health…</div>;
+  if (error || !data?.series) return <InfoBox color="#F97316">Unable to load consumer data — FRED may be temporarily unavailable.</InfoBox>;
+
+  const s = data.series, c = data.computed || {};
+
+  const LIGHTS = [
+    { id: "income",  name: "Real Income Growth", val: pctS(c.incomeGrowth) + " YoY" },
+    { id: "savings", name: "Savings Rate",        val: c.savings != null ? `${c.savings.toFixed(1)}%` : "—" },
+    { id: "delinq",  name: "Card Delinquency",    val: c.cardDelinq != null ? `${c.cardDelinq.toFixed(2)}%` : "—" },
+    { id: "dsr",     name: "Debt Service Ratio",  val: c.debtService != null ? `${c.debtService.toFixed(1)}%` : "—" },
+    { id: "borrow",  name: "Revolving Credit",    val: pctS(c.borrowGrowth) + " YoY" },
+  ].map(l => ({ ...l, ...(stressLight(l.id, c) || { tone: "amber", note: "n/a" }) }));
+
+  const reds = LIGHTS.filter(l => l.tone === "red").length;
+  const ambers = LIGHTS.filter(l => l.tone === "amber").length;
+  const verdict = reds >= 2 ? { label: "Deteriorating", color: RED }
+    : (reds === 1 || ambers >= 3) ? { label: "Stretched", color: AMBER }
+    : { label: "Healthy", color: GREEN };
+
+  const gap = c.spendVsIncome;
+  const gapNote = gap == null ? ""
+    : gap > 0.5 ? `Spending is outrunning income by ${gap.toFixed(1)}pp — the shortfall is being covered by savings drawdown and credit.`
+    : gap < -0.5 ? `Income is outpacing spending by ${Math.abs(gap).toFixed(1)}pp — households have room and are building buffers.`
+    : "Spending and income are growing in step.";
 
   return (<>
-    {/* Savings & Debt Overview */}
-    <SH>Consumer Health Overview</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Savings Rate" value={csm.PSAVERT?.current} color="#3B82F6" subtitle="Personal savings %" date={csm.PSAVERT?.lastDate} />
-      <RateCard label="Household Net Worth" value={csm.TNWBSHNO?.current} color="#10B981" format="bigdollar" subtitle="Fed Flow of Funds" date={csm.TNWBSHNO?.lastDate} />
-      <RateCard label="Household Debt/GDP" value={csm.HDTGPDUSQ163N?.current} color="#8B5CF6" subtitle="Quarterly %" date={csm.HDTGPDUSQ163N?.lastDate} />
-      <RateCard label="Consumer Credit" value={csm.TOTALSL?.current} color="#6366F1" format="bigdollar" subtitle="Total outstanding" date={csm.TOTALSL?.lastDate} />
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+      <button onClick={() => load(true)} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>↻ Refresh</button>
     </div>
-    <InfoBox color="#3B82F6">
-      <strong style={{ color: "#cbd5e1" }}>Personal savings rate</strong> is disposable income minus spending as a % of disposable income. Higher = more consumer cushion. Pre-COVID average was ~7%. <strong style={{ color: "#cbd5e1" }}>Household Debt/GDP</strong> peaked at 100% in 2009.
-    </InfoBox>
-    <ChartCard data={savChart} series={{ PSAVERT: { label: "Personal Savings Rate", color: "#3B82F6" } }} title="Personal Savings Rate (%)" yFormatter={v => `${v}%`} />
 
-    {/* Delinquency Rates */}
-    <SH>Delinquency Rates</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Consumer Loans" value={csm.DRCCLACBS?.current} color="#E8553A" subtitle="All consumer" date={csm.DRCCLACBS?.lastDate} />
-      <RateCard label="Credit Cards" value={csm.DRCRELEXFACBS?.current} color="#D946EF" subtitle="Revolving" date={csm.DRCRELEXFACBS?.lastDate} />
-      <RateCard label="Mortgages" value={csm.DRSFRMACBS?.current} color="#F97316" subtitle="Single-family" date={csm.DRSFRMACBS?.lastDate} />
-      <RateCard label="Business Loans" value={csm.DRBLACBS?.current} color="#F59E0B" subtitle="Commercial" date={csm.DRBLACBS?.lastDate} />
+    {/* Verdict banner */}
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: verdict.color }} />
+      <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 }}>The American Consumer</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 26, fontWeight: 700, color: verdict.color, fontFamily: fonts.heading, letterSpacing: -0.5 }}>{verdict.label}</span>
+        <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono }}>income {pctS(c.incomeGrowth)} · spending {pctS(c.spendGrowth)} · {reds} red / {ambers} amber signals</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", fontFamily: fonts.mono, marginTop: 6, maxWidth: 800, lineHeight: 1.5 }}>{gapNote}</div>
     </div>
-    <InfoBox color="#E8553A">
-      <strong style={{ color: "#cbd5e1" }}>Delinquency rates</strong> measure the % of loans 30+ days past due. Rising delinquencies signal consumer stress. Credit card delinquency is the most volatile and first to spike in downturns.
-    </InfoBox>
-    <ChartCard data={dqChart} series={DELINQ_SERIES} title="Delinquency Rates by Loan Type (%)" yFormatter={v => `${v}%`} />
 
-    {/* Consumer Credit */}
-    <SH>Consumer Credit Outstanding</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Total Credit" value={csm.TOTALSL?.current} color="#6366F1" format="bigdollar" subtitle="All consumer" date={csm.TOTALSL?.lastDate} small />
-      <RateCard label="Revolving (Cards)" value={csm.REVOLSL?.current} color="#EC4899" format="bigdollar" subtitle="Credit cards" date={csm.REVOLSL?.lastDate} small />
-      <RateCard label="Non-Revolving" value={csm.NONREVSL?.current} color="#14B8A6" format="bigdollar" subtitle="Auto, student, etc." date={csm.NONREVSL?.lastDate} small />
+    {/* Stress dial */}
+    <SH>Consumer Stress Dial</SH>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 18px", marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8 }}>
+        {LIGHTS.map(l => (
+          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", background: "var(--bg-subtle)", borderRadius: 9, borderLeft: `3px solid ${TONE_C[l.tone]}` }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: TONE_C[l.tone], flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, color: "var(--text-secondary)", fontFamily: fonts.mono, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.name}</div>
+              <div style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 700 }}>{l.val} <span style={{ fontWeight: 400, color: TONE_C[l.tone], fontSize: 10 }}>{l.note}</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
-    <ChartCard data={crChart} series={CREDIT_SERIES} title="Consumer Credit Outstanding ($B)" yFormatter={v => `$${v.toLocaleString()}B`} />
 
-    {/* Net Worth Distribution - Individual Dollar Terms */}
-    <SH>Household Net Worth by Percentile</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Total HH Net Worth" value={csm.TNWBSHNO?.current} color="#10B981" format="bigdollar" subtitle="Fed Flow of Funds" date={csm.TNWBSHNO?.lastDate} />
+    {/* Mechanism chart — the whole story */}
+    <SH>The Mechanism — Income vs Spending vs Borrowing (YoY %)</SH>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 18 }}>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={c.mechanism} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} interval={Math.max(0, Math.floor((c.mechanism?.length || 0) / 9) - 1)} tickFormatter={d => d.slice(0, 7)} />
+          <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`${v}%`, n]} labelFormatter={d => d.slice(0, 7)} />
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+          <ReferenceLine y={0} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 4" />
+          <Line type="monotone" dataKey="income" name="Real disposable income" stroke={GREEN} strokeWidth={2.2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="spend" name="Real consumer spending" stroke={INDIGO} strokeWidth={2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="revolving" name="Revolving credit (cards)" stroke={RED} strokeWidth={1.6} dot={false} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+      <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+        When the indigo spending line runs above the green income line — and the red credit line accelerates — households are spending money they aren&apos;t earning. That gap, funded by savings drawdown and card balances, is the earliest sign of consumer stress.
+      </div>
     </div>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
-        <thead>
-          <tr>
-            {["Percentile", "Net Worth Range", "Median", "Mean"].map(h => (
-              <th key={h} style={{ padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", textAlign: h === "Percentile" ? "left" : "right", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {nwDist.map((row, i) => (
-            <tr key={row.group} style={{ borderBottom: i < nwDist.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: row.color, fontWeight: 600 }}>{row.group}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{row.threshold}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#e2e8f0", textAlign: "right", fontWeight: 600 }}>{row.median}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#cbd5e1", textAlign: "right" }}>{row.mean}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-    <InfoBox color="#8B5CF6">
-      <strong style={{ color: "#cbd5e1" }}>Source: Federal Reserve Survey of Consumer Finances (2022).</strong> Net worth = total assets minus total liabilities. Median is more representative than mean within each group, as wealth is heavily right-skewed. The bottom 25% median of $5.5K reflects many households with student debt, medical debt, or negative net worth.
-    </InfoBox>
-    <ChartCard data={nwTimeChart} series={NW_DIST_SERIES} title="Net Worth Share Over Time (%)" yFormatter={v => `${v}%`} />
 
-    {/* Household Income Distribution */}
-    <SH>Household Income Distribution</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Median HH Income" value={csm.MEHOINUSA672N?.current} color="#F2A93B" format="dollar" subtitle="Census Bureau, annual" date={csm.MEHOINUSA672N?.lastDate} />
+    {/* Affordability strip */}
+    <SH>Affordability — What It Feels Like to Be a Household</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 10, marginBottom: 18 }}>
+      <AffTile label="Debt Service Ratio" value={c.debtService != null ? `${c.debtService.toFixed(1)}%` : "—"} sub="of disposable income" pct={s.TDSP?.pctRaw} spark={s.TDSP?.sparkRaw} sparkColor={c.debtService > 12.5 ? RED : INDIGO} />
+      <AffTile label="Credit Card APR" value={c.cardApr != null ? `${c.cardApr.toFixed(1)}%` : "—"} sub="avg assessed rate" pct={s.TERMCBCCALLNS?.pctRaw} spark={s.TERMCBCCALLNS?.sparkRaw} sparkColor={RED} />
+      <AffTile label="Savings Rate" value={c.savings != null ? `${c.savings.toFixed(1)}%` : "—"} sub={`${c.savingsPct}th pctile of history`} pct={c.savingsPct} spark={s.PSAVERT?.sparkRaw} sparkColor={c.savingsPct < 15 ? RED : INDIGO} />
+      <AffTile label="Gas Price" value={c.gas != null ? `$${c.gas.toFixed(2)}` : "—"} sub={`regular · ${pctS(c.gasYoY)} YoY`} pct={s.GASREGW?.pctRaw} spark={s.GASREGW?.sparkRaw} sparkColor={(c.gasYoY ?? 0) > 0 ? RED : GREEN} />
+      <AffTile label="Retail Sales" value={pctS(c.retailYoY)} sub="real, YoY" pct={s.RRSFS?.pctRaw} spark={s.RRSFS?.sparkRaw} sparkColor={(c.retailYoY ?? 0) >= 0 ? GREEN : RED} />
+      <AffTile label="Sentiment" value={c.sentiment != null ? c.sentiment.toFixed(1) : "—"} sub={`U. Michigan · ${c.sentimentPct}th pctile`} pct={c.sentimentPct} spark={s.UMCSENT?.sparkRaw} sparkColor={c.sentimentPct < 25 ? RED : INDIGO} />
     </div>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 400 }}>
-        <thead>
-          <tr>
-            <th style={{ padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>Percentile</th>
-            <th style={{ padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>Threshold</th>
-            <th style={{ padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", textAlign: "right", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>Median Income</th>
-          </tr>
-        </thead>
-        <tbody>
-          {incDist.map((row, i) => (
-            <tr key={row.group} style={{ borderBottom: i < incDist.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: row.color, fontWeight: 600 }}>{row.group}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#cbd5e1", textAlign: "right" }}>{row.threshold}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#e2e8f0", textAlign: "right", fontWeight: 600 }}>{row.median}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+    {/* K-shape panel */}
+    <SH>The K-Shaped Consumer — Whose Strength?</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>Top 1% Wealth Share</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: GREEN, fontFamily: fonts.heading }}>{c.top1 != null ? `${c.top1.toFixed(1)}%` : "—"}</span>
+          <span style={{ fontSize: 11, color: (c.top1Dir ?? 0) >= 0 ? GREEN : RED, fontFamily: fonts.mono }}>{c.top1Dir != null ? `${c.top1Dir >= 0 ? "▲" : "▼"} ${Math.abs(c.top1Dir).toFixed(1)}pp/yr` : ""}</span>
+        </div>
+        <div style={{ marginTop: 8 }}><Spark values={s.WFRBST01134?.sparkRaw} color={GREEN} h={34} /></div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>Bottom 50% Wealth Share</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: (c.bottom50 ?? 9) < 3 ? RED : INDIGO, fontFamily: fonts.heading }}>{c.bottom50 != null ? `${c.bottom50.toFixed(1)}%` : "—"}</span>
+          <span style={{ fontSize: 11, color: (c.bottom50Dir ?? 0) >= 0 ? GREEN : RED, fontFamily: fonts.mono }}>{c.bottom50Dir != null && c.bottom50Dir !== 0 ? `${c.bottom50Dir >= 0 ? "▲" : "▼"} ${Math.abs(c.bottom50Dir).toFixed(1)}pp/yr` : "flat"}</span>
+        </div>
+        <div style={{ marginTop: 8 }}><Spark values={s.WFRBSB50215?.sparkRaw} color={(c.bottom50 ?? 9) < 3 ? RED : INDIGO} h={34} /></div>
+      </div>
     </div>
-    <InfoBox color="#F2A93B">
-      <strong style={{ color: "#cbd5e1" }}>Income thresholds</strong> are approximate, based on Census Bureau Current Population Survey and Survey of Consumer Finances (2023). Median household income from FRED (MEHOINUSA672N) is updated annually.
+
+    <InfoBox color="#818cf8">
+      <strong style={{ color: "var(--text-primary)" }}>Reading consumer health.</strong>
+      &nbsp;The <strong>mechanism chart</strong> is the core: healthy consumption is funded by rising real income (green); when spending (indigo) outpaces it and card credit (red) accelerates, growth is being borrowed from the future.
+      &nbsp;The <strong>stress dial</strong> distills five signals — real income, the savings buffer, card delinquencies, the debt-service burden, and how fast revolving credit is growing.
+      &nbsp;The <strong>K-shape</strong> panel is the advisor&apos;s caveat: aggregate spending can look fine because the top decile — sitting on record wealth — does an outsized share of it, while the bottom half (just {c.bottom50 != null ? `${c.bottom50.toFixed(1)}%` : "~2%"} of all wealth) feels every APR tick and gas-price move. &quot;The consumer&quot; is really two consumers.
+      &nbsp;All data from FRED; cached 4 hours.
     </InfoBox>
-    <ChartCard data={incChart} series={{ MEHOINUSA672N: { label: "Median Household Income", color: "#F2A93B" } }} title="Median Household Income ($)" yFormatter={v => `$${(v/1000).toFixed(0)}K`} />
   </>);
 }
 

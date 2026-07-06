@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 
 /*
@@ -48,15 +48,18 @@ function linkPath(x0, y0top, y0bot, x1, y1top, y1bot) {
 }
 
 export default function ProfitSankey({ data }) {
-  const inc = data?.inc;
-  if (!inc || !inc.length) return null;
+  // Last up to 5 fiscal years with real revenue, oldest → newest
+  const years5 = (data?.inc || []).filter(x => x && x.revenue > 0).slice(-5);
 
-  // Use most recent fiscal year
-  const d = inc[inc.length - 1];
-  const rev = d.revenue;
-  if (!rev || rev <= 0) return null;
+  // selIdx === null means "latest"; reset when the ticker changes
+  const [selIdx, setSelIdx] = useState(null);
+  useEffect(() => { setSelIdx(null); }, [data?.symbol]);
+  const effIdx = selIdx == null ? years5.length - 1 : Math.min(selIdx, years5.length - 1);
+  const d = years5[effIdx] || null;
+  const rev = d?.revenue || 0;
 
   const nodes = useMemo(() => {
+    if (!d || rev <= 0) return null;
     const cogs = d.costOfRevenue || 0;
     const gross = d.grossProfit || (rev - cogs);
     const rnd = d.researchAndDevelopmentExpenses || 0;
@@ -69,7 +72,10 @@ export default function ProfitSankey({ data }) {
     const netIncome = d.netIncome || 0;
 
     return { rev, cogs, gross, rnd, sga, otherOpex, opIncome, otherNet, taxes, netIncome };
-  }, [d]);
+  }, [d, rev]);
+
+  // All hooks are above this line — safe to bail out now
+  if (!years5.length || !nodes) return null;
 
   const { cogs, gross, rnd, sga, otherOpex, opIncome, otherNet, taxes, netIncome } = nodes;
 
@@ -183,11 +189,28 @@ export default function ProfitSankey({ data }) {
 
   return (
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 16px", marginBottom: 20, overflow: "auto" }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "#818cf8", fontFamily: fonts.heading, letterSpacing: 0.3, textTransform: "uppercase" }}>
           Profitability Waterfall
         </span>
         <span style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>FY{fy} · {data.symbol}</span>
+        {years5.length > 1 && (
+          <div style={{ display: "flex", gap: 3, marginLeft: "auto" }}>
+            {years5.map((yd, i) => {
+              const lbl = yd.fiscalYear || yd.date?.slice(0, 4) || "";
+              const active = i === effIdx;
+              return (
+                <button key={lbl + i} onClick={() => setSelIdx(i)} style={{
+                  background: active ? "#818cf8" : "transparent",
+                  border: `1px solid ${active ? "#818cf8" : "var(--border-subtle)"}`,
+                  color: active ? "#0f172a" : "var(--text-secondary)",
+                  padding: "4px 11px", fontSize: 11, fontWeight: 600, borderRadius: 7,
+                  cursor: "pointer", fontFamily: fonts.mono,
+                }}>{lbl}</button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxHeight: 470 }}>
         <defs>

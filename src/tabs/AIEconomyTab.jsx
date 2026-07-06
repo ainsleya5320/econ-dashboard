@@ -2349,26 +2349,59 @@ function TokenomicsTab() {
 // SDK install counts are the best public proxy for paid-API token volume —
 // every commercial AI app installs an SDK before it generates a single token.
 // PyPI exposes ~180 days of daily history out of the box; npm covers 365 days.
+// Reported token-volume disclosures — the only public "level" anchors that exist.
+// SEED VALUES — reported figures, verify against source and extend as new
+// disclosures land. Single-provider platform totals (so total market ≥ the max).
+const TOKEN_DISCLOSURES = [
+  { date: "2024-04", provider: "Google",    tpm: 9.7e12,  source: "Google I/O 2024 (Pichai)" },
+  { date: "2025-05", provider: "Google",    tpm: 480e12,  source: "Google I/O 2025" },
+  { date: "2025-07", provider: "Google",    tpm: 980e12,  source: "Alphabet Q2-25 call" },
+  { date: "2025-04", provider: "Microsoft", tpm: 33e12,   source: "MSFT FY25 Q3 (~100T/qtr)" },
+  { date: "2025-05", provider: "Microsoft", tpm: 167e12,  source: "Build 2025 (~500T/qtr)" },
+];
+const DISC_COLOR = { Google: "#4285F4", Microsoft: "#00A4EF", OpenAI: "#10B981", Anthropic: "#E8553A" };
+
+// OpenRouter reports the CURRENT in-progress week, whose token total is only
+// partly accumulated — it collapses to a fraction of trend and craters any
+// level/growth read (the "cliff"). Return weekly totals with trailing partial
+// weeks trimmed: drop the last week while it sits below 55% of the median of
+// the prior four complete weeks (handles a stale scraper too, up to 2 weeks).
+function orWeeklyTotals(or) {
+  const ms = or?.marketShare || [];
+  let weeks = ms.map(w => ({ d: w.x, v: Object.values(w.ys || {}).reduce((s, x) => s + x, 0) }));
+  for (let guard = 0; guard < 2 && weeks.length >= 6; guard++) {
+    const prior = weeks.slice(-5, -1).map(w => w.v).sort((a, b) => a - b);
+    const med = prior[Math.floor(prior.length / 2)];
+    if (med > 0 && weeks[weeks.length - 1].v < 0.55 * med) weeks = weeks.slice(0, -1);
+    else break;
+  }
+  return weeks;
+}
+
 function DemandTab() {
   const [data, setData] = useState(null);
+  const [or, setOr] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [ecosystem, setEcosystem] = useState("Both"); // "PyPI" | "npm" | "Both"
   const [smoothing, setSmoothing] = useState(7); // 1 | 7 | 30 day moving avg
+  const [orShare, setOrShare] = useState(3); // assumed OpenRouter % of total routed API demand
+  const [showDetail, setShowDetail] = useState(false); // package-level deep dive
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/sdk-downloads")
-      .then(r => r.json())
-      .then(d => { setData(d); setError(false); })
+    Promise.all([
+      fetch("/api/sdk-downloads").then(r => r.json()).catch(() => null),
+      fetch("/api/or-rankings-history").then(r => r.json()).catch(() => null),
+    ]).then(([sdk, orr]) => { setData(sdk); setOr(orr); setError(!sdk); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
-  // Filter series by ecosystem
+  // Filter series by ecosystem — CORE providers only (agent stack shown separately)
   const filteredSeries = useMemo(() => {
     if (!data?.series) return [];
-    return Object.values(data.series).filter(s => ecosystem === "Both" || s.ecosystem === ecosystem);
+    return Object.values(data.series).filter(s => s.category !== "agent" && (ecosystem === "Both" || s.ecosystem === ecosystem));
   }, [data, ecosystem]);
 
   // Build a merged daily chart: { date, [key]: downloads, total: ... } with smoothing
@@ -2464,6 +2497,124 @@ function DemandTab() {
     return String(Math.round(n));
   };
   const fmtPctSimple = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+  const fmtTokM = t => t == null ? "—" : t >= 1e15 ? `${(t / 1e15).toFixed(1)}Q` : t >= 1e12 ? `${(t / 1e12).toFixed(0)}T` : `${(t / 1e9).toFixed(0)}B`;
+
+  // ── Aggregate market estimate: OpenRouter monthly tokens ÷ assumed share ──
+  const estimate = useMemo(() => {
+    const weekTot = orWeeklyTotals(or); // trailing partial week trimmed
+    if (weekTot.length < 2) return null;
+    const WK_PER_MO = 365 / 7 / 12; // ≈4.33
+    const orMonthlyNow = weekTot[weekTot.length - 1].v * WK_PER_MO;
+    const orMonthlyYrAgo = weekTot.length > 52 ? weekTot[weekTot.length - 53].v * WK_PER_MO : (weekTot[0].v * WK_PER_MO);
+    const growthYoY = orMonthlyYrAgo ? ((orMonthlyNow / orMonthlyYrAgo) - 1) * 100 : null;
+    const mult = 100 / orShare;
+    const estNow = orMonthlyNow * mult;
+    // Estimate line + disclosure anchors, monthly, log-scale
+    const line = weekTot.filter((_, i) => i % 2 === 0).map(w => ({ d: `${w.d.slice(0, 7)}-01`, est: +(w.v * WK_PER_MO * mult).toFixed(0) }));
+    const byMonth = {};
+    line.forEach(p => { byMonth[p.d] = { d: p.d, est: p.est }; });
+    TOKEN_DISCLOSURES.forEach(a => { const k = `${a.date}-01`; byMonth[k] = { ...(byMonth[k] || { d: k }), [`disc_${a.provider}`]: a.tpm }; });
+    const chart = Object.values(byMonth).sort((a, b) => a.d.localeCompare(b.d));
+    return { orMonthlyNow, growthYoY, estNow, mult, chart, discProviders: [...new Set(TOKEN_DISCLOSURES.map(a => a.provider))] };
+  }, [or, orShare]);
+
+  // ── Agent stack: category==='agent' series ──
+  const agent = useMemo(() => {
+    if (!data?.series) return null;
+    const rows = Object.values(data.series).filter(s => s.category === "agent")
+      .map(s => {
+        const pts = s.data || [];
+        const last = pts[pts.length - 1];
+        const p90 = pts[pts.length - 91];
+        return { key: s.key, label: s.label, ecosystem: s.ecosystem, provider: s.provider, color: s.color,
+          latest: last?.downloads || 0, g90: (last && p90 && p90.downloads > 0) ? ((last.downloads - p90.downloads) / p90.downloads) * 100 : null };
+      }).sort((a, b) => b.latest - a.latest);
+    const total = rows.reduce((s, r) => s + r.latest, 0);
+    return { rows, total };
+  }, [data]);
+
+  // ── Docker inference-server pulls (self-hosted serving capacity) ──
+  const docker = useMemo(() => {
+    const dk = data?.docker;
+    if (!dk?.history?.length) return null;
+    const hist = dk.history;
+    const last = hist[hist.length - 1];
+    return (dk.images || []).map(im => {
+      const cum = last.pulls?.[im.id] ?? null;
+      let perDay = null;
+      if (hist.length >= 2) {
+        const prev = hist[hist.length - 2];
+        const days = Math.max(1, (new Date(last.date) - new Date(prev.date)) / 86400000);
+        const pc = prev.pulls?.[im.id];
+        if (cum != null && pc != null) perDay = Math.round((cum - pc) / days);
+      }
+      return { ...im, cum, perDay };
+    });
+  }, [data]);
+
+  // ── Indexed growth: the one chart that answers "is demand accelerating?" ──
+  // Tokens vs installs are apples-to-oranges levels, so index each lens to 100
+  // at the window start (~6 months) — only the slopes are comparable.
+  const growth = useMemo(() => {
+    if (!data?.series) return null;
+    const sumByDate = (pred) => {
+      const m = new Map();
+      Object.values(data.series).filter(pred).forEach(s => (s.data || []).forEach(p => m.set(p.date, (m.get(p.date) || 0) + p.downloads)));
+      return m;
+    };
+    const coreM = sumByDate(s => s.category !== "agent");
+    const agentM = sumByDate(s => s.category === "agent");
+    const dates = [...coreM.keys()].sort();
+    if (dates.length < 60) return null;
+    const ma7 = (m) => dates.map((d, i) => {
+      let s = 0, c = 0;
+      for (let j = Math.max(0, i - 6); j <= i; j++) { const v = m.get(dates[j]); if (v != null) { s += v; c++; } }
+      return c ? s / c : null;
+    });
+    const coreA = ma7(coreM), agentA = ma7(agentM);
+    // weekly samples over the last ~26 weeks, aligned to the latest day's weekday
+    const idxs = [];
+    for (let i = dates.length - 1; i >= 0 && idxs.length < 27; i -= 7) idxs.unshift(i);
+    const firstIdx = (arr) => { for (const i of idxs) if (arr[i] != null && arr[i] > 0) return i; return -1; };
+    const cb = firstIdx(coreA), ab = firstIdx(agentA);
+    const rows = idxs.map(i => ({
+      d: dates[i],
+      core: cb >= 0 && coreA[i] != null ? +((coreA[i] / coreA[cb]) * 100).toFixed(1) : null,
+      agent: ab >= 0 && agentA[i] != null ? +((agentA[i] / agentA[ab]) * 100).toFixed(1) : null,
+    }));
+    // OpenRouter weekly tokens (partial trailing week trimmed), attached to the nearest weekly row (±4 days)
+    const orWk = orWeeklyTotals(or);
+    const orIn = orWk.filter(w => w.d >= dates[idxs[0]]);
+    const oBase = orIn.length ? orIn[0].v : null;
+    if (oBase) orIn.forEach(w => {
+      let best = null, diff = Infinity;
+      rows.forEach(r => { const dd = Math.abs(new Date(r.d) - new Date(w.d)); if (dd < diff) { diff = dd; best = r; } });
+      if (best && diff <= 4 * 86400000) best.or = +((w.v / oBase) * 100).toFixed(1);
+    });
+    const lastOf = k => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i][k] != null) return rows[i][k]; return null; };
+    return { rows, months: Math.round((idxs.length - 1) * 7 / 30.4), last: { core: lastOf("core"), agent: lastOf("agent"), or: lastOf("or") } };
+  }, [data, or]);
+
+  // ── Page verdict from the three growth lenses ──
+  const pulse = useMemo(() => {
+    if (!growth) return null;
+    const { core, agent: ag, or: orr } = growth.last;
+    const sig = [core, ag, orr].filter(v => v != null);
+    if (!sig.length) return null;
+    const avg = sig.reduce((a, b) => a + b, 0) / sig.length;
+    const v = avg >= 140 ? { label: "Strong Growth", color: "#4ade80" }
+      : avg >= 110 ? { label: "Growing", color: "#22d3ee" }
+      : avg >= 97 ? { label: "Flat", color: "#fbbf24" }
+      : { label: "Cooling", color: "#f87171" };
+    let blurb;
+    if (avg >= 110) {
+      blurb = "Independent lenses agree — demand is compounding, not plateauing.";
+      if (ag != null && core != null && ag - core > 15) blurb = "Independent lenses agree demand is compounding — and the agent stack is outgrowing the core SDKs, so token-hungry agentic workloads are the accelerant.";
+      else if (orr != null && core != null && orr - core > 25) blurb = "Actual token usage (OpenRouter) is outrunning build activity (SDK installs) — existing apps are consuming more per app, the deepest kind of demand growth.";
+    } else if (avg >= 97) blurb = "Growth lenses have gone sideways — worth watching whether this is a pause or a peak.";
+    else blurb = "Multiple lenses are shrinking together — the first genuinely bearish demand signal. Check which lens is dragging before concluding.";
+    return { ...v, avg, core, agent: ag, or: orr, months: growth.months, blurb };
+  }, [growth]);
 
   if (loading && !data) return <div style={{ textAlign: "center", padding: 60, color: "#94a3b8", fontFamily: fonts.heading, fontSize: 14 }}>Loading SDK download history from PyPI + npm...</div>;
   if (error || !data?.series) return <InfoBox color="#F97316">Unable to load SDK download data. PyPI or npm may be temporarily unavailable.</InfoBox>;
@@ -2478,11 +2629,96 @@ function DemandTab() {
   const selectStyle = { background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#cbd5e1", fontSize: 11, fontFamily: fonts.mono, padding: "6px 10px", cursor: "pointer" };
 
   return (<>
+    {/* ═══ PAGE VERDICT — is token demand growing? ═══ */}
+    {pulse && (
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: pulse.color }} />
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 }}>AI Token Demand</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 26, fontWeight: 700, color: pulse.color, fontFamily: fonts.heading, letterSpacing: -0.5 }}>{pulse.label}</span>
+          <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono }}>
+            over ~{pulse.months} months:{pulse.or != null ? ` OpenRouter tokens ${fmtPctSimple(pulse.or - 100)}` : ""}{pulse.core != null ? ` · core SDK installs ${fmtPctSimple(pulse.core - 100)}` : ""}{pulse.agent != null ? ` · agent stack ${fmtPctSimple(pulse.agent - 100)}` : ""}
+          </span>
+        </div>
+        <div style={{ fontSize: 11.5, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 6, maxWidth: 820, lineHeight: 1.5 }}>{pulse.blurb}</div>
+      </div>
+    )}
+
+    {/* ═══ AGGREGATE MARKET ESTIMATE — the "level" question ═══ */}
+    {estimate && (<>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 14, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: "#6366F1" }} />
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 }}>Estimated Total Market — Tokens / Month</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 30, fontWeight: 700, color: "#a5b4fc", fontFamily: fonts.heading, letterSpacing: -0.5 }}>{fmtTokM(estimate.estNow)}</span>
+          {estimate.growthYoY != null && <span style={{ fontSize: 20, fontWeight: 700, color: estimate.growthYoY >= 0 ? "#4ade80" : "#f87171", fontFamily: fonts.heading }}>{fmtPctSimple(estimate.growthYoY)} YoY</span>}
+          <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono }}>
+            OpenRouter routes {fmtTokM(estimate.orMonthlyNow)}/mo · assumed {orShare}% of market → ×{estimate.mult.toFixed(0)} · <span style={{ color: "#475569" }}>current partial week excluded</span>
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>OpenRouter share of total routed demand:</span>
+          <input type="range" min="1" max="10" step="0.5" value={orShare} onChange={e => setOrShare(parseFloat(e.target.value))} style={{ width: 180, accentColor: "#6366F1" }} />
+          <span style={{ fontSize: 12, color: "#a5b4fc", fontFamily: fonts.mono, fontWeight: 700 }}>{orShare}%</span>
+          <span style={{ fontSize: 9.5, color: "#475569", fontFamily: fonts.mono }}>slide until the estimate line sits just above the largest disclosed anchor</span>
+        </div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={estimate.chart} margin={{ top: 8, right: 12, left: 6, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={fmtTokM} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [fmtTokM(v) + "/mo", n.replace("disc_", "").replace("est", "Estimated total")]} labelFormatter={d => d.slice(0, 7)} />
+            <Legend wrapperStyle={{ fontSize: 9, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={6} formatter={n => n.replace("disc_", "disclosed: ").replace("est", "Estimated total (OpenRouter ÷ share)")} />
+            <Line type="monotone" dataKey="est" stroke="#6366F1" strokeWidth={2.2} dot={false} connectNulls isAnimationActive={false} />
+            {estimate.discProviders.map(p => (
+              <Line key={p} type="monotone" dataKey={`disc_${p}`} stroke={DISC_COLOR[p] || "#94a3b8"} strokeWidth={0} dot={{ r: 5, fill: DISC_COLOR[p] || "#94a3b8", stroke: "#0f172a", strokeWidth: 1 }} connectNulls isAnimationActive={false} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Log scale, tokens/month. Line = OpenRouter&apos;s routed volume grossed up by your share assumption. Dots = <em>reported</em> single-provider disclosures (Google, Microsoft) — total market sits above any one of them, so calibrate the slider so the line clears the tallest dot. Disclosures are seed values to verify against the source and extend.
+        </div>
+      </div>
+    </>)}
+
+    {/* ═══ GROWTH, COMPARED — the slope chart ═══ */}
+    {growth && growth.rows.length > 3 && (<>
+      <SH>Growth, Compared — Each Lens Indexed to 100, ~{growth.months} Months Ago</SH>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={growth.rows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis scale="log" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} domain={["auto", "auto"]} tickFormatter={v => `${Math.round(v)}`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} labelFormatter={d => d.slice(0, 10)} formatter={(v, n) => [`${v} (${v >= 100 ? "+" : ""}${(v - 100).toFixed(0)}%)`, n]} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+            <ReferenceLine y={100} stroke="rgba(148,163,184,0.35)" strokeDasharray="4 4" />
+            <Line type="monotone" dataKey="or" name="OpenRouter tokens (actual usage)" stroke="#6366F1" strokeWidth={2.4} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="core" name="Core SDK installs (build activity)" stroke="#10B981" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="agent" name="Agent-stack installs (agentic slice)" stroke="#22d3ee" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Tokens and installs are apples-to-oranges levels, so each lens starts at 100 — <strong style={{ color: "#94a3b8" }}>only the slopes matter</strong>. Log scale: a straight line is steady compounding; steeper is faster. The gap between lines is the insight — usage (indigo) outrunning build activity (green) means existing apps consume more per app; the agent line (cyan) outrunning both means agentic workloads are the accelerant. Caveat: the agent lens starts from a small base, so its multiple overstates its absolute weight.
+        </div>
+      </div>
+    </>)}
+
+    {/* ═══ SDK INSTALL DEEP-DIVE (collapsed by default — levels are CI/CD noise) ═══ */}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: showDetail ? 14 : 18 }}>
+      <button onClick={() => setShowDetail(v => !v)} style={{ fontSize: 11, padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.35)", background: showDetail ? "rgba(99,102,241,0.18)" : "transparent", color: "#a5b4fc", cursor: "pointer", fontFamily: fonts.mono }}>
+        {showDetail ? "▾ Hide" : "▸ Show"} package-level detail
+      </button>
+      <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono }}>stacked installs by package, provider share, per-package table — useful for &ldquo;which ecosystem moved,&rdquo; not for the headline</span>
+    </div>
+    {showDetail && (<>
     {/* Header */}
     <div style={{ marginBottom: 18 }}>
       <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5, marginBottom: 4 }}>API Demand — SDK Install Growth</div>
       <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, maxWidth: 760, lineHeight: 1.5 }}>
-        Daily install counts for the official AI SDKs. <strong style={{ color: "#a5b4fc" }}>Every commercial AI app pulls these packages before generating a single token</strong> — making this the best public leading indicator of paid-API token demand growth across providers.
+        Daily install counts for the official AI SDKs. <strong style={{ color: "#a5b4fc" }}>Every commercial AI app pulls these packages before generating a single token</strong> — a leading indicator of paid-API token demand growth. Note: most installs are CI/CD builds, so read the <em>direction</em>, not the absolute count.
         {" "}Sources: <a href="https://pypistats.org" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>PyPI</a> + <a href="https://api.npmjs.org" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>npm</a>.
       </div>
     </div>
@@ -2592,11 +2828,69 @@ function DemandTab() {
     </div>
 
     <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>Reading the chart:</strong> Stacked area shows the daily install volume across all tracked SDKs. The headline number is the <em>total</em> — what matters more than any single line is whether the stack is growing. A 30-day growth rate &gt; 10% means dev adoption is accelerating; sustained negative growth would signal a real demand cooling.
+      <strong style={{ color: "#cbd5e1" }}>Reading the detail:</strong> Install <em>levels</em> are mostly CI/CD plumbing — a company&apos;s build server can pull a package 500× a day. That&apos;s why this section is collapsed: use it to see <em>which</em> package or ecosystem moved when the headline chart changes slope, not to read absolute adoption.
     </InfoBox>
 
     <InfoBox color="#8B5CF6">
-      <strong style={{ color: "#cbd5e1" }}>Why this is a better proxy than OpenRouter ever was:</strong> OpenRouter only saw the small fraction of API traffic routed through them. SDK installs from PyPI + npm capture <em>every</em> commercial AI integration regardless of which provider it ends up calling. The signal is also free, public, and resilient — no scraping tricks needed.
+      <strong style={{ color: "#cbd5e1" }}>How the two proxies fit together:</strong> OpenRouter measures <em>usage</em> (real tokens, but only its slice of the market); SDK installs measure <em>build activity</em> (every integration, but polluted by CI/CD). Neither alone is the market — together, usage growth confirms build growth and vice versa. When they diverge, believe OpenRouter for direction and installs for breadth.
+    </InfoBox>
+    </>)}
+
+    {/* ═══ AGENT STACK ═══ */}
+    {agent && agent.rows.length > 0 && (<>
+      <SH>Agent Stack — Installs of Agent-Specific Packages</SH>
+      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5, maxWidth: 780 }}>
+        These packages are only installed to build <em>agentic</em> systems — MCP (the agent-tool standard), orchestration frameworks, and coding agents. Their combined install rate is the cleanest public read on how fast agent workloads (which burn far more tokens per task than a single chat call) are being built.
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+        <StatCard label="Agent Installs / Day" val={fmtBigN(agent.total)} sub={`${agent.rows.length} packages`} color="#22d3ee" />
+        {agent.rows.slice(0, 3).map(r => (
+          <StatCard key={r.key} label={`${r.label} (${r.ecosystem})`} val={fmtBigN(r.latest)} sub={r.g90 != null ? `${fmtPctSimple(r.g90)} /90d` : "installs/day"} color={r.color} />
+        ))}
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 460 }}>
+          <thead><tr>
+            {["Package", "Ecosystem", "Installs/day", "90-day Growth"].map((h, i) => (
+              <th key={h} style={{ padding: "9px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase", textAlign: i >= 2 ? "right" : "left", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {agent.rows.map((r, i) => (
+              <tr key={r.key} style={{ borderBottom: i < agent.rows.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
+                <td style={{ padding: "8px 12px", fontSize: 11.5, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 600 }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: r.color, marginRight: 8, verticalAlign: "middle" }} />{r.label}
+                </td>
+                <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{r.ecosystem}</td>
+                <td style={{ padding: "8px 12px", fontSize: 11.5, fontFamily: fonts.mono, color: "#f1f5f9", textAlign: "right", fontWeight: 600 }}>{fmtBigN(r.latest)}</td>
+                <td style={{ padding: "8px 12px", fontSize: 11, fontFamily: fonts.mono, textAlign: "right", fontWeight: 600, color: r.g90 == null ? "#475569" : r.g90 >= 0 ? "#4ade80" : "#f87171" }}>{r.g90 != null ? fmtPctSimple(r.g90) : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>)}
+
+    {/* ═══ SELF-HOSTED SERVING CAPACITY (Docker) ═══ */}
+    {docker && docker.length > 0 && (<>
+      <SH>Self-Hosted Serving Capacity — Inference-Server Pulls</SH>
+      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5, maxWidth: 780 }}>
+        Docker pulls of vLLM and Ollama. Nobody pulls these images except to <em>serve tokens</em> — so this is the closest public proxy for self-hosted inference capacity being stood up (the demand that never touches a paid API).
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 14 }}>
+        {docker.map(im => (
+          <div key={im.id} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: im.color }} />
+            <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>{im.label} · Docker</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading, marginTop: 3 }}>{fmtBigN(im.cum)}</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 2 }}>{im.perDay != null ? `+${fmtBigN(im.perDay)}/day` : "cumulative · rate builds over days"}</div>
+          </div>
+        ))}
+      </div>
+    </>)}
+
+    <InfoBox color="#22d3ee">
+      <strong style={{ color: "#cbd5e1" }}>How to grasp total demand.</strong> No one outside the labs knows the absolute level, so this page answers two questions separately. <strong>The level</strong>: the estimate banner anchors OpenRouter&apos;s routed volume to disclosed provider milestones. <strong>The direction</strong>: the indexed chart compares three independent growth lenses — actual usage, build activity, and the agentic slice — and the verdict at the top distills them. <strong>Docker pulls</strong> add the piece none of those see: self-hosted serving that never touches a paid API. Each is a different lens on the same elephant.
     </InfoBox>
 
     {/* Three more public-data lenses on aggregate demand */}
@@ -2615,10 +2909,38 @@ const PROV_COLOR = {
   Other:       "#94a3b8",
 };
 
+function MiniSpark({ values, color = "#818cf8", h = 30 }) {
+  const v = (values || []).filter(x => x != null && isFinite(x));
+  if (v.length < 3) return null;
+  const min = Math.min(...v), max = Math.max(...v), range = (max - min) || 1;
+  const pts = v.map((x, i) => `${(i / (v.length - 1)) * 100},${(1 - (x - min) / range) * (h - 4) + 2}`).join(" ");
+  return (
+    <svg viewBox={`0 0 100 ${h}`} width="100%" height={h} preserveAspectRatio="none" style={{ display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+// One "corroborating signal" verdict card: read + key stat + spark, detail on expand
+function SignalCard({ tone, name, verdict, stat, statSub, spark, sparkColor }) {
+  return (
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", borderLeft: `3px solid ${tone}`, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 5 }}>{name}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: tone, fontFamily: fonts.heading, lineHeight: 1.25, marginBottom: 6 }}>{verdict}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 19, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading }}>{stat}</span>
+        {statSub && <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono }}>{statSub}</span>}
+      </div>
+      {spark && <div style={{ marginTop: 8 }}><MiniSpark values={spark} color={sparkColor || tone} /></div>}
+    </div>
+  );
+}
+
 function UsageSignalsPanel() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
     fetch("/api/usage-signals")
@@ -2733,11 +3055,77 @@ function UsageSignalsPanel() {
   const so = (data.stackOverflow || []).slice().sort((a, b) => b.totalQuestions - a.totalQuestions);
   const gh = (data.github || []).slice().sort((a, b) => b.stars - a.stars);
   const cf = data.cloudflare || {};
+  // Cloudflare Radar `radar/ai/inference/.../model` = model MIX on Cloudflare's
+  // own Workers-AI edge (percentage share, not volume). Heavily embeddings-
+  // dominated — a narrow signal, labeled honestly below.
+  const cfModels = (() => {
+    const s = cf.raw && cf.raw.serie_0;
+    if (!s || !s.timestamps || !s.timestamps.length) return null;
+    const i = s.timestamps.length - 1;
+    const isEmbed = m => /bge|embed|m2m100|whisper/i.test(m);
+    const rows = Object.keys(s).filter(k => k !== "timestamps").map(m => ({
+      model: m,
+      short: m.replace(/^@cf\//, ""),
+      share: s[m][i] == null ? 0 : Number(s[m][i]),
+      utility: m !== "other" && isEmbed(m),
+    })).sort((a, b) => b.share - a.share);
+    const utilShare = rows.filter(r => r.utility).reduce((t, r) => t + r.share, 0);
+    return { rows, utilShare, asOf: s.timestamps[i] };
+  })();
   const fmtN = n => n == null ? "—" : n >= 1e6 ? `${(n/1e6).toFixed(1)}M` : n >= 1e3 ? `${(n/1e3).toFixed(1)}K` : String(n);
 
   const fmtPctSimple = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
+  // Total basket stars per snapshot — the GitHub spark
+  const ghSparkVals = ghHistory.map(row => Object.entries(row).filter(([k]) => k !== "date").reduce((s, [, v]) => s + (v || 0), 0));
+  const soSparkVals = soAggregate.months.map(m => m.total);
+
+  // ── Three one-line reads (these are corroborating, not primary, lenses) ──
+  const ghUp = (ghAggregate?.deltaPerDay ?? 0) > 0;
+  const reads = {
+    so: {
+      tone: "#64748b",
+      verdict: "Not a demand gauge — devs moved to AI chat",
+      stat: `${fmtPctSimple(soAggregate.fromPeak)} vs peak`,
+      statSub: soAggregate.yoy != null ? `${fmtPctSimple(soAggregate.yoy)} YoY` : "",
+      spark: soSparkVals, sparkColor: "#F97316",
+    },
+    gh: {
+      tone: ghUp ? "#4ade80" : "#64748b",
+      verdict: ghUp ? "Developer mindshare still compounding" : "Mindshare flat — awaiting more snapshots",
+      stat: ghAggregate?.deltaPerDay != null ? `+${fmtN(ghAggregate.deltaPerDay)}★/day` : fmtN(ghAggregate?.total),
+      statSub: `across ${(data.github || []).length} repos`,
+      spark: ghSparkVals.length >= 3 ? ghSparkVals : null, sparkColor: "#8B5CF6",
+    },
+    cf: cf.available
+      ? { tone: "#fbbf24", verdict: cfModels ? `Edge inference is ${cfModels.utilShare.toFixed(0)}% embeddings — narrow lens` : "Edge model mix — narrow lens", stat: cfModels ? `${(100 - cfModels.utilShare).toFixed(0)}% generative` : "live", statSub: "CF Workers-AI only", spark: null }
+      : { tone: "#475569", verdict: "Not enabled — needs a free Radar token", stat: "off", statSub: cf.reason || "no_token", spark: null },
+  };
+
   return (<>
+    {/* ── SUMMARY: one-line read per corroborating signal ── */}
+    <SH>Corroborating Signals — Developer Behavior</SH>
+    <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5, maxWidth: 820 }}>
+      These three don&apos;t measure tokens — they <em>corroborate</em> the primary lenses above by tracking what developers do. None is a headline number on its own; here&apos;s the one-line read on each, with the charts a click away.
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
+      <SignalCard name="Stack Overflow — AI Questions" {...reads.so} />
+      <SignalCard name="GitHub — AI Repo Stars" {...reads.gh} />
+      <SignalCard name="Cloudflare — Edge Model Mix" {...reads.cf} />
+    </div>
+
+    <InfoBox color="#818cf8">
+      <strong style={{ color: "#cbd5e1" }}>How to read these.</strong> The one that trips everyone up is <strong>Stack Overflow</strong>: its question volume is <em>down {Math.abs(soAggregate.fromPeak || 0).toFixed(0)}% from the 2024 peak</em>, which looks bearish but isn&apos;t — developers now ask AI tools instead of SO, so a <em>falling</em> SO line is actually confirmation that AI adoption is rising. Don&apos;t read it as demand; read it inverted. <strong>GitHub stars</strong> track mindshare (real but vanity-prone). <strong>Cloudflare</strong> is a narrow, embeddings-heavy edge slice. You&apos;re not dumb — these are genuinely the weakest of the demand lenses, which is why they now sit behind a summary. Expand only when you want to see <em>which</em> tool or repo moved.
+    </InfoBox>
+
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 16px" }}>
+      <button onClick={() => setShowRaw(v => !v)} style={{ fontSize: 11, padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(99,102,241,0.35)", background: showRaw ? "rgba(99,102,241,0.18)" : "transparent", color: "#a5b4fc", cursor: "pointer", fontFamily: fonts.mono }}>
+        {showRaw ? "▾ Hide" : "▸ Show"} underlying charts
+      </button>
+      <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono }}>SO trend & per-tag, GitHub bars & star growth, Cloudflare model mix</span>
+    </div>
+
+    {showRaw && (<>
     {/* ── HEADLINE: aggregate AI activity hero stats ── */}
     <SH>Aggregate AI Activity — Are Developers Building More or Less?</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 18 }}>
@@ -2911,13 +3299,35 @@ function UsageSignalsPanel() {
     )}
 
     {/* ── Cloudflare Radar (token-gated) ── */}
-    <SH>Cloudflare Radar — Actual End-User AI Traffic</SH>
+    <SH>Cloudflare Workers-AI — Edge Model Mix</SH>
     {cf.available ? (
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: 18, marginBottom: 14 }}>
-        <div style={{ fontSize: 11, color: "#10B981", fontFamily: fonts.mono, marginBottom: 8 }}>✓ Cloudflare Radar AI traffic data live.</div>
-        <pre style={{ fontSize: 9, color: "#94a3b8", fontFamily: fonts.mono, overflow: "auto", maxHeight: 280 }}>{JSON.stringify(cf.raw, null, 2)}</pre>
-        <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, marginTop: 10 }}>
-          Raw data shown for now — once we have a feel for the response shape, this will become proper charts. Source: Cloudflare Radar AI Inference API.
+        <div style={{ fontSize: 11, color: "#10B981", fontFamily: fonts.mono, marginBottom: 4 }}>✓ Cloudflare Radar live{cfModels ? ` · as of ${String(cfModels.asOf).slice(0, 10)}` : ""}.</div>
+        <div style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono, lineHeight: 1.55, marginBottom: 14, maxWidth: 760 }}>
+          Model <em>mix</em> (% of requests) running on Cloudflare&apos;s own Workers-AI edge — <strong style={{ color: "#cbd5e1" }}>not</strong> traffic to chat.openai.com / claude.ai, and <strong style={{ color: "#cbd5e1" }}>not</strong> a volume/level. It&apos;s a narrow lens: mostly embeddings &amp; utility models, so treat it as &ldquo;what CF-edge inference is used for,&rdquo; not a token-demand gauge.
+        </div>
+        {cfModels && (<>
+          {cfModels.utilShare > 0 && (
+            <div style={{ fontSize: 10.5, color: "#fbbf24", fontFamily: fonts.mono, marginBottom: 10 }}>
+              ⚠ {cfModels.utilShare.toFixed(0)}% of this is embeddings / speech / translation — not LLM token generation.
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {cfModels.rows.slice(0, 8).map(r => (
+              <div key={r.model} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 200, fontSize: 10.5, fontFamily: fonts.mono, color: r.model === "other" ? "#64748b" : "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {r.short}{r.utility && <span style={{ color: "#64748b" }}> ·util</span>}
+                </div>
+                <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, r.share)}%`, height: "100%", background: r.utility ? "#64748b" : "#6366F1", borderRadius: 4 }} />
+                </div>
+                <div style={{ width: 52, textAlign: "right", fontSize: 10.5, fontFamily: fonts.mono, color: "#f1f5f9", fontWeight: 600 }}>{r.share.toFixed(1)}%</div>
+              </div>
+            ))}
+          </div>
+        </>)}
+        <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, marginTop: 12 }}>
+          Source: Cloudflare Radar AI Inference API (28-day, hourly, percentage-normalized).
         </div>
       </div>
     ) : (
@@ -2926,7 +3336,7 @@ function UsageSignalsPanel() {
           ⓘ Cloudflare Radar requires a free API token to enable.
         </div>
         <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, lineHeight: 1.6, marginBottom: 12 }}>
-          Cloudflare Radar AI shows actual end-user traffic share across AI services (chat.openai.com vs claude.ai vs gemini.google.com etc.) — a different demand lens than SDK downloads or GitHub stars.
+          Cloudflare Radar AI shows the model mix running on Cloudflare&apos;s Workers-AI edge (which hosted models get called, as a % share) — a narrow, embeddings-heavy lens, not end-user traffic to OpenAI/Anthropic and not a volume metric.
         </div>
         <div style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, lineHeight: 1.7, padding: "10px 14px", background: "rgba(99,102,241,0.06)", borderLeft: "2px solid #6366F1", borderRadius: 4 }}>
           <strong style={{ color: "#a5b4fc" }}>Setup (one-time, &lt; 2 min):</strong>
@@ -2941,13 +3351,7 @@ function UsageSignalsPanel() {
       </div>
     )}
 
-    <InfoBox color="#F97316">
-      <strong style={{ color: "#cbd5e1" }}>The aggregate story.</strong> The headline chart above shows AI-related question volume on Stack Overflow has fallen <em>{Math.abs(soAggregate.fromPeak || 0).toFixed(0)}%</em> from its 2024 peak. But this is <em>not</em> evidence the AI economy is shrinking — SDK installs (above) are up <strong style={{ color: "#10b981" }}>~100% over 90 days</strong>, GitHub star totals keep climbing. What it actually measures: developers have moved their help-seeking behavior off Stack Overflow into AI chat tools themselves. So when triangulating aggregate AI demand, weight SDK installs and GitHub stars heavily for <em>direction</em>, and read the SO drop as <em>"AI tools have eaten the old support channels."</em>
-    </InfoBox>
-
-    <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>How to read this panel.</strong> The top of the panel shows <em>aggregate</em> signals — the entire AI ecosystem treated as one basket. The bottom shows per-tag and per-repo breakdowns for when you need to know <em>which</em> ecosystem moved. Cloudflare Radar (when enabled) will add a third lens: actual end-user web traffic to AI services.
-    </InfoBox>
+    </>)}
   </>);
 }
 
@@ -3484,12 +3888,303 @@ function ApiUsageTab() {
 }
 
 // ===========================================================
+// SUB-TAB: SUPPLY & DEMAND — the compute balance dashboard
+// ===========================================================
+// Central question: where is compute supply vs token demand, and how fast is
+// each growing? Supply in FLOPs isn't publicly observable, so we read the
+// CLEARING PRICES (GPU $/hr, $/M tokens) against demand quantity (OpenRouter
+// tokens/week). Demand up + prices flat/down → supply winning the race.
+// Demand up + prices up → shortage forming.
+
+const SD_GREEN = "#4ade80", SD_AMBER = "#fbbf24", SD_RED = "#f87171", SD_INDIGO = "#818cf8";
+const sdPct = (v, dp = 0) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(dp)}%`;
+const sdTok = n => n == null ? "—" : n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : n >= 1e9 ? `${(n / 1e9).toFixed(0)}B` : `${(n / 1e6).toFixed(0)}M`;
+
+// H100 price from a gpuHistory snapshot (consensus preferred, Vast median fallback)
+const sdH100 = snap => {
+  const g = snap?.gpus?.["H100 SXM"];
+  return g ? (g.consensus ?? g.median ?? null) : null;
+};
+
+function SdQuadrant({ trail }) {
+  if (!trail?.length) return null;
+  const W = 300, H = 240, padL = 36, padR = 12, padT = 20, padB = 32;
+  const gw = W - padL - padR, gh = H - padT - padB;
+  const xr = [-40, 160], yr = [-40, 60];
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const x = v => padL + ((cl(v, xr[0], xr[1]) - xr[0]) / (xr[1] - xr[0])) * gw;
+  const y = v => padT + (1 - (cl(v, yr[0], yr[1]) - yr[0]) / (yr[1] - yr[0])) * gh;
+  const last = trail[trail.length - 1];
+  const q = last.x >= 0
+    ? (last.y >= 0 ? { n: "Shortage forming", c: SD_AMBER } : { n: "Healthy boom", c: SD_GREEN })
+    : (last.y >= 0 ? { n: "Squeeze", c: "#94a3b8" } : { n: "Glut", c: SD_RED });
+  return (
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>Compute Market Regime</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: q.c, fontFamily: fonts.heading }}>{q.n}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet">
+        <rect x={padL} y={padT} width={gw} height={gh} fill="none" stroke="rgba(148,163,184,0.15)" />
+        <line x1={x(0)} y1={padT} x2={x(0)} y2={padT + gh} stroke="rgba(148,163,184,0.35)" strokeDasharray="4 4" />
+        <line x1={padL} y1={y(0)} x2={padL + gw} y2={y(0)} stroke="rgba(148,163,184,0.35)" strokeDasharray="4 4" />
+        <text x={padL + gw - 6} y={padT + 12} fontSize="9" fill={SD_AMBER} fontFamily="monospace" textAnchor="end">Shortage</text>
+        <text x={padL + gw - 6} y={padT + gh - 8} fontSize="9" fill={SD_GREEN} fontFamily="monospace" textAnchor="end">Healthy boom</text>
+        <text x={padL + 6} y={padT + 12} fontSize="9" fill="#94a3b8" fontFamily="monospace">Squeeze</text>
+        <text x={padL + 6} y={padT + gh - 8} fontSize="9" fill={SD_RED} fontFamily="monospace">Glut</text>
+        {trail.length > 1 && <polyline points={trail.map(p => `${x(p.x)},${y(p.y)}`).join(" ")} fill="none" stroke={SD_INDIGO} strokeWidth="1.2" opacity="0.5" />}
+        {trail.map((p, i) => (
+          <circle key={p.d} cx={x(p.x)} cy={y(p.y)} r={i === trail.length - 1 ? 6 : 2.5}
+            fill={i === trail.length - 1 ? SD_INDIGO : "rgba(129,140,248,0.45)"}
+            stroke={i === trail.length - 1 ? "#f1f5f9" : "none"} strokeWidth="1.5" />
+        ))}
+        <text x={padL + gw / 2} y={H - 6} fontSize="9" fill="#64748b" fontFamily="monospace" textAnchor="middle">Token demand growth (13-wk %) →</text>
+        <text x={11} y={padT + gh / 2} fontSize="9" fill="#64748b" fontFamily="monospace" textAnchor="middle" transform={`rotate(-90 11 ${padT + gh / 2})`}>Compute price (30d %) →</text>
+      </svg>
+      <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>
+        Latest: demand {sdPct(last.x)} / prices {sdPct(last.y)}. Right half = demand growing; top half = clearing prices rising. Trail deepens as daily snapshots accumulate.
+      </div>
+    </div>
+  );
+}
+
+function SupplyDemandTab() {
+  const [or, setOr] = useState(null);
+  const [prices, setPrices] = useState(null);
+  const [sdk, setSdk] = useState(null);
+  const [capex, setCapex] = useState(null);
+  const [impact, setImpact] = useState(null);
+  const [hf, setHf] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/or-rankings-history").then(r => r.json()).catch(() => null),
+      fetch("/api/ai-prices").then(r => r.json()).catch(() => null),
+      fetch("/api/sdk-downloads").then(r => r.json()).catch(() => null),
+      fetch("/api/hyperscaler-capex").then(r => r.json()).catch(() => null),
+      fetch("/api/ai-impact").then(r => r.json()).catch(() => null),
+      fetch("/api/hf-rankings").then(r => r.json()).catch(() => null),
+    ]).then(([a, b, c, d, e, f]) => { setOr(a); setPrices(b); setSdk(c); setCapex(d); setImpact(e); setHf(f); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const calc = useMemo(() => {
+    const ms = or?.marketShare || [];
+    if (!ms.length) return null;
+    const weekTot = ms.map(w => ({ d: w.x, v: Object.values(w.ys || {}).reduce((s, x) => s + x, 0) }));
+    const last = weekTot[weekTot.length - 1];
+    const first = weekTot[0];
+    const w13 = weekTot.length > 13 ? weekTot[weekTot.length - 14] : first;
+    const demandYoY = first.v ? ((last.v / first.v) - 1) * 100 : null;
+    const demandQ = w13.v ? ((last.v / w13.v) - 1) * 100 : null;
+
+    // Price series
+    const gh = (prices?.history?.gpuHistory || []).map(s => ({ d: s.date, v: sdH100(s) })).filter(p => p.v != null);
+    const th = (prices?.history?.tokenHistory || []).map(s => ({ d: s.date, v: s.medianInput ?? null })).filter(p => p.v != null);
+    const chg = (arr, days) => {
+      if (arr.length < 2) return null;
+      const lastP = arr[arr.length - 1];
+      const cutoff = new Date(new Date(lastP.d).getTime() - days * 86400000).toISOString().slice(0, 10);
+      const base = [...arr].reverse().find(p => p.d <= cutoff) || arr[0];
+      return base.v ? ((lastP.v / base.v) - 1) * 100 : null;
+    };
+    const gpuChgAll = gh.length > 1 ? ((gh[gh.length - 1].v / gh[0].v) - 1) * 100 : null;
+    const gpuChg30 = chg(gh, 30);
+    const tokChgAll = th.length > 1 ? ((th[th.length - 1].v / th[0].v) - 1) * 100 : null;
+    const tokChg30 = chg(th, 30);
+    const blend = (a, b) => a != null && b != null ? (a + b) / 2 : a ?? b;
+    const priceAll = blend(gpuChgAll, tokChgAll);
+    const price30 = blend(gpuChg30, tokChg30);
+
+    // Verdict
+    let verdict;
+    if (demandQ != null && demandQ < 0) verdict = { label: "Demand cooling", color: SD_RED, note: "Token growth has gone negative — watch for glut in compute prices." };
+    else if (price30 == null) verdict = { label: "Insufficient price history", color: "#94a3b8", note: "Price trend still accumulating." };
+    else if (price30 <= 5) verdict = { label: "Supply keeping pace", color: SD_GREEN, note: "Demand growing while clearing prices hold — supply is winning the race." };
+    else if (price30 <= 20) verdict = { label: "Tightening", color: SD_AMBER, note: "Clearing prices rising alongside demand — supply is falling behind." };
+    else verdict = { label: "Shortage forming", color: SD_RED, note: "Prices spiking with demand — compute is the bottleneck. Bullish suppliers (chips, clouds, power); margin risk for token resellers." };
+
+    // Indexed chart on ONE dense weekly grid so every series is continuous:
+    // demand is exact on its weekly dates; the daily price series are
+    // forward-filled (latest value as-of each week) so their lines don't
+    // fragment against the demand grid.
+    const idx = (arr) => arr.length ? arr.map(p => ({ d: p.d, v: +(p.v / arr[0].v * 100).toFixed(1) })) : [];
+    const ghIdx = idx(gh), thIdx = idx(th);
+    const demMap = Object.fromEntries(idx(weekTot).map(p => [p.d, p.v]));
+    const asOf = (arr, ds) => { let r = null; for (const p of arr) { if (p.d <= ds) r = p; else break; } return r; };
+    const lastDem = weekTot[weekTot.length - 1].d;
+    const priceTail = ghIdx.filter(p => p.d > lastDem).filter((_, i) => i % 7 === 0).map(p => p.d);
+    const grid = [...weekTot.map(w => w.d), ...priceTail];
+    const chart = grid.map(ds => ({
+      d: ds,
+      demand: demMap[ds] ?? null,
+      gpu: asOf(ghIdx, ds)?.v ?? null,
+      tok: asOf(thIdx, ds)?.v ?? null,
+    }));
+
+    // Quadrant trail: sample weekly over the GPU-history window
+    const trail = [];
+    for (let i = 0; i < gh.length; i += 7) {
+      const t = gh[i].d;
+      const p30 = (() => {
+        const sub = gh.filter(p => p.d <= t);
+        return chg(sub, 30);
+      })();
+      const wAt = [...weekTot].reverse().find(w => w.d <= t);
+      const wIdx = weekTot.findIndex(w => w.d === wAt?.d);
+      const q = wIdx >= 13 && weekTot[wIdx - 13].v ? ((wAt.v / weekTot[wIdx - 13].v) - 1) * 100 : null;
+      if (p30 != null && q != null) trail.push({ d: t, x: q, y: p30 });
+    }
+    if (demandQ != null && price30 != null) trail.push({ d: last.d, x: demandQ, y: price30 });
+
+    // SDK (leading demand)
+    let sdkLatest = null, sdk90 = null;
+    if (sdk?.series) {
+      const tot = {};
+      Object.values(sdk.series).forEach(s => (s.data || []).forEach(p => { tot[p.date] = (tot[p.date] || 0) + (p.downloads || 0); }));
+      const ds = Object.keys(tot).sort();
+      if (ds.length > 30) {
+        const lag = Math.min(90, ds.length - 1);
+        sdkLatest = tot[ds[ds.length - 1]];
+        const past = tot[ds[ds.length - 1 - lag]];
+        sdk90 = past ? ((sdkLatest / past) - 1) * 100 : null;
+      }
+    }
+
+    // HF (self-hosted demand)
+    let hfLatest = null, hfChg = null;
+    if (hf?.rows?.length) {
+      const byDate = {};
+      hf.rows.forEach(r => { byDate[r.date] = (byDate[r.date] || 0) + (r.downloads || 0); });
+      const ds = Object.keys(byDate).sort();
+      if (ds.length > 1) {
+        hfLatest = byDate[ds[ds.length - 1]];
+        hfChg = byDate[ds[0]] ? ((hfLatest / byDate[ds[0]]) - 1) * 100 : null;
+      } else if (ds.length === 1) hfLatest = byDate[ds[0]];
+    }
+
+    // Capex (supply pipeline)
+    let capexQ = null, capexYoY = null;
+    if (capex?.companies) {
+      let lastT = 0, yoyT = 0;
+      Object.values(capex.companies).forEach(c => {
+        const qs = c.quarters || [];
+        if (qs.length) lastT += qs[qs.length - 1].capex || 0;
+        if (qs.length > 4) yoyT += qs[qs.length - 5].capex || 0;
+      });
+      capexQ = lastT; capexYoY = yoyT ? ((lastT / yoyT) - 1) * 100 : null;
+    }
+
+    const semis = impact?.fred?.IPG3344S || null;
+    const power = impact?.fred?.IPG2211A2N || null;
+    const h100Now = gh.length ? gh[gh.length - 1].v : null;
+    const tokNow = th.length ? th[th.length - 1].v : null;
+
+    return {
+      demandWk: last.v, demandYoY, demandQ, weeks: weekTot.length,
+      gpuChgAll, gpuChg30, tokChgAll, tokChg30, priceAll, price30, h100Now, tokNow,
+      gpuSince: gh.length ? gh[0].d : null,
+      verdict, chart, trail,
+      sdkLatest, sdk90, hfLatest, hfChg, capexQ, capexYoY, semis, power,
+    };
+  }, [or, prices, sdk, capex, impact, hf]);
+
+  if (loading && !calc) return <div style={{ padding: 50, textAlign: "center", color: "#94a3b8", fontFamily: fonts.heading, fontSize: 14 }}>Weighing compute supply against token demand…</div>;
+  if (!calc) return <InfoBox color="#F97316">Unable to load supply/demand data — check that the dev server endpoints are reachable.</InfoBox>;
+
+  const c = calc;
+  const growthColor = v => v == null ? "#94a3b8" : v >= 0 ? SD_GREEN : SD_RED;
+  const StackRow = ({ name, value, growth, growthLabel, note, invert }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--bg-subtle)", borderRadius: 9 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: "var(--text-primary)", fontFamily: fonts.heading, fontWeight: 600 }}>{name}</div>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 1 }}>{note}</div>
+      </div>
+      <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 13, color: "var(--text-primary)", fontFamily: fonts.mono, fontWeight: 700 }}>{value}</div>
+        <div style={{ fontSize: 10, fontFamily: fonts.mono, fontWeight: 600, color: invert ? (growth != null && growth > 0 ? SD_RED : SD_GREEN) : growthColor(growth) }}>{growth != null ? `${sdPct(growth)} ${growthLabel}` : growthLabel}</div>
+      </div>
+    </div>
+  );
+
+  return (<>
+    {/* ── Verdict banner ── */}
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: c.verdict.color }} />
+      <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 }}>Compute Balance — Supply vs Token Demand</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 26, fontWeight: 700, color: c.verdict.color, fontFamily: fonts.heading, letterSpacing: -0.5 }}>{c.verdict.label}</span>
+        <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono }}>
+          demand {sdPct(c.demandQ)} /13wk ({sdPct(c.demandYoY)} YoY) · clearing prices {sdPct(c.price30)} /30d
+        </span>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", fontFamily: fonts.mono, marginTop: 6, maxWidth: 780, lineHeight: 1.5 }}>{c.verdict.note}</div>
+    </div>
+
+    {/* ── The killer chart: demand vs clearing prices, indexed ── */}
+    <SH>Demand vs Clearing Prices — Indexed to 100</SH>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 16 }}>
+      <ResponsiveContainer width="100%" height={330}>
+        <LineChart data={c.chart} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} interval={Math.max(0, Math.floor(c.chart.length / 10) - 1)} tickFormatter={d => d.slice(2, 7)} />
+          <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [v, n]} labelFormatter={d => d} />
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+          <ReferenceLine y={100} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 4" />
+          <Line type="monotone" dataKey="demand" name="Token demand (OpenRouter, weekly)" stroke={SD_INDIGO} strokeWidth={2.2} dot={false} connectNulls />
+          <Line type="monotone" dataKey="gpu" name="H100 spot $/hr" stroke={SD_RED} strokeWidth={1.6} dot={false} connectNulls />
+          <Line type="monotone" dataKey="tok" name="Token price (median $/M input)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+      <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+        Log scale; each series indexed to 100 at its own first observation (demand: {c.weeks} weeks · prices: since {c.gpuSince}). Demand climbing while price lines stay flat = supply keeping pace. Price lines turning up = shortage. Early GPU history is Vast-only (noisier); the two-source consensus starts later.
+      </div>
+    </div>
+
+    {/* ── Quadrant + stacks ── */}
+    <SH>Regime &amp; Growth Stacks</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(300px, 1.2fr)", gap: 14, marginBottom: 16, alignItems: "start" }}>
+      <SdQuadrant trail={c.trail} />
+      <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Demand Stack — Who Wants Tokens</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            <StackRow name="SDK installs" value={c.sdkLatest != null ? `${(c.sdkLatest / 1e6).toFixed(0)}M/day` : "—"} growth={c.sdk90} growthLabel="/90d" note="Leading — devs install before they ship" />
+            <StackRow name="API tokens" value={`${sdTok(c.demandWk)}/wk`} growth={c.demandYoY} growthLabel="YoY" note="Current consumption (OpenRouter routed)" />
+            <StackRow name="Open-weight downloads" value={c.hfLatest != null ? `${(c.hfLatest / 1e6).toFixed(0)}M/30d` : "—"} growth={c.hfChg} growthLabel="since archive start" note="Self-hosted demand (Hugging Face)" />
+          </div>
+        </div>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Supply Stack — Where Compute Comes From</div>
+          <div style={{ display: "grid", gap: 6 }}>
+            <StackRow name="Hyperscaler capex" value={c.capexQ != null ? `$${(c.capexQ / 1e9).toFixed(0)}B/qtr` : "—"} growth={c.capexYoY} growthLabel="YoY" note="Supply arriving in 12–18 months" />
+            <StackRow name="Semiconductor production" value={c.semis?.current != null ? `${c.semis.current.toFixed(0)} idx` : "—"} growth={c.semis?.yoy} growthLabel="YoY" note="Chips being fabbed now (FRED)" />
+            <StackRow name="Electric power generation" value={c.power?.current != null ? `${c.power.current.toFixed(0)} idx` : "—"} growth={c.power?.yoy} growthLabel="YoY" note="The binding physical constraint" />
+            <StackRow name="H100 spot price" value={c.h100Now != null ? `$${c.h100Now.toFixed(2)}/hr` : "—"} growth={c.gpuChg30} growthLabel="/30d" note="Deployed availability — rising price = scarcity" invert />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <InfoBox color="#818cf8">
+      <strong style={{ color: "#cbd5e1" }}>How this page reasons.</strong> Compute supply in FLOPs isn&apos;t publicly reported, so this dashboard reads the <em>clearing prices</em> — GPU spot rates and $/M tokens — against measured token demand. If demand compounds while prices fall, supply (plus efficiency) is growing even faster than demand; if prices rise with demand, the buildout is falling behind and pricing power shifts to whoever owns chips, data centers, and power. The deepest structural tension sits in the supply stack: token demand compounding triple-digits against power generation growing ~3%/yr.
+    </InfoBox>
+    <InfoBox color="#F59E0B">
+      <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> OpenRouter is a slice of global token demand — trust the growth rates more than the levels. GPU price history began {c.gpuSince} and the early weeks are single-source (Vast) before the RunPod consensus was added, so the price trend firms up as snapshots accumulate. Token &quot;median $/M&quot; tracks the fixed model basket, so basket changes can nudge it.
+    </InfoBox>
+  </>);
+}
+
+// ===========================================================
 // MAIN: AIEconomyTab
 // ===========================================================
 function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
-  const [subTab, setSubTab] = useState("scorecard");
+  const [subTab, setSubTab] = useState("balance");
 
   const SUB_TABS = [
+    { id: "balance",    label: "Supply & Demand" },
     { id: "scorecard",  label: "Scorecard"       },
     { id: "demand",     label: "Demand"          },
     { id: "usage",      label: "API Usage"       },
@@ -3508,6 +4203,7 @@ function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
       ))}
     </div>
 
+    {subTab === "balance"    && <SupplyDemandTab />}
     {subTab === "scorecard"  && <ScorecardTab />}
     {subTab === "usage"      && <ApiUsageTab />}
     {subTab === "tokenomics" && <TokenomicsTab />}

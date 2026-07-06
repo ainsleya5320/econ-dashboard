@@ -95,7 +95,7 @@
       },
       {
         "month": "2026-07",
-        "count": 0
+        "count": 1
       }
     ],
     "chatgpt-api": [
@@ -389,7 +389,7 @@
       },
       {
         "month": "2026-07",
-        "count": 0
+        "count": 1
       }
     ],
     "huggingface": [
@@ -683,7 +683,7 @@
       },
       {
         "month": "2026-07",
-        "count": 0
+        "count": 1
       }
     ],
     "google-gemini": [
@@ -781,7 +781,7 @@
       },
       {
         "month": "2026-07",
-        "count": 1
+        "count": 2
       }
     ],
     "anthropic": [
