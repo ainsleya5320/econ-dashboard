@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMe
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import { FRED_BASE, FMP_BASE, US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPPremiumNews, fetchZillowData } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
 import NewsTicker from "./components/NewsTicker.jsx";
 import TickerSearch from "./components/TickerSearch.jsx";
@@ -205,12 +205,12 @@ export default function Dashboard() {
     fetchOpenRouterRankings().then(setRankingsData).catch(e => console.error("OpenRouter rankings error:", e)).finally(() => setRankingsLoading(false));
   }, []);
 
-  // Fetch FMP news on mount and refresh every 30 minutes
+  // Fetch premium news (WSJ/CNBC/Reuters/… via FMP) on mount, refresh every 30 min
   useEffect(() => {
     if (!fmpKey) return;
     const load = () => {
       setNewsLoading(true);
-      fetchFMPNews(fmpKey).then(setNewsItems).catch(e => console.error("News fetch error:", e)).finally(() => setNewsLoading(false));
+      fetchFMPPremiumNews(fmpKey).then(setNewsItems).catch(e => console.error("News fetch error:", e)).finally(() => setNewsLoading(false));
     };
     load();
     const interval = setInterval(load, 30 * 60 * 1000);

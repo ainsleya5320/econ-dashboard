@@ -1603,6 +1603,176 @@ async function fetchDebtMarket() {
   return data
 }
 
+/* ── Housing Replacement Cost — Tobin's Q for residential real estate ────
+   Market price (Case-Shiller) vs the cost to BUILD (residential construction
+   input PPI, 1986→ — same vintage as Case-Shiller, so the ratio has ~40yrs
+   of history for honest percentiles). Ratio >> its long-run average means
+   existing homes trade far above rebuild cost → fat homebuilder margins and
+   an eventual supply response; << average means construction doesn't pencil
+   → underbuilding, scarcity supports existing-home prices. */
+let replCostCache = { data: null, ts: 0 }
+const REPL_COST_TTL = 12 * 60 * 60 * 1000 // slow-moving monthly data
+
+const REPL_SERIES = {
+  CSUSHPINSA:    { label: 'Case-Shiller National HPI',       limit: 500 },
+  WPUIP2311001:  { label: 'Residential Construction Inputs', limit: 500 },
+  CES2000000003: { label: 'Construction Wages ($/hr)',       limit: 260 },
+  WPU081:        { label: 'Lumber PPI',                      limit: 500 },
+  MSPNHSUS:      { label: 'Median New Home Price',           limit: 500 },
+}
+
+async function fetchReplacementCost() {
+  if (replCostCache.data && Date.now() - replCostCache.ts < REPL_COST_TTL) return replCostCache.data
+  console.log('Replacement cost: fetching FRED batch...')
+  const s = {}
+  await Promise.all(Object.entries(REPL_SERIES).map(async ([id, meta]) => {
+    const obs = await fetchFredSeries(id, meta.limit)
+    if (obs.length) s[id] = { ...meta, obs }
+  }))
+
+  const byMonth = (id) => Object.fromEntries((s[id]?.obs || []).map(o => [o.d.slice(0, 7), o.v]))
+  const yoyOf = (id) => {
+    const obs = s[id]?.obs || []
+    if (obs.length < 13) return null
+    const cur = obs[obs.length - 1], past = obs[obs.length - 13]
+    return past.v ? +(((cur.v / past.v) - 1) * 100).toFixed(1) : null
+  }
+
+  // ── Price-to-replacement-cost ratio (CS ÷ construction-input PPI) ──
+  const cs = byMonth('CSUSHPINSA'), ppi = byMonth('WPUIP2311001')
+  const months = Object.keys(cs).filter(m => ppi[m] > 0).sort()
+  let raw = months.map(m => ({ d: `${m}-01`, v: cs[m] / ppi[m] }))
+  const mean = raw.reduce((t, p) => t + p.v, 0) / (raw.length || 1)
+  const ratio = raw.map(p => ({ d: p.d, v: +((p.v / mean) * 100).toFixed(1) })) // 100 = long-run parity
+  const ratioCur = ratio.length ? ratio[ratio.length - 1].v : null
+  const ratio1yAgo = ratio.length > 12 ? ratio[ratio.length - 13].v : null
+  const ratioPct = pctileOf(ratio.map(p => p.v), ratioCur)
+
+  let verdict = { label: 'Near Rebuild Parity', color: '#4ade80' }
+  if (ratioPct != null) {
+    if (ratioPct >= 80)      verdict = { label: 'Rich vs Replacement Cost',  color: '#f87171' }
+    else if (ratioPct >= 60) verdict = { label: 'Above Rebuild Parity',      color: '#fbbf24' }
+    else if (ratioPct <= 25) verdict = { label: 'Below Replacement Cost',    color: '#22d3ee' }
+  }
+
+  // ── Indexed price-vs-cost chart (base = first month wages exist) ──
+  const wage = byMonth('CES2000000003')
+  const base = months.find(m => wage[m] > 0)
+  const chart = []
+  if (base) {
+    for (const m of months.filter(m => m >= base)) {
+      chart.push({
+        d: `${m}-01`,
+        price: +((cs[m] / cs[base]) * 100).toFixed(1),
+        cost: +((ppi[m] / ppi[base]) * 100).toFixed(1),
+        wage: wage[m] > 0 ? +((wage[m] / wage[base]) * 100).toFixed(1) : null,
+      })
+    }
+  }
+
+  const data = {
+    verdict: { ...verdict, ratio: ratioCur, pct: ratioPct, chg1y: (ratioCur != null && ratio1yAgo != null) ? +(ratioCur - ratio1yAgo).toFixed(1) : null },
+    ratio, ratioSince: ratio.length ? ratio[0].d.slice(0, 4) : null,
+    chart, chartBase: base,
+    tiles: {
+      constructionInputs: { yoy: yoyOf('WPUIP2311001'), last: s.WPUIP2311001?.obs.slice(-1)[0]?.d },
+      wages:              { yoy: yoyOf('CES2000000003'), cur: s.CES2000000003?.obs.slice(-1)[0]?.v },
+      lumber:             { yoy: yoyOf('WPU081') },
+      newHomePrice:       { yoy: yoyOf('MSPNHSUS'), cur: s.MSPNHSUS?.obs.slice(-1)[0]?.v },
+    },
+    updated: new Date().toISOString(),
+  }
+  // Don't cache a rate-limited empty batch for the full TTL
+  if (ratioCur != null) replCostCache = { data, ts: Date.now() }
+  return data
+}
+
+/* ── Housing Health — the synthesis layer for the real-estate page ────────
+   Derived gauges, not levels: mortgage-payment share of median income
+   (affordability, quarterly back to 1984), months' supply percentile, and
+   the price-to-rebuild percentile (reuses fetchReplacementCost). The client
+   adds Zillow-only gauges (price-to-rent, metro breadth) it already holds. */
+let housingHealthCache = { data: null, ts: 0 }
+const HOUSING_HEALTH_TTL = 12 * 60 * 60 * 1000
+
+async function fetchHousingHealth() {
+  if (housingHealthCache.data && Date.now() - housingHealthCache.ts < HOUSING_HEALTH_TTL) return housingHealthCache.data
+  console.log('Housing health: fetching FRED batch...')
+  const [mort, msp, inc, msacsr, repl] = await Promise.all([
+    fetchFredSeries('MORTGAGE30US', 2900),   // weekly 30yr rate, 1971→
+    fetchFredSeries('MSPUS', 260),           // quarterly median sales price, 1963→
+    fetchFredSeries('MEHOINUSA646N', 60),    // annual median household income (nominal)
+    fetchFredSeries('MSACSR', 760),          // monthly months' supply of new houses
+    fetchReplacementCost().catch(() => null),
+  ])
+
+  // ── Affordability: P&I on the median home (80% LTV, 30yr) ÷ median income ──
+  const asOf = (arr, d) => { let r = null; for (const p of arr) { if (p.d <= d) r = p; else break } return r }
+  const affordSeries = []
+  const incomeLast = inc.length ? inc[inc.length - 1] : null
+  for (const q of msp) {
+    const rate = asOf(mort, q.d)
+    // income is annual and lags ~18mo — forward-fill the last print
+    const income = asOf(inc, q.d) || (incomeLast && q.d > incomeLast.d ? incomeLast : null)
+    if (!rate || !income || !income.v) continue
+    const P = q.v * 0.8, r = rate.v / 1200
+    const pay = P * r / (1 - Math.pow(1 + r, -360))
+    affordSeries.push({ d: q.d, v: +((pay / (income.v / 12)) * 100).toFixed(1), pay: Math.round(pay) })
+  }
+  const affordVals = affordSeries.map(p => p.v)
+  const affordCur = affordVals.length ? affordVals[affordVals.length - 1] : null
+  const affordPct = pctileOf(affordVals, affordCur)
+  const lastAfford = affordSeries[affordSeries.length - 1] || null
+  // income a buyer needs at the classic 28% front-end DTI
+  const incomeNeeded = lastAfford ? Math.round(lastAfford.pay * 12 / 0.28) : null
+
+  // ── Supply: months' supply with full-history percentile ──
+  const msVals = msacsr.map(o => o.v)
+  const msCur = msVals.length ? msVals[msVals.length - 1] : null
+  const msPct = pctileOf(msVals, msCur)
+
+  // ── Valuation: price-to-rebuild percentile from the replacement-cost calc ──
+  const replPct = repl?.verdict?.pct ?? null
+  const replRatio = repl?.verdict?.ratio ?? null
+
+  // ── Lights + one-line regime verdict ──
+  const light = (pct, hiBad) => pct == null ? { color: '#64748b', label: 'n/a' }
+    : (hiBad ? pct : 100 - pct) >= 75 ? { color: '#ef4444', label: 'red' }
+    : (hiBad ? pct : 100 - pct) >= 55 ? { color: '#fbbf24', label: 'amber' }
+    : { color: '#4ade80', label: 'green' }
+  const affordLight = light(affordPct, true)          // high payment share = bad
+  const supplyLight = light(msPct, true)              // high months' supply = loose = price risk
+  const valLight = light(replPct, true)               // rich vs rebuild = stretched
+
+  const stretched = affordLight.label === 'red' || affordLight.label === 'amber'
+  const tightSupply = msCur != null && msCur < 5
+  let verdict
+  if (stretched && tightSupply) verdict = { label: 'Frozen: Unaffordable but Undersupplied', color: '#fbbf24', note: 'Payments price out buyers, but scarce inventory holds prices up — low transactions, sideways prices. Watch supply: if months’ supply climbs past ~6 while affordability stays stretched, prices lose their floor.' }
+  else if (stretched && !tightSupply) verdict = { label: 'Vulnerable: Expensive and Loosening', color: '#ef4444', note: 'Stretched affordability WITH rising supply is the pre-correction setup — sellers eventually meet the market.' }
+  else if (!stretched && tightSupply) verdict = { label: 'Healthy Demand, Tight Supply', color: '#4ade80', note: 'Affordable payments and scarce inventory — the constructive regime for prices.' }
+  else if (valLight.label === 'red' || (msPct != null && msPct >= 85)) verdict = { label: 'Buyer’s Market — Sellers Under Pressure', color: '#22d3ee', note: 'Payments are back to historically normal, but supply is heavy and prices still sit rich vs rebuild cost — the adjustment is running through price, not payment. Favorable for patient buyers; a headwind for sellers and builders with inventory.' }
+  else verdict = { label: 'Buyer’s Market', color: '#22d3ee', note: 'Affordable and well-supplied — favorable entry conditions, soft price momentum.' }
+
+  const data = {
+    verdict,
+    afford: {
+      series: affordSeries, current: affordCur, pct: affordPct, light: affordLight,
+      payment: lastAfford?.pay ?? null, incomeNeeded,
+      medianPrice: msp.length ? msp[msp.length - 1].v : null,
+      rate: mort.length ? mort[mort.length - 1].v : null,
+      incomeAsOf: incomeLast?.d?.slice(0, 4) ?? null,
+      since: affordSeries.length ? affordSeries[0].d.slice(0, 4) : null,
+    },
+    supply: { current: msCur, pct: msPct, light: supplyLight, series: msacsr.slice(-160), lastDate: msacsr.length ? msacsr[msacsr.length - 1].d : null },
+    valuation: { ratio: replRatio, pct: replPct, light: valLight },
+    updated: new Date().toISOString(),
+  }
+  // Only cache complete batches — a FRED rate-limit blip (429 → empty series)
+  // must not pin a degraded payload for the full TTL.
+  if (affordCur != null && msCur != null) housingHealthCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── Global Liquidity & Debt (FRED + FX conversion) ──────────────────────
    One endpoint for the "how much cash is in the world, where is it, and who
    owes what to whom" page. Everything normalized to billions of USD.
@@ -2965,6 +3135,32 @@ export default defineConfig({
           try {
             if ((req.url || '').includes('refresh=1')) { consumerCache = { data: null, ts: 0 } }
             const data = await fetchConsumerHealth()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Housing health — synthesis gauges (affordability, supply, valuation)
+        server.middlewares.use('/api/housing-health', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { housingHealthCache = { data: null, ts: 0 } }
+            const data = await fetchHousingHealth()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Housing replacement cost — price vs cost-to-build (Tobin's Q)
+        server.middlewares.use('/api/replacement-cost', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { replCostCache = { data: null, ts: 0 } }
+            const data = await fetchReplacementCost()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

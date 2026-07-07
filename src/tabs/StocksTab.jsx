@@ -7,7 +7,7 @@ import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import TickerSearch from "../components/TickerSearch.jsx";
-import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
+import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel } from "./stocks/ResearchPanels.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 
@@ -1164,8 +1164,11 @@ function StockDetailView({ data, onBack, fmpKey }) {
     {/* ═══ FINANCIALS — profit waterfall ═══ */}
     {viewMode === "financials" && <ProfitSankey data={data} />}
 
-    {/* ═══ VALUATION — reverse DCF ═══ */}
-    {viewMode === "dcf" && <ReverseDCF data={data} />}
+    {/* ═══ VALUATION — reverse DCF + price-implied expectations ═══ */}
+    {viewMode === "dcf" && (<>
+      <ReverseDCF data={data} />
+      <PIEPanel data={data} />
+    </>)}
 
     {/* ═══ KEY RATIOS ═══ */}
     {viewMode === "ratios" && (<>

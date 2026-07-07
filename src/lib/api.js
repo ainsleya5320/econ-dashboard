@@ -133,6 +133,56 @@ async function fetchFMPNews(fmpKey, limit = 40) {
   }));
 }
 
+// Recognizable publishers we whitelist from FMP's aggregated feeds. site domain
+// → clean chyron label + paywall flag (so the ticker can hint before a click).
+const PREMIUM_PUBLISHERS = {
+  "wsj.com":            { label: "WSJ",          paywalled: true },
+  "barrons.com":        { label: "Barron's",     paywalled: true },
+  "nytimes.com":        { label: "NYT",          paywalled: true },
+  "bloomberg.com":      { label: "Bloomberg",    paywalled: true },
+  "ft.com":             { label: "FT",           paywalled: true },
+  "investors.com":      { label: "IBD",          paywalled: true },
+  "cnbc.com":           { label: "CNBC",         paywalled: false },
+  "reuters.com":        { label: "Reuters",      paywalled: false },
+  "marketwatch.com":    { label: "MarketWatch",  paywalled: false },
+  "forbes.com":         { label: "Forbes",       paywalled: false },
+  "businessinsider.com":{ label: "Insider",      paywalled: false },
+  "foxbusiness.com":    { label: "Fox Business", paywalled: false },
+  "apnews.com":         { label: "AP",           paywalled: false },
+  "finance.yahoo.com":  { label: "Yahoo",        paywalled: false },
+};
+
+// Premium-first news: FMP's aggregated general + stock feeds, filtered to the
+// recognizable-publisher whitelist above, deduped, newest first. Links point
+// straight to the original publisher (wsj.com/…, cnbc.com/…).
+async function fetchFMPPremiumNews(fmpKey, limit = 40) {
+  const [general, stock] = await Promise.all([
+    fetchFMP(`/news/general-latest?page=0&limit=100`, fmpKey).catch(() => []),
+    fetchFMP(`/news/stock-latest?page=0&limit=100`, fmpKey).catch(() => []),
+  ]);
+  const all = [...(Array.isArray(general) ? general : []), ...(Array.isArray(stock) ? stock : [])];
+  const seen = new Set();
+  const out = [];
+  for (const n of all) {
+    if (!n.title || !n.url || seen.has(n.url)) continue;
+    const pub = PREMIUM_PUBLISHERS[(n.site || "").toLowerCase()];
+    if (!pub) continue; // whitelist only
+    seen.add(n.url);
+    out.push({
+      title: n.title,
+      url: n.url,
+      site: pub.label,
+      paywalled: pub.paywalled,
+      image: n.image,
+      publishedDate: n.publishedDate,
+      text: n.text || "",
+      tickers: n.symbol || null,
+    });
+  }
+  out.sort((a, b) => (b.publishedDate || "").localeCompare(a.publishedDate || ""));
+  return out.slice(0, limit);
+}
+
 // ── Zillow CSV helpers ──
 function parseCSVLine(line) {
   const result = [];
@@ -317,4 +367,4 @@ async function fetchFMPCPI(fmpKey) {
   return { CPIAUCSL: { yoy: history[history.length - 1].v, lastDate: history[history.length - 1].d, history } };
 }
 
-export { fetchJson, fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData };
+export { fetchJson, fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchFMPPremiumNews, fetchZillowData };
