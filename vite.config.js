@@ -2568,6 +2568,108 @@ async function getAiPrices() {
   return result
 }
 
+/* ── SemiAnalysis H100 1-year contract index (public/free slice) ──────────
+   The paid product is the full daily all-GPU dataset; the H100 1y index is
+   the free public loss-leader (see the "NVIDIA GPU debt backstop" article).
+   The public dashboard (gpu-index.semianalysis.com) fetches it anonymously:
+     primary:  /api/public-data                       → { status, index:[…] }
+     fallback: /api/sa-proxy/…/index?…&test_mode=true → { status, data:[…]  }
+   Records look like { date, h100, a100, b200 } in $/GPU-hr (weekly). This is
+   CONTRACT pricing (what firms commit to on a 1y term) — a smoother, more
+   investment-relevant compute-cost signal than our Vast+RunPod SPOT number.
+   The endpoint has been flaky (403/404 anonymously), so this degrades to a
+   disk-cached archive seeded from real values embedded in their own bundle. */
+const SEMI_H100_FILE = path.join(__dirname, 'semi-h100-index.json')
+let semiH100Cache = { data: null, ts: 0 }
+const SEMI_H100_TTL = 6 * 60 * 60 * 1000 // 6h
+
+// Real index values embedded in SemiAnalysis's public dashboard bundle
+// (their default dataset), 2025-06-10 → 2026-03-17. Bootstraps the archive
+// so the series is populated even while the live endpoint is unreachable;
+// live fetch extends/overrides by date.
+const SEMI_H100_SEED = [
+  {d:"2025-06-10",h100:3.01,a100:1.32,b200:5.21}, {d:"2025-06-17",h100:2.85,a100:1.3,b200:5.25}, {d:"2025-06-24",h100:2.8,a100:1.26,b200:5.25}, {d:"2025-07-01",h100:2.77,a100:1.28,b200:5.15},
+  {d:"2025-07-08",h100:2.78,a100:1.3,b200:5.15}, {d:"2025-07-15",h100:2.79,a100:1.31,b200:5.06}, {d:"2025-07-22",h100:2.78,a100:1.33,b200:5.06}, {d:"2025-07-29",h100:2.81,a100:1.38,b200:3.84},
+  {d:"2025-08-05",h100:2.85,a100:1.39,b200:3.95}, {d:"2025-08-12",h100:2.88,a100:1.39,b200:4.07}, {d:"2025-08-19",h100:2.9,a100:1.39,b200:4.18}, {d:"2025-08-26",h100:2.96,a100:1.46,b200:4.34},
+  {d:"2025-09-02",h100:2.94,a100:1.42,b200:4.4}, {d:"2025-09-09",h100:2.92,a100:1.41,b200:4.44}, {d:"2025-09-16",h100:2.92,a100:1.39,b200:4.48}, {d:"2025-09-23",h100:2.88,a100:1.37,b200:4.51},
+  {d:"2025-09-30",h100:2.84,a100:1.37,b200:4.49}, {d:"2025-10-07",h100:2.83,a100:1.36,b200:4.25}, {d:"2025-10-14",h100:2.84,a100:1.37,b200:4.24}, {d:"2025-10-21",h100:2.85,a100:1.43,b200:3.99},
+  {d:"2025-10-28",h100:2.86,a100:1.41,b200:4.01}, {d:"2025-11-04",h100:2.82,a100:1.39,b200:4.2}, {d:"2025-11-11",h100:2.8,a100:1.34,b200:4.33}, {d:"2025-11-18",h100:2.79,a100:1.32,b200:4.63},
+  {d:"2025-11-25",h100:2.79,a100:1.3,b200:4.59}, {d:"2025-12-02",h100:2.8,a100:1.33,b200:4.42}, {d:"2025-12-09",h100:2.78,a100:1.36,b200:4.5}, {d:"2025-12-16",h100:2.84,a100:1.4,b200:4.54},
+  {d:"2025-12-23",h100:2.8,a100:1.39,b200:4.61}, {d:"2025-12-30",h100:2.81,a100:1.33,b200:4.59}, {d:"2026-01-06",h100:2.89,a100:1.31,b200:4.55}, {d:"2026-01-13",h100:2.88,a100:1.3,b200:4.36},
+  {d:"2026-01-20",h100:2.77,a100:1.31,b200:4.18}, {d:"2026-01-27",h100:2.74,a100:1.31,b200:4.0}, {d:"2026-02-03",h100:2.71,a100:1.32,b200:3.86}, {d:"2026-02-10",h100:2.83,a100:1.34,b200:3.78},
+  {d:"2026-02-17",h100:2.91,a100:1.34,b200:3.87}, {d:"2026-02-24",h100:2.86,a100:1.4,b200:3.94}, {d:"2026-03-03",h100:2.77,a100:1.44,b200:4.01}, {d:"2026-03-10",h100:2.8,a100:1.42,b200:3.96},
+  {d:"2026-03-17",h100:2.82,a100:1.51,b200:3.68},
+].map(r => ({ date: r.d, h100: r.h100, a100: r.a100, b200: r.b200 }))
+
+function loadSemiH100() {
+  try { if (fs.existsSync(SEMI_H100_FILE)) return JSON.parse(fs.readFileSync(SEMI_H100_FILE, 'utf8')) } catch {}
+  return { byDate: {}, source: 'seed', liveOk: false, updated: 0 }
+}
+function saveSemiH100(store) {
+  try { fs.writeFileSync(SEMI_H100_FILE, JSON.stringify(store, null, 2)) } catch (e) { console.error('SemiH100 cache save:', e.message) }
+}
+
+// Group by date, keep the numeric GPU fields (mirrors their el() parser).
+function parseSemiIndex(arr) {
+  const byDate = {}
+  for (const r of arr || []) {
+    if (!r || !r.date) continue
+    const d = String(r.date).slice(0, 10)
+    const num = v => (typeof v === 'number' && isFinite(v)) ? v : (v != null && isFinite(+v) ? +v : null)
+    byDate[d] = { date: d, h100: num(r.h100), a100: num(r.a100), b200: num(r.b200) }
+  }
+  return byDate
+}
+
+async function fetchSemiH100Live() {
+  const base = 'https://gpu-index.semianalysis.com'
+  const headers = { 'User-Agent': UA, 'Referer': `${base}/`, 'Origin': base, 'Accept': 'application/json' }
+  for (const [url, key] of [
+    [`${base}/api/public-data`, 'index'],
+    [`${base}/api/sa-proxy/gpu_spot_pricing/index?page_size=2500&test_mode=true`, 'data'],
+  ]) {
+    try {
+      const resp = await fetch(url, { headers })
+      if (!resp.ok) continue
+      const j = await resp.json()
+      if (j && j.status === 'ok' && Array.isArray(j[key]) && j[key].length) return { rows: j[key], src: url }
+    } catch { /* try next */ }
+  }
+  return null
+}
+
+async function getSemiH100() {
+  if (semiH100Cache.data && Date.now() - semiH100Cache.ts < SEMI_H100_TTL) return semiH100Cache.data
+  const store = loadSemiH100()
+  if (!store.byDate || !Object.keys(store.byDate).length) {
+    store.byDate = parseSemiIndex(SEMI_H100_SEED); store.source = 'seed'; saveSemiH100(store)
+  }
+  const live = await fetchSemiH100Live()
+  if (live) {
+    Object.assign(store.byDate, parseSemiIndex(live.rows))
+    store.source = 'live'; store.liveOk = true; store.updated = Date.now()
+    saveSemiH100(store)
+    console.log(`SemiAnalysis H100: live OK (${live.src.split('/api/')[1]}), ${Object.keys(store.byDate).length} weeks`)
+  } else {
+    store.liveOk = false
+    console.log('SemiAnalysis H100: live unavailable, serving archive/seed')
+  }
+  const series = Object.values(store.byDate).sort((a, b) => a.date.localeCompare(b.date))
+  const asOf = series.length ? series[series.length - 1].date : null
+  const daysStale = asOf ? Math.floor((Date.now() - Date.parse(asOf)) / 86400000) : null
+  const data = {
+    available: series.length > 0,
+    liveOk: !!store.liveOk,
+    source: store.source,
+    asOf, daysStale,
+    latest: series.length ? series[series.length - 1] : null,
+    series,
+    reason: live ? null : 'live_unavailable',
+  }
+  semiH100Cache = { data, ts: Date.now() }
+  return data
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -2584,6 +2686,20 @@ export default defineConfig({
           } catch (e) {
             res.statusCode = 500
             res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+
+        // SemiAnalysis H100 1-year contract price index (free public slice)
+        server.middlewares.use('/api/semi-h100', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { semiH100Cache = { data: null, ts: 0 } }
+            const data = await getSemiH100()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message, available: false }))
           }
         })
 

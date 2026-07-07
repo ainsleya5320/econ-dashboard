@@ -732,160 +732,6 @@ function AIImpactTab() {
   </>);
 }
 
-// ===========================================================
-// LEGACY - kept for reference, no longer rendered
-// ===========================================================
-function EconomicIndexTab_Legacy() {
-  const thStyle = { padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.06)" };
-  return (<>
-    <div style={{ fontSize: 20, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, marginBottom: 4, letterSpacing: -0.5 }}>Anthropic Economic Index</div>
-    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 18 }}>
-      How AI is reshaping work - based on 2M Claude conversations (Nov 2025). Source:{" "}
-      <a href="https://www.anthropic.com/economic-index" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>anthropic.com/economic-index</a>
-    </div>
-
-    <SH>The State of AI at Work</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 14 }}>
-      {[
-        { label: "Jobs Using AI",  val: "49%",    sub: ">=25% of tasks (up from 36%)", color: "#8B5CF6" },
-        { label: "Augmentation",   val: "52%",    sub: "Human-AI collaboration",       color: "#3B82F6" },
-        { label: "Automation",     val: "45%",    sub: "AI handles task alone",         color: "#F97316" },
-        { label: "Task Success",   val: "67%",    sub: "Claude.ai success rate",        color: "#10B981" },
-        { label: "Productivity",   val: "+1.2pp", sub: "Est. annual growth",            color: "#E8553A" },
-      ].map(c => <StatCard key={c.label} {...c} />)}
-    </div>
-
-    <SH>Augmentation vs. Automation</SH>
-    <InfoBox color="#3B82F6">
-      <strong style={{ color: "#cbd5e1" }}>Augmentation has overtaken automation</strong> as of Nov 2025 (was 41%/55% in Jan 2025). "Directive" conversations fell from 39% to 32%, while "task iteration" (back-and-forth collaboration) grew.
-    </InfoBox>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10, paddingLeft: 12 }}>Augmentation vs. Automation Over Time (Claude.ai)</div>
-      <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={[
-          { d: "Jan 2025", aug: 41, auto: 55 }, { d: "Mar 2025", aug: 42, auto: 55 },
-          { d: "Aug 2025", aug: 47, auto: 49 }, { d: "Nov 2025", aug: 52, auto: 45 },
-        ]} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-aug" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3B82F6" stopOpacity={0.25} /><stop offset="95%" stopColor="#3B82F6" stopOpacity={0} /></linearGradient>
-            <linearGradient id="g-auto" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F97316" stopOpacity={0.25} /><stop offset="95%" stopColor="#F97316" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} />
-          <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} domain={[30, 60]} tickFormatter={v => `${v}%`} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={v => [`${v}%`]} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-          <Area type="monotone" dataKey="aug"  name="Augmentation" stroke="#3B82F6" fill="url(#g-aug)"  strokeWidth={2} dot={{ r: 3 }} />
-          <Area type="monotone" dataKey="auto" name="Automation"   stroke="#F97316" fill="url(#g-auto)" strokeWidth={2} dot={{ r: 3 }} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-
-    <SH>AI Usage by Occupation</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-      {[
-        { title: "Claude.ai Task Share", color: "#6366F1", data: [
-          { name: "Computer & Math", share: 34 }, { name: "Education & Library", share: 15 },
-          { name: "Management", share: 8 },        { name: "Arts & Entertainment", share: 7 },
-          { name: "Business & Financial", share: 6 }, { name: "Office & Admin", share: 5 },
-          { name: "Life & Physical Sci.", share: 4 }, { name: "Healthcare", share: 4 },
-          { name: "Sales", share: 3 },               { name: "Legal", share: 3 },
-          { name: "Architecture & Eng.", share: 2 }, { name: "Other", share: 9 },
-        ]},
-        { title: "API Task Share", color: "#E8553A", data: [
-          { name: "Computer & Math", share: 46 }, { name: "Office & Admin", share: 13 },
-          { name: "Management", share: 7 },        { name: "Business & Financial", share: 6 },
-          { name: "Education & Library", share: 4 }, { name: "Sales", share: 4 },
-          { name: "Arts & Entertainment", share: 4 }, { name: "Life & Physical Sci.", share: 3 },
-          { name: "Legal", share: 3 },               { name: "Healthcare", share: 2 },
-          { name: "Architecture & Eng.", share: 2 }, { name: "Other", share: 6 },
-        ]},
-      ].map(({ title, color, data }) => (
-        <div key={title} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px" }}>
-          <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10, paddingLeft: 12 }}>{title}</div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart layout="vertical" data={data} margin={{ top: 0, right: 12, left: 5, bottom: 0 }}>
-              <XAxis type="number" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fill: "#cbd5e1", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={v => [`${v}%`, "Share"]} />
-              <Bar dataKey="share" radius={[0, 4, 4, 0]} fill={color} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      ))}
-    </div>
-    <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>Massive overrepresentation in tech.</strong> Computer & math roles = 37% of Claude conversations but only 3.4% of the workforce. Top 10 tasks account for 24% of Claude.ai usage. The #1 task is "modifying software to correct errors" at 6% of all Claude.ai conversations.
-    </InfoBox>
-
-    <SH>How People Use AI</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 14 }}>
-      {[{ label: "Work", val: "46%", color: "#E8553A" }, { label: "Personal", val: "35%", color: "#3B82F6" }, { label: "Coursework", val: "19%", color: "#10B981" }]
-        .map(u => <StatCard key={u.label} label={u.label} val={u.val} sub="of Claude.ai usage" color={u.color} />)}
-    </div>
-
-    <SH>Who Benefits from AI?</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
-        <thead><tr>
-          <th style={{ ...thStyle, textAlign: "left" }}>Wage / Skill Tier</th>
-          <th style={{ ...thStyle, textAlign: "right" }}>AI Adoption</th>
-          <th style={{ ...thStyle, textAlign: "left", paddingLeft: 20 }}>Pattern</th>
-        </tr></thead>
-        <tbody>
-          {[
-            { tier: "Lowest wage (<$30K)",    adoption: "Minimal",  pattern: "Physical/manual work limits AI use",                   color: "#64748b" },
-            { tier: "Low-mid ($30K-$50K)",    adoption: "Low",      pattern: "Some admin/clerical tasks automated",                  color: "#94a3b8" },
-            { tier: "Mid wage ($50K-$80K)",   adoption: "Moderate", pattern: "Growing use in education, office, sales roles",        color: "#3B82F6" },
-            { tier: "Mid-high ($80K-$150K)",  adoption: "Highest",  pattern: "Software dev, copywriting, data analysis - peak AI",   color: "#10B981" },
-            { tier: "Highest wage (>$200K)",  adoption: "Minimal",  pattern: "Hands-on expertise limits AI (surgeons, executives)",  color: "#64748b" },
-          ].map((row, i, arr) => (
-            <tr key={row.tier} style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 500 }}>{row.tier}</td>
-              <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: row.color, textAlign: "right", fontWeight: 600 }}>{row.adoption}</td>
-              <td style={{ padding: "10px 12px 10px 20px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8" }}>{row.pattern}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    <SH>Global AI Adoption</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-      {[
-        { title: "Per Capita Usage Index (Sept 2025)", data: [
-          { name: "Israel", aui: 7.0 }, { name: "Singapore", aui: 4.6 }, { name: "Australia", aui: 4.1 },
-          { name: "New Zealand", aui: 4.1 }, { name: "South Korea", aui: 3.7 }, { name: "United States", aui: 3.6 },
-          { name: "Canada", aui: 2.9 }, { name: "United Kingdom", aui: 2.7 }, { name: "Indonesia", aui: 0.4 },
-          { name: "India", aui: 0.3 }, { name: "Nigeria", aui: 0.2 },
-        ], maxDomain: 8, labelW: 85 },
-        { title: "Top U.S. States", data: [
-          { name: "Washington DC", aui: 3.82 }, { name: "Utah", aui: 3.78 }, { name: "California", aui: 2.13 },
-          { name: "Washington", aui: 1.92 }, { name: "Colorado", aui: 1.85 }, { name: "New York", aui: 1.58 },
-          { name: "Virginia", aui: 1.57 }, { name: "Massachusetts", aui: 1.55 }, { name: "Texas", aui: 1.12 },
-          { name: "US Average", aui: 1.0 },
-        ], maxDomain: 4.5, labelW: 95 },
-      ].map(({ title, data, maxDomain, labelW }) => (
-        <div key={title} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px" }}>
-          <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10, paddingLeft: 12 }}>{title}</div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart layout="vertical" data={data} margin={{ top: 0, right: 12, left: 5, bottom: 0 }}>
-              <XAxis type="number" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} domain={[0, maxDomain]} tickFormatter={v => `${v}x`} />
-              <YAxis type="category" dataKey="name" width={labelW} tick={{ fill: "#cbd5e1", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={v => [`${v}x`, "Usage Index"]} />
-              <ReferenceLine x={1.0} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
-              <Bar dataKey="aui" radius={[0, 4, 4, 0]}>
-                {data.map((d, i) => <Cell key={i} fill={d.aui >= 3 ? "#10B981" : d.aui >= 1 ? "#3B82F6" : "#64748b"} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      ))}
-    </div>
-    <InfoBox color="#8B5CF6">
-      <strong style={{ color: "#cbd5e1" }}>Adoption correlates with GDP & tech workforce.</strong> 1% higher GDP per capita = 0.7% more AI usage. Top 5 U.S. states = 50% of usage. Gini fell from 0.37 to 0.32 in 3 months - projected state-level parity in 2-5 years, 10x faster than historical tech diffusion.
-    </InfoBox>
-  </>);
-}
 
 // ===========================================================
 // SUB-TAB 2: MODEL MARKET
@@ -2378,6 +2224,42 @@ function orWeeklyTotals(or) {
   return weeks;
 }
 
+// OpenRouter has silently frozen before (path rotations serve a stale archive
+// until someone notices). Detect it: how old is the newest data, and did the
+// live fetch actually succeed this run (source "live+archive" vs "archive-only")?
+function orFreshness(or) {
+  if (!or) return null;
+  const dates = [];
+  const ms = or.marketShare || [];
+  if (ms.length) dates.push(ms[ms.length - 1].x);
+  const rows = or.rows || [];
+  if (rows.length) dates.push(rows.reduce((mx, r) => (r.date > mx ? r.date : mx), rows[0].date));
+  if (!dates.length) return null;
+  const lastData = dates.sort()[dates.length - 1];
+  const daysStale = Math.floor((Date.now() - Date.parse(lastData)) / 86400000);
+  const liveFailed = typeof or.source === "string" && !or.source.includes("live");
+  return { lastData, daysStale, stale: daysStale > 10, liveFailed, source: or.source };
+}
+
+// Renders nothing when the feed is fresh and live; otherwise an inline warning.
+function StaleBanner({ or }) {
+  const f = orFreshness(or);
+  if (!f || (!f.stale && !f.liveFailed)) return null;
+  const red = f.stale;
+  const color = red ? "#ef4444" : "#fbbf24";
+  const msg = f.liveFailed && f.stale
+    ? `OpenRouter live fetch is failing and the data hasn't advanced in ${f.daysStale} days — the feed has likely broken again (last time: an API path rotation). Numbers below are a frozen archive.`
+    : f.liveFailed
+    ? `OpenRouter live fetch failed this run (serving cached archive, source "${f.source}"). Data may stop advancing — watch this banner.`
+    : `OpenRouter data hasn't updated in ${f.daysStale} days (latest ${f.lastData}). The feed may have frozen; treat token figures below as stale.`;
+  return (
+    <div style={{ background: red ? "rgba(239,68,68,0.08)" : "rgba(251,191,36,0.08)", border: `1px solid ${color}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
+      <span style={{ color, fontSize: 14, lineHeight: 1.2 }}>⚠</span>
+      <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, lineHeight: 1.5 }}>{msg}</span>
+    </div>
+  );
+}
+
 function DemandTab() {
   const [data, setData] = useState(null);
   const [or, setOr] = useState(null);
@@ -2629,6 +2511,7 @@ function DemandTab() {
   const selectStyle = { background: "#0f172a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, color: "#cbd5e1", fontSize: 11, fontFamily: fonts.mono, padding: "6px 10px", cursor: "pointer" };
 
   return (<>
+    <StaleBanner or={or} />
     {/* ═══ PAGE VERDICT — is token demand growing? ═══ */}
     {pulse && (
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
@@ -3385,9 +3268,33 @@ const yoyDistribution = (history, lag) => {
   return out;
 };
 
-function buildScorecard({ impact, capex, prices, sdk }) {
+function buildScorecard({ impact, capex, prices, sdk, or }) {
   const rows = [];
   const fred = impact?.fred || {};
+
+  // ── 0. Token Demand (OpenRouter routed volume, 13-week growth) ──
+  // The most direct usage signal on the card — actual tokens, not a proxy.
+  // Partial trailing week trimmed so the in-progress week can't flip posture.
+  {
+    const weekTot = orWeeklyTotals(or);
+    if (weekTot.length > 13) {
+      const last = weekTot[weekTot.length - 1];
+      const w13 = weekTot[weekTot.length - 14];
+      const g13 = w13.v ? ((last.v / w13.v) - 1) * 100 : null;
+      const posture = g13 == null ? "neutral" : g13 > 30 ? "bullish" : g13 > 10 ? "neutral" : g13 > 0 ? "caution" : "bearish";
+      rows.push({
+        category: "Usage",
+        label: "Token Demand (OpenRouter)",
+        value: `${(last.v * (365 / 7 / 12) / 1e12).toFixed(0)}T tok/mo`,
+        trendLabel: g13 != null ? `${g13 >= 0 ? "+" : ""}${g13.toFixed(0)}% /13wk` : "—",
+        trendUp: (g13 ?? 0) >= 0,
+        percentile: null,
+        posture,
+        tickers: ["NVDA", "MSFT", "GOOGL"],
+        implication: "Actual routed API tokens — the demand every other row proxies. Sustained negative growth here is the sell signal for the whole trade.",
+      });
+    }
+  }
 
   // ── 1. Hyperscaler AI Capex Momentum ──
   if (capex?.companies) {
@@ -3613,6 +3520,7 @@ function ScorecardTab() {
   const [capex, setCapex]     = useState(null);
   const [sdk, setSdk]         = useState(null);
   const [prices, setPrices]   = useState(null);
+  const [or, setOr]           = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = () => {
@@ -3622,14 +3530,15 @@ function ScorecardTab() {
       fetch("/api/hyperscaler-capex").then(r => r.json()).catch(() => null),
       fetch("/api/sdk-downloads").then(r => r.json()).catch(() => null),
       fetch("/api/ai-prices").then(r => r.json()).catch(() => null),
-    ]).then(([i, c, s, p]) => { setImpact(i); setCapex(c); setSdk(s); setPrices(p); })
+      fetch("/api/or-rankings-history").then(r => r.json()).catch(() => null),
+    ]).then(([i, c, s, p, o]) => { setImpact(i); setCapex(c); setSdk(s); setPrices(p); setOr(o); })
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
   const { rows, counts, overall } = useMemo(
-    () => buildScorecard({ impact, capex, prices, sdk }),
-    [impact, capex, prices, sdk]
+    () => buildScorecard({ impact, capex, prices, sdk, or }),
+    [impact, capex, prices, sdk, or]
   );
 
   if (loading && !rows.length) {
@@ -3640,6 +3549,7 @@ function ScorecardTab() {
   }
 
   return (<>
+    <StaleBanner or={or} />
     {/* Overall posture banner */}
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 18, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: overall.color }} />
@@ -3759,9 +3669,12 @@ function ApiUsageTab() {
 
   const fmtTok = n => n == null ? "—" : n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : n >= 1e9 ? `${(n / 1e9).toFixed(0)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(0)}M` : String(n);
 
-  // Provider weekly chart from market-share
+  // Provider weekly chart from market-share.
+  // Keep only the weeks orWeeklyTotals() considers complete — the in-progress
+  // week is only partially accumulated and craters the WoW stat and chart tail.
   const { chartRows, providers, growth } = useMemo(() => {
-    const ms = data?.marketShare || [];
+    const complete = new Set(orWeeklyTotals(data).map(w => w.d));
+    const ms = (data?.marketShare || []).filter(w => complete.has(w.x));
     if (!ms.length) return { chartRows: [], providers: [], growth: null };
     const provSet = new Set();
     ms.forEach(w => Object.keys(w.ys || {}).forEach(p => provSet.add(p)));
@@ -3811,6 +3724,7 @@ function ApiUsageTab() {
   const topProv = providers[0];
 
   return (<>
+    <StaleBanner or={data} />
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
       <div>
         <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5 }}>API Usage — OpenRouter Token Throughput</div>
@@ -3900,6 +3814,112 @@ const SD_GREEN = "#4ade80", SD_AMBER = "#fbbf24", SD_RED = "#f87171", SD_INDIGO 
 const sdPct = (v, dp = 0) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(dp)}%`;
 const sdTok = n => n == null ? "—" : n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : n >= 1e9 ? `${(n / 1e9).toFixed(0)}B` : `${(n / 1e6).toFixed(0)}M`;
 
+// ── AI debt-market tracker (curated, extend by hand) ───────────────────────
+// SemiAnalysis ("NVIDIA GPU debt backstop" article) forecasts AI debt becoming
+// the 2nd-largest credit market after US mortgages (~$13T): ~$7T outstanding
+// by 2029 against ~$11.1T cumulative AI capex 2024-29. No API tracks this —
+// deals are public headlines, curated here like TOKEN_DISCLOSURES.
+// amt in $B. date = announcement month (some approximate — verify on edit).
+// contingent: true = a guarantee (NVIDIA revenue backstop), NOT drawn debt —
+// listed in the table but excluded from the cumulative line.
+// ADD A ROW whenever a headline AI financing lands. That's the whole upkeep.
+const AI_DEBT_DEALS = [
+  { date: "2023-08", borrower: "CoreWeave",            amt: 2.3,  lender: "Magnetar + Blackstone",         type: "GPU-collateralized loan" },
+  { date: "2024-05", borrower: "CoreWeave",            amt: 7.5,  lender: "Blackstone-led",                type: "DDTL 2.0" },
+  { date: "2024-10", borrower: "Crusoe (Abilene DC)",  amt: 3.4,  lender: "Blue Owl-led",                  type: "DC construction financing" },
+  { date: "2025-05", borrower: "CoreWeave",            amt: 2.0,  lender: "public market",                 type: "High-yield notes" },
+  { date: "2025-06", borrower: "xAI",                  amt: 5.0,  lender: "Morgan Stanley-led",            type: "Notes + term loan" },
+  { date: "2025-09", borrower: "Oracle",               amt: 18,   lender: "public market",                 type: "IG bonds (DC buildout)" },
+  { date: "2025-09", borrower: "Nebius",               amt: 3.0,  lender: "public market",                 type: "Convertible notes" },
+  { date: "2025-10", borrower: "Meta (Hyperion DC)",   amt: 27,   lender: "Blue Owl JV",                   type: "Private credit" },
+  { date: "2025-10", borrower: "TeraWulf",             amt: 3.2,  lender: "public (Google-backstopped)",   type: "Notes" },
+  { date: "2025-10", borrower: "Meta",                 amt: 30,   lender: "public market",                 type: "IG bonds" },
+  { date: "2026-06", borrower: "CoreWeave",            amt: 8.5,  lender: "incl. Meta-backstopped 5.9% tranche", type: "DDTL 4.0", src: "SemiAnalysis" },
+  { date: "2026-06", borrower: "Firmus (Melbourne)",   amt: 10,   lender: "Blackstone-led",                type: "Facility", src: "SemiAnalysis" },
+  { date: "2026-06", borrower: "SharonAI (40k GB300)", amt: 4.88, lender: "NVIDIA",                        type: "GPU revenue backstop", contingent: true, src: "SemiAnalysis" },
+];
+// Illustrative glide path to the article's endpoint — ONLY the $7T-by-2029
+// point is theirs; intermediate points are a smooth interpolation for scale.
+const AI_DEBT_FORECAST = [
+  { date: "2024-06", v: 40 }, { date: "2025-06", v: 150 }, { date: "2026-06", v: 450 },
+  { date: "2027-06", v: 1200 }, { date: "2028-06", v: 3000 }, { date: "2029-12", v: 7000 },
+];
+
+function AIDebtPanel() {
+  const calc = useMemo(() => {
+    const deals = [...AI_DEBT_DEALS].sort((a, b) => a.date.localeCompare(b.date));
+    const drawn = deals.filter(d => !d.contingent);
+    let cum = 0;
+    const cumPts = drawn.map(d => { cum += d.amt; return { date: d.date, announced: +cum.toFixed(1) }; });
+    const total = cum;
+    const backstops = deals.filter(d => d.contingent).reduce((s, d) => s + d.amt, 0);
+    // trailing-12-month announcement pace
+    const lastD = deals[deals.length - 1].date;
+    const cutY = `${+lastD.slice(0, 4) - 1}${lastD.slice(4)}`;
+    const pace12 = drawn.filter(d => d.date > cutY).reduce((s, d) => s + d.amt, 0);
+    // merge cumulative + forecast onto one date axis
+    const byDate = {};
+    cumPts.forEach(p => { byDate[p.date] = { ...(byDate[p.date] || { date: p.date }), announced: p.announced }; });
+    AI_DEBT_FORECAST.forEach(p => { byDate[p.date] = { ...(byDate[p.date] || { date: p.date }), forecast: p.v }; });
+    const chart = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+    return { deals: deals.slice().reverse(), total, backstops, pace12, chart, pctOfForecast: (total / 7000) * 100 };
+  }, []);
+
+  const fmtB = v => v == null ? "—" : v >= 1000 ? `$${(v / 1000).toFixed(1)}T` : `$${v.toFixed(v < 10 ? 1 : 0)}B`;
+
+  return (<>
+    <SH>AI Debt Market — Announced Facilities vs the $7T Path</SH>
+    <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5, maxWidth: 820 }}>
+      SemiAnalysis forecasts AI debt becoming the <strong style={{ color: "#cbd5e1" }}>second-largest credit market after US mortgages</strong> — ~$7T outstanding by 2029. This tracker tallies <em>publicly announced, named facilities</em> (a floor on the real number, since much debt is never itemized). Curated by hand — add each headline deal to <code style={{ color: "#a5b4fc" }}>AI_DEBT_DEALS</code>.
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <StatCard label="Announced to Date" val={fmtB(calc.total)} sub={`${calc.deals.length} tracked deals`} color={SD_INDIGO} />
+      <StatCard label="Trailing-12mo Pace" val={fmtB(calc.pace12)} sub="new facilities announced" color={SD_GREEN} />
+      <StatCard label="vs $7T Forecast" val={`${calc.pctOfForecast.toFixed(1)}%`} sub="of the 2029 endpoint" color={SD_AMBER} />
+      <StatCard label="NVIDIA Backstops" val={fmtB(calc.backstops)} sub="contingent — not drawn debt" color="#94a3b8" />
+    </div>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={calc.chart} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} minTickGap={40} />
+          <YAxis scale="log" domain={[10, 8000]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={fmtB} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [fmtB(v), n]} />
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+          <Line type="stepAfter" dataKey="announced" name="Announced facilities (cumulative)" stroke={SD_INDIGO} strokeWidth={2.4} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+          <Line type="monotone" dataKey="forecast" name="SemiAnalysis path to $7T (interpolated)" stroke="#64748b" strokeWidth={1.6} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+      <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+        Log scale, $B. Only the $7T-2029 endpoint is SemiAnalysis&apos;s — the dashed path between is smooth interpolation for scale. The gap between the lines is the story: if the buildout thesis is right, announced facilities must accelerate dramatically; if the step-line stalls for quarters, the debt engine is seizing.
+      </div>
+    </div>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+        <thead><tr>
+          {["Announced", "Borrower", "Structure", "Lender / Notes", "Amount"].map((h, i) => (
+            <th key={h} style={{ padding: "9px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase", textAlign: i === 4 ? "right" : "left", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {calc.deals.map((d, i) => (
+            <tr key={`${d.date}-${d.borrower}`} style={{ borderBottom: i < calc.deals.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", opacity: d.contingent ? 0.65 : 1 }}>
+              <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{d.date}</td>
+              <td style={{ padding: "8px 12px", fontSize: 11.5, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 600 }}>{d.borrower}</td>
+              <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#94a3b8" }}>{d.type}{d.contingent ? " ⓘ contingent" : ""}</td>
+              <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{d.lender}{d.src ? ` · ${d.src}` : ""}</td>
+              <td style={{ padding: "8px 12px", fontSize: 11.5, fontFamily: fonts.mono, color: "#f1f5f9", textAlign: "right", fontWeight: 700 }}>{fmtB(d.amt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <InfoBox color={SD_INDIGO}>
+      <strong style={{ color: "#cbd5e1" }}>Why this matters for the whole AI trade.</strong> The capex forecast (~$11T through 2029) only happens if debt markets fund it — hyperscaler cash flows alone can&apos;t. So this scoreboard is the <em>fuel gauge</em> for everything else on this tab: announced facilities accelerating = the backstop-unlocked credit machine is working; a multi-quarter stall = the single most important early warning that the buildout (and NVDA&apos;s order book) is at risk. Dates and amounts are curated seed values from public headlines and the SemiAnalysis article — verify before trading on any single row.
+    </InfoBox>
+  </>);
+}
+
 // H100 price from a gpuHistory snapshot (consensus preferred, Vast median fallback)
 const sdH100 = snap => {
   const g = snap?.gpus?.["H100 SXM"];
@@ -3955,6 +3975,7 @@ function SupplyDemandTab() {
   const [capex, setCapex] = useState(null);
   const [impact, setImpact] = useState(null);
   const [hf, setHf] = useState(null);
+  const [semi, setSemi] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -3965,14 +3986,29 @@ function SupplyDemandTab() {
       fetch("/api/hyperscaler-capex").then(r => r.json()).catch(() => null),
       fetch("/api/ai-impact").then(r => r.json()).catch(() => null),
       fetch("/api/hf-rankings").then(r => r.json()).catch(() => null),
-    ]).then(([a, b, c, d, e, f]) => { setOr(a); setPrices(b); setSdk(c); setCapex(d); setImpact(e); setHf(f); })
+      fetch("/api/semi-h100").then(r => r.json()).catch(() => null),
+    ]).then(([a, b, c, d, e, f, g]) => { setOr(a); setPrices(b); setSdk(c); setCapex(d); setImpact(e); setHf(f); setSemi(g); })
       .finally(() => setLoading(false));
   }, []);
 
+  // H100 spot (Vast+RunPod consensus) vs SemiAnalysis 1-year contract index.
+  // Weekly grid = the SemiAnalysis dates; spot is forward-filled as-of each week.
+  const h100Compare = useMemo(() => {
+    if (!semi?.available || !semi.series?.length) return null;
+    const spot = (prices?.history?.gpuHistory || []).map(s => ({ d: s.date, v: sdH100(s) })).filter(p => p.v != null);
+    const asOf = ds => { let r = null; for (const p of spot) { if (p.d <= ds) r = p; else break; } return r; };
+    const rows = semi.series.map(r => ({ d: r.date, contract: r.h100, spot: asOf(r.date)?.v ?? null }));
+    const last = rows[rows.length - 1];
+    // latest spot even if newer than the last contract week
+    const spotNow = spot.length ? spot[spot.length - 1].v : (last?.spot ?? null);
+    const contractNow = last?.contract ?? null;
+    const gap = (spotNow != null && contractNow) ? ((spotNow / contractNow) - 1) * 100 : null;
+    return { rows, spotNow, contractNow, gap, asOf: semi.asOf, liveOk: semi.liveOk, daysStale: semi.daysStale, source: semi.source };
+  }, [semi, prices]);
+
   const calc = useMemo(() => {
-    const ms = or?.marketShare || [];
-    if (!ms.length) return null;
-    const weekTot = ms.map(w => ({ d: w.x, v: Object.values(w.ys || {}).reduce((s, x) => s + x, 0) }));
+    const weekTot = orWeeklyTotals(or); // partial trailing week trimmed — a fake cliff here flips the verdict
+    if (!weekTot.length) return null;
     const last = weekTot[weekTot.length - 1];
     const first = weekTot[0];
     const w13 = weekTot.length > 13 ? weekTot[weekTot.length - 14] : first;
@@ -4109,6 +4145,7 @@ function SupplyDemandTab() {
   );
 
   return (<>
+    <StaleBanner or={or} />
     {/* ── Verdict banner ── */}
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: c.verdict.color }} />
@@ -4142,6 +4179,43 @@ function SupplyDemandTab() {
         Log scale; each series indexed to 100 at its own first observation (demand: {c.weeks} weeks · prices: since {c.gpuSince}). Demand climbing while price lines stay flat = supply keeping pace. Price lines turning up = shortage. Early GPU history is Vast-only (noisier); the two-source consensus starts later.
       </div>
     </div>
+
+    {/* ── H100: spot vs 1-year contract (SemiAnalysis) ── */}
+    {h100Compare && (<>
+      <SH>H100 $/hr — Spot vs 1-Year Contract</SH>
+      {!h100Compare.liveOk && (
+        <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid #fbbf24", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <span style={{ color: "#fbbf24", fontSize: 14 }}>⚠</span>
+          <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, lineHeight: 1.5 }}>
+            SemiAnalysis&apos;s public index endpoint is currently unreachable — showing their last published values through <strong>{h100Compare.asOf}</strong> ({h100Compare.daysStale}d old). The contract line will extend automatically when the feed returns.
+          </span>
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+        <StatCard label="H100 Spot (Vast+RunPod)" val={h100Compare.spotNow != null ? `$${h100Compare.spotNow.toFixed(2)}/hr` : "—"} sub="live rental marketplace" color={SD_RED} />
+        <StatCard label="H100 1-yr Contract (SemiAnalysis)" val={h100Compare.contractNow != null ? `$${h100Compare.contractNow.toFixed(2)}/hr` : "—"} sub={`index as of ${h100Compare.asOf}`} color={SD_INDIGO} />
+        <StatCard label="Spot vs Contract" val={h100Compare.gap != null ? `${h100Compare.gap >= 0 ? "+" : ""}${h100Compare.gap.toFixed(0)}%` : "—"} sub={h100Compare.gap != null ? (h100Compare.gap >= 0 ? "spot at a premium" : "spot below contract") : ""} color={h100Compare.gap == null ? "#94a3b8" : h100Compare.gap >= 0 ? SD_AMBER : SD_GREEN} />
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={h100Compare.rows} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(1)}`} domain={["auto", "auto"]} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [v != null ? `$${(+v).toFixed(2)}/hr` : "—", n]} labelFormatter={d => d.slice(0, 10)} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+            <Line type="monotone" dataKey="contract" name="1-yr contract (SemiAnalysis)" stroke={SD_INDIGO} strokeWidth={2.4} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="spot" name="Spot (Vast+RunPod)" stroke={SD_RED} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Absolute $/GPU-hr. <strong style={{ color: "#94a3b8" }}>Contract</strong> = what firms commit to on a 1-year term (SemiAnalysis&apos;s free public H100 index) — the structural cost signal. <strong style={{ color: "#94a3b8" }}>Spot</strong> = live rental marketplace (Vast.ai + RunPod consensus) — noisier, but the leading edge. Spot rising above contract = tightening; spot below = slack capacity being dumped.
+        </div>
+      </div>
+    </>)}
+
+    {/* ── AI debt-market tracker (curated $7T scoreboard) ── */}
+    <AIDebtPanel />
 
     {/* ── Quadrant + stacks ── */}
     <SH>Regime &amp; Growth Stacks</SH>

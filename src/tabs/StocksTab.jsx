@@ -6,6 +6,8 @@ import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
+import TickerSearch from "../components/TickerSearch.jsx";
+import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 
@@ -1009,7 +1011,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
   </>);
 }
 
-function StockDetailView({ data, onBack }) {
+function StockDetailView({ data, onBack, fmpKey }) {
   const { symbol, years, prof } = data;
   const [viewMode, setViewMode] = useState("summary");
   const [descExpanded, setDescExpanded] = useState(false);
@@ -1030,6 +1032,7 @@ function StockDetailView({ data, onBack }) {
     { id: "ratios",     label: "Key Ratios" },
     { id: "financials", label: "Profitability waterfall" },
     { id: "dcf",        label: "Valuation" },
+    { id: "peers",      label: "Peers" },
   ];
 
   const priceChart = (height) => (
@@ -1139,6 +1142,10 @@ function StockDetailView({ data, onBack }) {
           </div>
         </div>
       )}
+      {/* Valuation vs its own 20-year history */}
+      <ValuationBands data={data} fmpKey={fmpKey} />
+      {/* Dividend safety read */}
+      <DividendSafety data={data} fmpKey={fmpKey} />
       {prof?.description && (
         <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 22px", marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>About {prof?.companyName || symbol}</div>
@@ -1150,6 +1157,9 @@ function StockDetailView({ data, onBack }) {
 
     {/* ═══ CHART ═══ */}
     {viewMode === "chart" && priceChart(360)}
+
+    {/* ═══ PEERS ═══ */}
+    {viewMode === "peers" && <PeerCompare symbol={symbol} fmpKey={fmpKey} />}
 
     {/* ═══ FINANCIALS — profit waterfall ═══ */}
     {viewMode === "financials" && <ProfitSankey data={data} />}
@@ -1220,7 +1230,6 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       .then(d => { if (Array.isArray(d)) setIndexYields(d); })
       .catch(() => {});
   }, []);
-  const [input, setInput] = useState("");
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1262,11 +1271,6 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       loadData();
     }
   }, [fmpKey, tickers, loadData]);
-
-  const addTicker = () => {
-    const t = input.trim().toUpperCase();
-    if (t && !tickers.includes(t)) { setTickers(prev => [...prev, t]); setInput(""); }
-  };
 
   const removeTicker = (t) => { setTickers(prev => prev.filter(x => x !== t)); setData(prev => prev.filter(x => x.symbol !== t)); };
 
@@ -1313,7 +1317,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
           <div style={{ fontSize: 12, color: "#475569" }}>Fetching 20 years of financial data (8 API calls)</div>
         </div>
       ) : detailData ? (
-        <StockDetailView data={detailData} onBack={closeDetail} />
+        <StockDetailView data={detailData} onBack={closeDetail} fmpKey={fmpKey} />
       ) : (
         <div style={{ textAlign: "center", padding: 60, color: "#f87171", fontFamily: fonts.heading }}>
           <div style={{ fontSize: 16, marginBottom: 8 }}>Failed to load data for {detailSymbol}</div>
@@ -1341,9 +1345,14 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   // Shared ticker management (visible on both screener and CSP views)
   const tickerBar = (<>
     <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-      <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addTicker()} placeholder="Add ticker (e.g. COST)"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", color: "#e2e8f0", fontSize: 12, fontFamily: fonts.mono, outline: "none", width: 140 }} />
-      <button onClick={addTicker} style={{ background: "#6366F1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: fonts.heading }}>Add</button>
+      <TickerSearch
+        fmpKey={fmpKey}
+        onSelect={(sym) => { if (sym && !tickers.includes(sym)) setTickers(prev => [...prev, sym]); }}
+        placeholder="Add by ticker or company name…"
+        icon={false}
+        boxStyle={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 12px", width: 230 }}
+      />
+      <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono }}>adds to watchlist · use the top search bar to just look one up</span>
       {stockView === "screener" && (
         <button onClick={loadData} disabled={loading} style={{ background: "#E8553A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: loading ? "wait" : "pointer", fontFamily: fonts.heading, opacity: loading ? 0.6 : 1 }}>
           {loading ? "Loading..." : "Fetch Data"}
@@ -1386,10 +1395,13 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
     </div>
   );
 
+  const earningsStrip = <EarningsWeekAhead tickers={tickers} fmpKey={fmpKey} />;
+
   if (stockView === "overview") {
     return (<>
       {viewToggle}
       {yieldTiles}
+      {earningsStrip}
       <SP500Overview onSelectStock={openDetail} />
     </>);
   }
@@ -1398,6 +1410,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
     return (<>
       {viewToggle}
       {yieldTiles}
+      {earningsStrip}
       <SP500Screener onSelectStock={openDetail} />
     </>);
   }
@@ -1405,6 +1418,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   return (<>
     {viewToggle}
     {yieldTiles}
+    {earningsStrip}
     {tickerBar}
 
     <SH>Stock Fundamentals Screener</SH>

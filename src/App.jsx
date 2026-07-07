@@ -5,6 +5,7 @@ import FB from "./lib/fallbackData.js";
 import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchZillowData } from "./lib/api.js";
 import { fmtDate } from "./components/shared.jsx";
 import NewsTicker from "./components/NewsTicker.jsx";
+import TickerSearch from "./components/TickerSearch.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
@@ -70,7 +71,6 @@ export default function Dashboard() {
   const [tab, setTab] = useState("overview");
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(null); // global ticker search → opens in Stocks
-  const [tickerInput, setTickerInput] = useState("");
 
   // Persistent market strip: SPY / 10Y / VIX, refreshed every 60s
   useEffect(() => {
@@ -93,7 +93,6 @@ export default function Dashboard() {
     if (!s) return;
     setTab("stocks");
     setPendingTicker(s);
-    setTickerInput("");
   };
   const [md, setMd] = useState(FB.mortgage); const [gd, setGd] = useState(FB.global);
   const [td, setTd] = useState(FB.treasury); const [cd, setCd] = useState(FB.cpi); const [hd, setHd] = useState(FB.housing);
@@ -431,16 +430,12 @@ export default function Dashboard() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Top bar: ticker search + persistent market strip */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, background: cardBg, border: cardBorder, borderRadius: 9, padding: "6px 11px", flex: "1 1 200px", minWidth: 160 }}>
-              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>⌕</span>
-              <input
-                value={tickerInput}
-                onChange={e => setTickerInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && goTicker(tickerInput)}
-                placeholder="Search any ticker (e.g. AAPL)"
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text-primary)", fontSize: 12, fontFamily: fonts.mono, minWidth: 0 }}
-              />
-            </div>
+            <TickerSearch
+              fmpKey={fmpKey}
+              onSelect={goTicker}
+              placeholder="Search any ticker or company name…"
+              boxStyle={{ background: cardBg, border: cardBorder, borderRadius: 9, padding: "6px 11px", flex: "1 1 220px", minWidth: 180 }}
+            />
             {marketStrip && (
               <div style={{ display: "flex", gap: 14, fontFamily: fonts.mono, fontSize: 11, flexWrap: "wrap" }}>
                 {marketStrip.spy && (
