@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, Cell, LineChart, Line, CartesianGrid, Area, AreaChart, ReferenceLine, ScatterChart, Scatter, ZAxis } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
+import ForecastPanel from "../components/ForecastPanel.jsx";
 
 const PRICING_TIERS = [
   { label: "Free",    color: "#10B981", test: p => p === 0 },
@@ -207,49 +208,105 @@ function BenchmarkBar({ b }) {
   );
 }
 
-// --- GDPval - OpenAI's GDP-weighted economic-work benchmark -----------------
-// Introduced by OpenAI in Sep 2025. 1,320 tasks across 44 occupations in 9
-// sectors covering most of US GDP. Each task authored by a >=14-yr industry
-// professional; AI outputs are blind-compared to expert human deliverables and
-// scored as "win / tie / loss" by another expert. A 50% win rate = parity with
-// the human professional. Values below are published headline win rates plus
-// model-maker updates through 2026-Q1.
-const GDPVAL_DATA = {
-  asOf: "2026-Q1",
-  totalTasks: 1320,
+// --- GDPval-AA - agentic successor to OpenAI's GDPval benchmark -------------
+// OpenAI's original GDPval (Sep 2025) scored one-shot deliverables as a
+// win/tie/loss % vs a human expert (50% = parity). That metric has largely
+// been superseded by GDPval-AA, run by Artificial Analysis: models get shell
+// + browser access in an agentic loop, produce full deliverables against 220
+// tasks (44 occupations, 9 sectors, same underlying OpenAI dataset), and are
+// scored via Elo from blind pairwise comparisons — not directly comparable to
+// the original win-rate numbers. Snapshot pulled 2026-07-07 from
+// https://artificialanalysis.ai/evaluations/gdpval-aa (125 models tracked;
+// top ~20 shown here). Update by re-checking that page — Elo shifts often.
+const GDPVAL_AA_ASOF = "2026-07-07";
+const GDPVAL_AA_SOURCE = "https://artificialanalysis.ai/evaluations/gdpval-aa";
+const GDPVAL_AA_DATA = {
+  totalModelsTracked: 125,
+  totalTasks: 220,
   occupations: 44,
   sectors: 9,
   models: [
-    { name: "Claude Opus 4.1",   winRate: 49.2, org: "Anthropic", year: 2025 },
-    { name: "Claude Opus 4.6",   winRate: 52.8, org: "Anthropic", year: 2026 },
-    { name: "GPT-5",             winRate: 40.6, org: "OpenAI",    year: 2025 },
-    { name: "Claude Sonnet 4.5", winRate: 39.1, org: "Anthropic", year: 2025 },
-    { name: "Gemini 2.5 Pro",    winRate: 30.3, org: "Google",    year: 2025 },
-    { name: "GPT-4o",            winRate: 23.1, org: "OpenAI",    year: 2024 },
-    { name: "Claude 3.5 Sonnet", winRate: 12.4, org: "Anthropic", year: 2024 },
+    { name: "Claude Fable 5 (Max Effort)",   org: "Anthropic", elo: 1760, ci: 20 },
+    { name: "Claude Sonnet 5 (Max Effort)",  org: "Anthropic", elo: 1606, ci: 19 },
+    { name: "Claude Opus 4.8 (Max Effort)",  org: "Anthropic", elo: 1600, ci: 18 },
+    { name: "GLM-5.2 (max)",                 org: "Zhipu (Z AI)", elo: 1513, ci: 17 },
+    { name: "Claude Sonnet 5 (Xhigh)",       org: "Anthropic", elo: 1510, ci: 19 },
+    { name: "Claude Opus 4.7 (Max Effort)",  org: "Anthropic", elo: 1500, ci: 17 },
+    { name: "GPT-5.5 (xhigh)",               org: "OpenAI",    elo: 1494, ci: 17 },
+    { name: "GPT-5.5 (high)",                org: "OpenAI",    elo: 1471, ci: 17 },
+    { name: "Claude Sonnet 5 (High)",        org: "Anthropic", elo: 1406, ci: 18 },
+    { name: "MiniMax-M3",                    org: "MiniMax",   elo: 1396, ci: 17 },
+    { name: "GPT-5.4 (xhigh)",               org: "OpenAI",    elo: 1395, ci: 17 },
+    { name: "Claude Sonnet 4.6 (Max Effort)",org: "Anthropic", elo: 1380, ci: 17 },
+    { name: "GPT-5.5 (medium)",              org: "OpenAI",    elo: 1373, ci: 19 },
+    { name: "Gemini 3.5 Flash (high)",       org: "Google",    elo: 1347, ci: 17 },
+    { name: "DeepSeek V4 Pro (Max Effort)",  org: "DeepSeek",  elo: 1308, ci: 17 },
+    { name: "Qwen3.7 Max",                   org: "Alibaba",   elo: 1275, ci: 17 },
+    { name: "GLM-5.1 (Reasoning)",           org: "Zhipu (Z AI)", elo: 1257, ci: 17 },
+    { name: "Grok Build 0.1 0616",           org: "xAI",       elo: 1214, ci: 18 },
+    { name: "GPT-5.5 (low)",                 org: "OpenAI",    elo: 1191, ci: 18 },
+    { name: "Kimi K2.6",                     org: "Kimi",      elo: 1191, ci: 16 },
   ],
-  // Best frontier-model win rate observed per sector. GDP share = share of US
-  // nominal GDP (BEA value-added-by-industry, approximate).
-  sectors_detail: [
-    { sector: "Information",                 topWinRate: 58, gdpShare: 5.6 },
-    { sector: "Professional & Technical",    topWinRate: 54, gdpShare: 8.2 },
-    { sector: "Finance & Insurance",         topWinRate: 51, gdpShare: 8.1 },
-    { sector: "Government Services",         topWinRate: 49, gdpShare: 12.0 },
-    { sector: "Real Estate",                 topWinRate: 48, gdpShare: 13.3 },
-    { sector: "Manufacturing",               topWinRate: 46, gdpShare: 10.8 },
-    { sector: "Wholesale Trade",             topWinRate: 44, gdpShare: 5.9 },
-    { sector: "Retail Trade",                topWinRate: 41, gdpShare: 5.5 },
-    { sector: "Healthcare",                  topWinRate: 38, gdpShare: 7.5 },
-  ],
+};
+const GDP_ORG_COLOR = {
+  Anthropic: "#E8553A", OpenAI: "#10B981", Google: "#3B82F6", DeepSeek: "#8B5CF6",
+  "Zhipu (Z AI)": "#F59E0B", MiniMax: "#EC4899", Alibaba: "#22D3EE", xAI: "#94A3B8", Kimi: "#A78BFA",
 };
 
-// Colored by tier relative to human (50%)
-const gdpTierColor = (wr) => {
-  if (wr >= 50) return "#10B981"; // beats human
-  if (wr >= 40) return "#22C55E"; // approaching
-  if (wr >= 25) return "#F59E0B"; // meaningful
-  return "#EF4444";               // far behind
-};
+// --- METR time horizon - the capability TREND, not a point score -----------
+// METR (Model Evaluation & Threat Research) measures the "50%-task-completion
+// time horizon": the length of software task (in how long it takes a skilled
+// human) that a model can complete autonomously with 50% reliability, over a
+// ~230-task suite. The finding that matters is the TREND — horizons are
+// doubling roughly every 4 months (down from ~7mo pre-2023), a straight line
+// on a log axis. Canonical points from METR "Time Horizon 1.1" (2026-01-29,
+// https://metr.org/blog/2026-1-29-time-horizon-1-1/); the latest frontier
+// point (Opus 4.6) is reported post-TH1.1 and flagged separately. Release
+// dates are approximate (for the time axis). minutes = 50% time horizon.
+const METR_ASOF = "2026-01-29";
+const METR_SOURCE = "https://metr.org/blog/2026-1-29-time-horizon-1-1/";
+const METR_DOUBLING_DAYS = 131; // METR's headline: ~4.3mo since 2023 (89d since 2024)
+const METR_DATA = [
+  { model: "GPT-4o",           org: "OpenAI",    date: "2024-05-15", minutes: 6 },
+  { model: "Claude 3.7 Sonnet",org: "Anthropic", date: "2025-02-24", minutes: 60 },
+  { model: "o3",               org: "OpenAI",    date: "2025-04-16", minutes: 121 },
+  { model: "Claude Opus 4",    org: "Anthropic", date: "2025-05-22", minutes: 101 },
+  { model: "GPT-5",            org: "OpenAI",    date: "2025-08-07", minutes: 214 },
+  { model: "Claude Opus 4.5",  org: "Anthropic", date: "2025-11-24", minutes: 320 },
+  { model: "Claude Opus 4.6",  org: "Anthropic", date: "2026-02-21", minutes: 870, reported: true },
+];
+
+// Trend line uses METR's OWN published doubling rate (fixed slope) with a
+// least-squares LEVEL fit — an unconstrained regression overfits the recent
+// points to a ~3mo doubling and projects horizons that contradict the latest
+// measured value. Fixed-slope keeps the projection honest and anchored to
+// METR's authority. Line extends to the 40-hour (2,400-min) work-week mark.
+function metrFit(points) {
+  const base = new Date("2024-01-01").getTime();
+  const monthsSince = d => (new Date(d).getTime() - base) / (365.25 / 12 * 86400000);
+  const xs = points.map(p => monthsSince(p.date));
+  const ys = points.map(p => Math.log(p.minutes));
+  const n = xs.length;
+  const doublingMonths = METR_DOUBLING_DAYS / 30.4375;
+  const slope = Math.log(2) / doublingMonths;           // fixed to METR's rate
+  const intercept = (ys.reduce((a, b) => a + b, 0) / n) - slope * (xs.reduce((a, b) => a + b, 0) / n);
+  const fitAt = mo => Math.exp(intercept + slope * mo);
+  const moToDate = mo => { const d = new Date(base); d.setMonth(d.getMonth() + Math.round(mo)); return d.toISOString().slice(0, 7); };
+  // month where the fit crosses 40h (2400 min) and 8h (480 min)
+  const crossMo = mins => (Math.log(mins) - intercept) / slope;
+  const workweekDate = moToDate(crossMo(2400));
+  const workdayDate = moToDate(crossMo(480));
+  // build merged chart rows: actual dots + a dense fit/projection line
+  const xMin = Math.min(...xs), xMax = crossMo(2400) + 1;
+  const rows = {};
+  for (let mo = Math.floor(xMin); mo <= Math.ceil(xMax); mo += 1.5) rows[mo.toFixed(1)] = { x: +mo.toFixed(1), fit: +fitAt(mo).toFixed(1) };
+  points.forEach(p => {
+    const mo = +monthsSince(p.date).toFixed(1);
+    rows[mo] = { ...(rows[mo] || { x: mo }), x: mo, mins: p.minutes, model: p.model, org: p.org, reported: p.reported, fit: rows[mo]?.fit ?? +fitAt(mo).toFixed(1) };
+  });
+  const chart = Object.values(rows).sort((a, b) => a.x - b.x);
+  return { slope, intercept, doublingMonths, chart, workweekDate, workdayDate, monthsSince, moToLabel: mo => moToDate(mo) };
+}
 
 // FRED time series chart component
 function FredChart({ series, title, yFormat, yoyHighlight }) {
@@ -578,79 +635,106 @@ function AIImpactTab() {
       <strong style={{ color: "#cbd5e1" }}>Why capability comes before the macro data.</strong> For AI to show up in nonfarm productivity, it has to first be <em>good enough</em> to substitute for or augment human knowledge work. As of 2026, frontier models hit or exceed expert human performance on most coding, math, and reasoning benchmarks - and they&apos;re within striking distance on real-world agentic tasks (GAIA) that most closely resemble professional knowledge work. Whether that translates to GDP-level productivity is what the rest of this page measures.
     </InfoBox>
 
-    {/* ======== GDPval ======== */}
-    <SH>GDPval - AI vs Human Professionals on GDP-Weighted Work</SH>
+    {/* ======== METR TIME HORIZON ======== */}
+    <SH>METR Time Horizon - How Long a Task AI Can Do Alone</SH>
     {(() => {
-      const topModel = [...GDPVAL_DATA.models].sort((a, b) => b.winRate - a.winRate)[0];
-      const beatingHumanCount = GDPVAL_DATA.models.filter(m => m.winRate >= 50).length;
-      const sectorsAtOrAboveHuman = GDPVAL_DATA.sectors_detail.filter(s => s.topWinRate >= 50).length;
-      const gdpCovered = GDPVAL_DATA.sectors_detail.reduce((s, x) => s + x.gdpShare, 0);
-      const gdpAtParity = GDPVAL_DATA.sectors_detail.filter(s => s.topWinRate >= 50).reduce((s, x) => s + x.gdpShare, 0);
+      const fit = metrFit(METR_DATA);
+      const latest = METR_DATA[METR_DATA.length - 1];
+      const fmtDur = m => m == null ? "—" : m >= 60 ? `${(m / 60).toFixed(m % 60 && m < 600 ? 1 : 0)}h` : `${Math.round(m)}m`;
+      const fmtMoLabel = x => { const d = new Date("2024-01-01"); d.setMonth(d.getMonth() + Math.round(x)); return d.toISOString().slice(0, 7); };
+      return (<>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 10 }}>
+          <StatCard label="Top Model Horizon" val={fmtDur(latest.minutes)} sub={`${latest.model} | 50% reliability`} color={GDP_ORG_COLOR[latest.org] || "#818cf8"} />
+          <StatCard label="Doubling Time" val={`~${fit.doublingMonths.toFixed(1)} mo`} sub="down from ~7mo pre-2023" color="#E8553A" />
+          <StatCard label="8-Hour Workday" val={fit.workdayDate} sub="trend crosses a full workday" color="#F59E0B" />
+          <StatCard label="40-Hour Work-Week" val={fit.workweekDate} sub="if the doubling rate holds" color="#EF4444" />
+        </div>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 12 }}>
+          Source: <a href={METR_SOURCE} target="_blank" rel="noopener" style={{ color: "#818cf8" }}>METR Time Horizon 1.1</a> ({METR_ASOF}) — task length a model completes with 50% reliability, over ~230 software tasks. Trend line uses METR&apos;s published ~{fit.doublingMonths.toFixed(1)}-month doubling.
+        </div>
+
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6, paddingLeft: 12 }}>
+            50% Task-Completion Time Horizon (log scale)
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={fit.chart} margin={{ top: 8, right: 20, left: 4, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis type="number" dataKey="x" domain={["dataMin", "dataMax"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={fmtMoLabel} ticks={[4, 10, 16, 22, 28, 34, 40]} />
+              <YAxis scale="log" domain={[3, 3000]} ticks={[6, 30, 60, 240, 480, 2400]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={fmtDur} />
+              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }}
+                labelFormatter={fmtMoLabel}
+                formatter={(v, n, p) => n === "mins" ? [`${fmtDur(v)}${p.payload.reported ? " (reported)" : ""}`, p.payload.model] : [fmtDur(v), "Trend (~" + fit.doublingMonths.toFixed(1) + "mo doubling)"]} />
+              <ReferenceLine y={480} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "8h workday", fill: "#F59E0B", fontSize: 9, fontFamily: fonts.mono, position: "insideTopRight" }} />
+              <ReferenceLine y={2400} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "40h work-week", fill: "#EF4444", fontSize: 9, fontFamily: fonts.mono, position: "insideTopRight" }} />
+              <Line dataKey="fit" stroke="#64748b" strokeWidth={1.5} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
+              <Line dataKey="mins" stroke="#818cf8" strokeWidth={0} dot={{ r: 4, strokeWidth: 0 }} connectNulls={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+          <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 4, lineHeight: 1.5 }}>
+            Dots = measured models (dashed = trend at METR&apos;s doubling rate). A straight line on a log axis IS exponential growth — that&apos;s the whole point. The two dashed thresholds are where the trend crosses a human workday and work-week.
+          </div>
+        </div>
+
+        <InfoBox color="#E8553A">
+          <strong style={{ color: "#cbd5e1" }}>Why this is the most important AI chart for an investor.</strong> A static benchmark score tells you what AI can do <em>today</em>; METR&apos;s time horizon tells you the <em>rate</em>, and the rate is what compounds. Doubling every ~{fit.doublingMonths.toFixed(1)} months means task autonomy that&apos;s at ~{fmtDur(latest.minutes)} now reaches a full workday and then a work-week within roughly a year — the difference between &ldquo;AI assists a worker&rdquo; and &ldquo;AI does the job.&rdquo; That transition is the hinge for labor-displacement timing, the automation thesis behind the whole AI capex cycle, and which incumbents get disrupted.
+        </InfoBox>
+
+        <InfoBox color="#F59E0B">
+          <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> This is <em>software</em> tasks with clear success criteria at <em>50%</em> reliability — the 80% horizon is meaningfully shorter, and messy real-world work (ambiguous goals, judgment, stakeholders) isn&apos;t captured. The projection is a straight-line extrapolation of a doubling that could bend either way (compute limits, or a jump to continuous learning). METR&apos;s canonical points are through {METR_ASOF}; {latest.model} is a later reported figure. Treat the crossing dates as &ldquo;if the trend holds,&rdquo; not a forecast.
+        </InfoBox>
+      </>);
+    })()}
+
+    {/* ======== GDPval-AA ======== */}
+    <SH>GDPval-AA - Agentic AI vs Real-World Economic Work</SH>
+    {(() => {
+      const sorted = [...GDPVAL_AA_DATA.models].sort((a, b) => b.elo - a.elo);
+      const top = sorted[0];
+      const byOrgBest = {};
+      sorted.forEach(m => { if (!byOrgBest[m.org] || m.elo > byOrgBest[m.org].elo) byOrgBest[m.org] = m; });
+      const orgsShown = Object.keys(byOrgBest).length;
       return (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 14 }}>
-          <StatCard label="Top Model Win Rate" val={`${topModel.winRate.toFixed(1)}%`} sub={`${topModel.name} | vs human expert`} color={gdpTierColor(topModel.winRate)} />
-          <StatCard label="Models Beating Human" val={`${beatingHumanCount} / ${GDPVAL_DATA.models.length}`} sub="Models with >=50% win rate" color="#10B981" />
-          <StatCard label="Sectors at Human Parity" val={`${sectorsAtOrAboveHuman} / ${GDPVAL_DATA.sectors.toString()}`} sub="Top AI >= human expert" color="#22C55E" />
-          <StatCard label="GDP Share at Parity" val={`${gdpAtParity.toFixed(1)}%`} sub={`of ${gdpCovered.toFixed(0)}% GDP covered`} color="#6366F1" />
-          <StatCard label="Benchmark Scope" val={`${GDPVAL_DATA.totalTasks.toLocaleString()} tasks`} sub={`${GDPVAL_DATA.occupations} occupations | ${GDPVAL_DATA.sectors} sectors`} color="#8B5CF6" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 10 }}>
+          <StatCard label="Top Model" val={top.elo.toLocaleString()} sub={`${top.name} | Elo ±${top.ci}`} color={GDP_ORG_COLOR[top.org] || "#818cf8"} />
+          <StatCard label="Labs Represented" val={`${orgsShown}`} sub={`in top ${sorted.length} of ${GDPVAL_AA_DATA.totalModelsTracked} tracked`} color="#6366F1" />
+          <StatCard label="Benchmark Scope" val={`${GDPVAL_AA_DATA.totalTasks} tasks`} sub={`${GDPVAL_AA_DATA.occupations} occupations | ${GDPVAL_AA_DATA.sectors} sectors`} color="#8B5CF6" />
+          <StatCard label="Data As Of" val={GDPVAL_AA_ASOF} sub="Artificial Analysis, GDPval-AA v2" color="#94a3b8" />
         </div>
       );
     })()}
-
-    {/* Win rate by model - horizontal bar chart */}
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10, paddingLeft: 12 }}>
-        Win Rate vs Human Professional - by Model
-      </div>
-      <ResponsiveContainer width="100%" height={Math.max(200, GDPVAL_DATA.models.length * 36)}>
-        <BarChart layout="vertical" data={[...GDPVAL_DATA.models].sort((a, b) => b.winRate - a.winRate)} margin={{ top: 0, right: 40, left: 5, bottom: 0 }}>
-          <XAxis type="number" domain={[0, 60]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-          <YAxis type="category" dataKey="name" width={145} tick={{ fill: "#cbd5e1", fontSize: 10, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, _n, p) => [`${v.toFixed(1)}% win rate`, `${p.payload.org} | ${p.payload.year}`]} />
-          <ReferenceLine x={50} stroke="#e2e8f0" strokeDasharray="4 3" label={{ value: "Human parity", fill: "#e2e8f0", fontSize: 9, fontFamily: fonts.mono, position: "top" }} />
-          <Bar dataKey="winRate" radius={[0, 4, 4, 0]}>
-            {[...GDPVAL_DATA.models].sort((a, b) => b.winRate - a.winRate).map((m, i) => (
-              <Cell key={i} fill={gdpTierColor(m.winRate)} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 14 }}>
+      Source: <a href={GDPVAL_AA_SOURCE} target="_blank" rel="noopener" style={{ color: "#818cf8" }}>artificialanalysis.ai/evaluations/gdpval-aa</a> — re-check periodically and update the snapshot above; Elo shifts as new models are added.
     </div>
 
-    {/* Win rate by sector - with GDP share weighting */}
+    {/* Elo leaderboard - horizontal bar chart, colored by lab */}
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 12, paddingRight: 12, marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>
-          Top Model Win Rate by Sector (bar = win rate | label = GDP share)
-        </div>
+      <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10, paddingLeft: 12 }}>
+        GDPval-AA Elo — Top {GDPVAL_AA_DATA.models.length} (of {GDPVAL_AA_DATA.totalModelsTracked} tracked)
       </div>
-      <ResponsiveContainer width="100%" height={Math.max(260, GDPVAL_DATA.sectors_detail.length * 34)}>
-        <BarChart layout="vertical" data={[...GDPVAL_DATA.sectors_detail].sort((a, b) => b.topWinRate - a.topWinRate)} margin={{ top: 0, right: 70, left: 5, bottom: 0 }}>
-          <XAxis type="number" domain={[0, 60]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-          <YAxis type="category" dataKey="sector" width={170} tick={{ fill: "#cbd5e1", fontSize: 10, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, _n, p) => [`${v}% win rate | ${p.payload.gdpShare}% of GDP`, "Top AI vs Human"]} />
-          <ReferenceLine x={50} stroke="#e2e8f0" strokeDasharray="4 3" />
-          <Bar dataKey="topWinRate" radius={[0, 4, 4, 0]} label={{ position: "right", formatter: (v) => {
-            const row = GDPVAL_DATA.sectors_detail.find(s => s.topWinRate === v);
-            return row ? `${row.gdpShare}% GDP` : "";
-          }, fill: "#94a3b8", fontSize: 9, fontFamily: fonts.mono }}>
-            {[...GDPVAL_DATA.sectors_detail].sort((a, b) => b.topWinRate - a.topWinRate).map((s, i) => (
-              <Cell key={i} fill={gdpTierColor(s.topWinRate)} />
+      <ResponsiveContainer width="100%" height={Math.max(260, GDPVAL_AA_DATA.models.length * 30)}>
+        <BarChart layout="vertical" data={[...GDPVAL_AA_DATA.models].sort((a, b) => b.elo - a.elo)} margin={{ top: 0, right: 20, left: 5, bottom: 0 }}>
+          <XAxis type="number" domain={[1100, 1800]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" width={195} tick={{ fill: "#cbd5e1", fontSize: 9.5, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, _n, p) => [`${v} ±${p.payload.ci}`, p.payload.org]} />
+          <Bar dataKey="elo" radius={[0, 4, 4, 0]}>
+            {[...GDPVAL_AA_DATA.models].sort((a, b) => b.elo - a.elo).map((m, i) => (
+              <Cell key={i} fill={GDP_ORG_COLOR[m.org] || "#94a3b8"} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
       <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 4 }}>
-        Dashed line = 50% (human parity). Green bars = AI beats the expert human on net.
+        Bar color = lab (see legend in caveats below). Several rows are the same base model at different reasoning-effort settings (e.g. Claude Sonnet 5 appears 4x) — that inflates the "125 models tracked" count relative to distinct frontier models.
       </div>
     </div>
 
     <InfoBox color="#10B981">
-      <strong style={{ color: "#cbd5e1" }}>Why GDPval matters more than other benchmarks.</strong> Unlike MMLU or HumanEval (academic problems), GDPval asks frontier models to produce deliverables - a legal memo, a financial model, a medical summary, a manufacturing SOP - authored by professionals with 14+ years of experience, then blind-compared to the human&apos;s work by another expert. A 50% win rate = indistinguishable from a senior professional. Top models now exceed that threshold in information services, professional &amp; technical services, and finance - roughly 22% of US GDP. That&apos;s the most direct &quot;can AI do real work&quot; signal available, and it&apos;s the bridge between the capability benchmarks above and the productivity data below.
+      <strong style={{ color: "#cbd5e1" }}>Why GDPval-AA matters more than other benchmarks.</strong> Unlike MMLU or HumanEval (closed-form academic problems), GDPval&apos;s underlying task set asks models to produce real deliverables - a legal memo, a financial model, a manufacturing SOP - drawn from 44 occupations across sectors covering most of US GDP. GDPval-AA extends this to an <em>agentic</em> setting: models get shell and browser access and must actually produce the file, not just describe it, then get ranked via blind pairwise comparison against other models&apos; outputs (Elo, not a fixed human bar). That&apos;s the closest public read on "can AI do the actual work," and it&apos;s the bridge between the capability benchmarks above and the productivity data below.
     </InfoBox>
 
     <InfoBox color="#F59E0B">
-      <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> GDPval measures <em>task-level</em> output quality on one-shot deliverables - it does not capture workflow integration, judgment in ambiguous situations, stakeholder management, or sustained performance over time. A 50% win rate in the lab doesn&apos;t mean 50% of jobs are automatable next quarter. But it does tell you the raw capability is there; the remaining bottleneck is deployment, not model quality.
+      <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> This Elo is <em>relative to other AI models</em>, not a fixed "50% = human parity" bar like the original GDPval used - a big methodology change, so don&apos;t compare these numbers to older GDPval win-rate figures you may have seen. It&apos;s run by a third party (Artificial Analysis), not OpenAI. It measures task-level deliverable quality, not workflow integration, judgment under ambiguity, or sustained performance. And several leaderboard rows are the same underlying model at different effort/reasoning settings, so treat "125 models" as configs, not 125 distinct frontier labs.
     </InfoBox>
 
     {/* ======== PRODUCTIVITY ======== */}
@@ -4213,6 +4297,12 @@ function SupplyDemandTab() {
         </div>
       </div>
     </>)}
+
+    {/* ── FutureSearch forward view (live values overlaid where we track them) ── */}
+    <ForecastPanel tag="ai" live={{
+      "h100-1y-oct26": h100Compare?.contractNow != null ? { value: h100Compare.contractNow, label: "SemiAnalysis index, latest" } : undefined,
+      "or-tokens-sep26": c?.demandWk != null ? { value: c.demandWk / 1e12, label: "last complete week" } : undefined,
+    }} />
 
     {/* ── AI debt-market tracker (curated $7T scoreboard) ── */}
     <AIDebtPanel />

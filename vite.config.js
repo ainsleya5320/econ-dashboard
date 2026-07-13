@@ -253,26 +253,37 @@ const AI_FRED_SERIES = {
 
 async function fetchFredSeries(id, limit) {
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${FRED_KEY}&limit=${limit}&sort_order=desc&file_type=json`
-  try {
-    const resp = await fetch(url, { headers: { 'User-Agent': UA } })
-    if (!resp.ok) {
-      console.warn(`FRED ${id}: HTTP ${resp.status}`)
+  // Retry on 429 — batch endpoints fire many FRED calls in parallel on a cold
+  // start and blow FRED's per-minute limit; a short backoff lets them succeed
+  // instead of returning empty and (worse) getting cached as empty.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const resp = await fetch(url, { headers: { 'User-Agent': UA } })
+      if (resp.status === 429) {
+        await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
+        continue
+      }
+      if (!resp.ok) {
+        console.warn(`FRED ${id}: HTTP ${resp.status}`)
+        return []
+      }
+      const contentType = resp.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        console.warn(`FRED ${id}: expected JSON, received ${contentType || 'unknown content type'}`)
+        return []
+      }
+      const json = await resp.json()
+      return (json.observations || [])
+        .filter(o => o.value !== '.')
+        .map(o => ({ d: o.date, v: parseFloat(o.value) }))
+        .reverse()
+    } catch (e) {
+      console.warn(`FRED ${id}: ${e.message}`)
       return []
     }
-    const contentType = resp.headers.get('content-type') || ''
-    if (!contentType.includes('application/json')) {
-      console.warn(`FRED ${id}: expected JSON, received ${contentType || 'unknown content type'}`)
-      return []
-    }
-    const json = await resp.json()
-    return (json.observations || [])
-      .filter(o => o.value !== '.')
-      .map(o => ({ d: o.date, v: parseFloat(o.value) }))
-      .reverse()
-  } catch (e) {
-    console.warn(`FRED ${id}: ${e.message}`)
-    return []
   }
+  console.warn(`FRED ${id}: still rate-limited after retries`)
+  return []
 }
 
 async function fetchFMPProfile(symbol) {
@@ -1599,7 +1610,10 @@ async function fetchDebtMarket() {
     basket: { byYear: basketByYear, latest: latestFy, rows: basketRows, size: DEBT_BASKET.length },
     updated: new Date().toISOString(),
   }
-  debtMarketCache = { data, ts: Date.now() }
+  // Only cache when the core FRED spread series actually loaded — a rate-limit
+  // blip must not pin an empty payload for the full TTL (the credit spreads
+  // are the whole point of this endpoint).
+  if (hyCur != null && baaCur != null) debtMarketCache = { data, ts: Date.now() }
   return data
 }
 

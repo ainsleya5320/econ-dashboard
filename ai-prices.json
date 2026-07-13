@@ -8965,6 +8965,1022 @@
       "paidModels": 312,
       "medianInput": 0.43,
       "meanInput": 2.2397
+    },
+    {
+      "date": "2026-07-08",
+      "models": [
+        {
+          "id": "openai/gpt-5.5-pro",
+          "name": "OpenAI: GPT-5.5 Pro",
+          "input": 30,
+          "output": 180,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.5",
+          "name": "OpenAI: GPT-5.5",
+          "input": 5,
+          "output": 30,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.4",
+          "name": "OpenAI: GPT-5.4",
+          "input": 2.5,
+          "output": 15,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.2-pro",
+          "name": "OpenAI: GPT-5.2 Pro",
+          "input": 21,
+          "output": 168,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5-codex",
+          "name": "OpenAI: GPT-5 Codex",
+          "input": 1.25,
+          "output": 10,
+          "context": 400000
+        },
+        {
+          "id": "openai/o3-pro",
+          "name": "OpenAI: o3 Pro",
+          "input": 20,
+          "output": 80,
+          "context": 200000
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "input": 0.75,
+          "output": 4.5,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "input": 0.19999999999999998,
+          "output": 1.25,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-4.1",
+          "name": "OpenAI: GPT-4.1",
+          "input": 2,
+          "output": 8,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "OpenAI: GPT-4.1 Mini",
+          "input": 0.39999999999999997,
+          "output": 1.5999999999999999,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "name": "OpenAI: gpt-oss-120b",
+          "input": 0.03,
+          "output": 0.15,
+          "context": 131072
+        },
+        {
+          "id": "anthropic/claude-opus-4.8",
+          "name": "Anthropic: Claude Opus 4.8",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.7",
+          "name": "Anthropic: Claude Opus 4.7",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Anthropic: Claude Opus 4.6",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "name": "Anthropic: Claude Sonnet 4.6",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5",
+          "name": "Anthropic: Claude Haiku 4.5",
+          "input": 1,
+          "output": 5,
+          "context": 200000
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "name": "Google: Gemini 3.1 Pro Preview",
+          "input": 2,
+          "output": 12,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "name": "Google: Gemini 3.5 Flash",
+          "input": 1.5,
+          "output": 9,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "name": "Google: Gemini 2.5 Pro",
+          "input": 1.25,
+          "output": 10,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "name": "Google: Gemini 2.5 Flash",
+          "input": 0.3,
+          "output": 2.5,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "name": "Google: Gemini 2.5 Flash Lite",
+          "input": 0.09999999999999999,
+          "output": 0.39999999999999997,
+          "context": 1048576
+        },
+        {
+          "id": "x-ai/grok-4.3",
+          "name": "xAI: Grok 4.3",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 1000000
+        },
+        {
+          "id": "x-ai/grok-4.20",
+          "name": "xAI: Grok 4.20",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 2000000
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro",
+          "name": "DeepSeek: DeepSeek V4 Pro",
+          "input": 0.435,
+          "output": 0.87,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek: DeepSeek V4 Flash",
+          "input": 0.09,
+          "output": 0.18,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek: DeepSeek V3.2",
+          "input": 0.2288,
+          "output": 0.3432,
+          "context": 131072
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek: R1",
+          "input": 0.7,
+          "output": 2.5,
+          "context": 163840
+        },
+        {
+          "id": "meta-llama/llama-4-maverick",
+          "name": "Meta: Llama 4 Maverick",
+          "input": 0.15,
+          "output": 0.6,
+          "context": 1048576
+        },
+        {
+          "id": "meta-llama/llama-4-scout",
+          "name": "Meta: Llama 4 Scout",
+          "input": 0.09999999999999999,
+          "output": 0.3,
+          "context": 10000000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct",
+          "name": "Meta: Llama 3.3 70B Instruct",
+          "input": 0.09999999999999999,
+          "output": 0.32,
+          "context": 131072
+        },
+        {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral: Mistral Large 3 2512",
+          "input": 0.5,
+          "output": 1.5,
+          "context": 262144
+        },
+        {
+          "id": "mistralai/mistral-medium-3.1",
+          "name": "Mistral: Mistral Medium 3.1",
+          "input": 0.39999999999999997,
+          "output": 2,
+          "context": 131072
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen: Qwen3.7 Max",
+          "input": 1.25,
+          "output": 3.75,
+          "context": 1000000
+        },
+        {
+          "id": "qwen/qwen3.5-397b-a17b",
+          "name": "Qwen: Qwen3.5 397B A17B",
+          "input": 0.385,
+          "output": 2.4499999999999997,
+          "context": 256000
+        }
+      ],
+      "totalModels": 343,
+      "paidModels": 312,
+      "medianInput": 0.43,
+      "meanInput": 2.2366
+    },
+    {
+      "date": "2026-07-09",
+      "models": [
+        {
+          "id": "openai/gpt-5.5-pro",
+          "name": "OpenAI: GPT-5.5 Pro",
+          "input": 30,
+          "output": 180,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.5",
+          "name": "OpenAI: GPT-5.5",
+          "input": 5,
+          "output": 30,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.4",
+          "name": "OpenAI: GPT-5.4",
+          "input": 2.5,
+          "output": 15,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.2-pro",
+          "name": "OpenAI: GPT-5.2 Pro",
+          "input": 21,
+          "output": 168,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5-codex",
+          "name": "OpenAI: GPT-5 Codex",
+          "input": 1.25,
+          "output": 10,
+          "context": 400000
+        },
+        {
+          "id": "openai/o3-pro",
+          "name": "OpenAI: o3 Pro",
+          "input": 20,
+          "output": 80,
+          "context": 200000
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "input": 0.75,
+          "output": 4.5,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "input": 0.19999999999999998,
+          "output": 1.25,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-4.1",
+          "name": "OpenAI: GPT-4.1",
+          "input": 2,
+          "output": 8,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "OpenAI: GPT-4.1 Mini",
+          "input": 0.39999999999999997,
+          "output": 1.5999999999999999,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "name": "OpenAI: gpt-oss-120b",
+          "input": 0.03,
+          "output": 0.15,
+          "context": 131072
+        },
+        {
+          "id": "anthropic/claude-opus-4.8",
+          "name": "Anthropic: Claude Opus 4.8",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.7",
+          "name": "Anthropic: Claude Opus 4.7",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Anthropic: Claude Opus 4.6",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "name": "Anthropic: Claude Sonnet 4.6",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5",
+          "name": "Anthropic: Claude Haiku 4.5",
+          "input": 1,
+          "output": 5,
+          "context": 200000
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "name": "Google: Gemini 3.1 Pro Preview",
+          "input": 2,
+          "output": 12,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "name": "Google: Gemini 3.5 Flash",
+          "input": 1.5,
+          "output": 9,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "name": "Google: Gemini 2.5 Pro",
+          "input": 1.25,
+          "output": 10,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "name": "Google: Gemini 2.5 Flash",
+          "input": 0.3,
+          "output": 2.5,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "name": "Google: Gemini 2.5 Flash Lite",
+          "input": 0.09999999999999999,
+          "output": 0.39999999999999997,
+          "context": 1048576
+        },
+        {
+          "id": "x-ai/grok-4.3",
+          "name": "xAI: Grok 4.3",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 1000000
+        },
+        {
+          "id": "x-ai/grok-4.20",
+          "name": "xAI: Grok 4.20",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 2000000
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro",
+          "name": "DeepSeek: DeepSeek V4 Pro",
+          "input": 0.435,
+          "output": 0.87,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek: DeepSeek V4 Flash",
+          "input": 0.09,
+          "output": 0.18,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek: DeepSeek V3.2",
+          "input": 0.2288,
+          "output": 0.3432,
+          "context": 131072
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek: R1",
+          "input": 0.7,
+          "output": 2.5,
+          "context": 163840
+        },
+        {
+          "id": "meta-llama/llama-4-maverick",
+          "name": "Meta: Llama 4 Maverick",
+          "input": 0.15,
+          "output": 0.6,
+          "context": 1048576
+        },
+        {
+          "id": "meta-llama/llama-4-scout",
+          "name": "Meta: Llama 4 Scout",
+          "input": 0.09999999999999999,
+          "output": 0.3,
+          "context": 10000000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct",
+          "name": "Meta: Llama 3.3 70B Instruct",
+          "input": 0.09999999999999999,
+          "output": 0.32,
+          "context": 131072
+        },
+        {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral: Mistral Large 3 2512",
+          "input": 0.5,
+          "output": 1.5,
+          "context": 262144
+        },
+        {
+          "id": "mistralai/mistral-medium-3.1",
+          "name": "Mistral: Mistral Medium 3.1",
+          "input": 0.39999999999999997,
+          "output": 2,
+          "context": 131072
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen: Qwen3.7 Max",
+          "input": 1.25,
+          "output": 3.75,
+          "context": 1000000
+        },
+        {
+          "id": "qwen/qwen3.5-397b-a17b",
+          "name": "Qwen: Qwen3.5 397B A17B",
+          "input": 0.385,
+          "output": 2.4499999999999997,
+          "context": 256000
+        }
+      ],
+      "totalModels": 345,
+      "paidModels": 314,
+      "medianInput": 0.435,
+      "meanInput": 2.2337
+    },
+    {
+      "date": "2026-07-10",
+      "models": [
+        {
+          "id": "openai/gpt-5.5-pro",
+          "name": "OpenAI: GPT-5.5 Pro",
+          "input": 30,
+          "output": 180,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.5",
+          "name": "OpenAI: GPT-5.5",
+          "input": 5,
+          "output": 30,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.4",
+          "name": "OpenAI: GPT-5.4",
+          "input": 2.5,
+          "output": 15,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.2-pro",
+          "name": "OpenAI: GPT-5.2 Pro",
+          "input": 21,
+          "output": 168,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5-codex",
+          "name": "OpenAI: GPT-5 Codex",
+          "input": 1.25,
+          "output": 10,
+          "context": 400000
+        },
+        {
+          "id": "openai/o3-pro",
+          "name": "OpenAI: o3 Pro",
+          "input": 20,
+          "output": 80,
+          "context": 200000
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "input": 0.75,
+          "output": 4.5,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "input": 0.19999999999999998,
+          "output": 1.25,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-4.1",
+          "name": "OpenAI: GPT-4.1",
+          "input": 2,
+          "output": 8,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "OpenAI: GPT-4.1 Mini",
+          "input": 0.39999999999999997,
+          "output": 1.5999999999999999,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "name": "OpenAI: gpt-oss-120b",
+          "input": 0.036,
+          "output": 0.18,
+          "context": 131072
+        },
+        {
+          "id": "anthropic/claude-opus-4.8",
+          "name": "Anthropic: Claude Opus 4.8",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.7",
+          "name": "Anthropic: Claude Opus 4.7",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Anthropic: Claude Opus 4.6",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "name": "Anthropic: Claude Sonnet 4.6",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5",
+          "name": "Anthropic: Claude Haiku 4.5",
+          "input": 1,
+          "output": 5,
+          "context": 200000
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "name": "Google: Gemini 3.1 Pro Preview",
+          "input": 2,
+          "output": 12,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "name": "Google: Gemini 3.5 Flash",
+          "input": 1.5,
+          "output": 9,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "name": "Google: Gemini 2.5 Pro",
+          "input": 1.25,
+          "output": 10,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "name": "Google: Gemini 2.5 Flash",
+          "input": 0.3,
+          "output": 2.5,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "name": "Google: Gemini 2.5 Flash Lite",
+          "input": 0.09999999999999999,
+          "output": 0.39999999999999997,
+          "context": 1048576
+        },
+        {
+          "id": "x-ai/grok-4.3",
+          "name": "xAI: Grok 4.3",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 1000000
+        },
+        {
+          "id": "x-ai/grok-4.20",
+          "name": "xAI: Grok 4.20",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 2000000
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro",
+          "name": "DeepSeek: DeepSeek V4 Pro",
+          "input": 0.435,
+          "output": 0.87,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek: DeepSeek V4 Flash",
+          "input": 0.09,
+          "output": 0.18,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek: DeepSeek V3.2",
+          "input": 0.2288,
+          "output": 0.3432,
+          "context": 131072
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek: R1",
+          "input": 0.7,
+          "output": 2.5,
+          "context": 163840
+        },
+        {
+          "id": "meta-llama/llama-4-maverick",
+          "name": "Meta: Llama 4 Maverick",
+          "input": 0.15,
+          "output": 0.6,
+          "context": 1048576
+        },
+        {
+          "id": "meta-llama/llama-4-scout",
+          "name": "Meta: Llama 4 Scout",
+          "input": 0.09999999999999999,
+          "output": 0.3,
+          "context": 10000000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct",
+          "name": "Meta: Llama 3.3 70B Instruct",
+          "input": 0.09999999999999999,
+          "output": 0.32,
+          "context": 131072
+        },
+        {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral: Mistral Large 3 2512",
+          "input": 0.5,
+          "output": 1.5,
+          "context": 262144
+        },
+        {
+          "id": "mistralai/mistral-medium-3.1",
+          "name": "Mistral: Mistral Medium 3.1",
+          "input": 0.39999999999999997,
+          "output": 2,
+          "context": 131072
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen: Qwen3.7 Max",
+          "input": 1.25,
+          "output": 3.75,
+          "context": 1000000
+        },
+        {
+          "id": "qwen/qwen3.5-397b-a17b",
+          "name": "Qwen: Qwen3.5 397B A17B",
+          "input": 0.385,
+          "output": 2.4499999999999997,
+          "context": 256000
+        }
+      ],
+      "totalModels": 347,
+      "paidModels": 317,
+      "medianInput": 0.455,
+      "meanInput": 2.2635
+    },
+    {
+      "date": "2026-07-13",
+      "models": [
+        {
+          "id": "openai/gpt-5.5-pro",
+          "name": "OpenAI: GPT-5.5 Pro",
+          "input": 30,
+          "output": 180,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.5",
+          "name": "OpenAI: GPT-5.5",
+          "input": 5,
+          "output": 30,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.4",
+          "name": "OpenAI: GPT-5.4",
+          "input": 2.5,
+          "output": 15,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.2-pro",
+          "name": "OpenAI: GPT-5.2 Pro",
+          "input": 21,
+          "output": 168,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5-codex",
+          "name": "OpenAI: GPT-5 Codex",
+          "input": 1.25,
+          "output": 10,
+          "context": 400000
+        },
+        {
+          "id": "openai/o3-pro",
+          "name": "OpenAI: o3 Pro",
+          "input": 20,
+          "output": 80,
+          "context": 200000
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "input": 0.75,
+          "output": 4.5,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "input": 0.19999999999999998,
+          "output": 1.25,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-4.1",
+          "name": "OpenAI: GPT-4.1",
+          "input": 2,
+          "output": 8,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "OpenAI: GPT-4.1 Mini",
+          "input": 0.39999999999999997,
+          "output": 1.5999999999999999,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "name": "OpenAI: gpt-oss-120b",
+          "input": 0.036,
+          "output": 0.18,
+          "context": 131072
+        },
+        {
+          "id": "anthropic/claude-opus-4.8",
+          "name": "Anthropic: Claude Opus 4.8",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.7",
+          "name": "Anthropic: Claude Opus 4.7",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Anthropic: Claude Opus 4.6",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "name": "Anthropic: Claude Sonnet 4.6",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5",
+          "name": "Anthropic: Claude Haiku 4.5",
+          "input": 1,
+          "output": 5,
+          "context": 200000
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "name": "Google: Gemini 3.1 Pro Preview",
+          "input": 2,
+          "output": 12,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "name": "Google: Gemini 3.5 Flash",
+          "input": 1.5,
+          "output": 9,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "name": "Google: Gemini 2.5 Pro",
+          "input": 1.25,
+          "output": 10,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "name": "Google: Gemini 2.5 Flash",
+          "input": 0.3,
+          "output": 2.5,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "name": "Google: Gemini 2.5 Flash Lite",
+          "input": 0.09999999999999999,
+          "output": 0.39999999999999997,
+          "context": 1048576
+        },
+        {
+          "id": "x-ai/grok-4.3",
+          "name": "xAI: Grok 4.3",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 1000000
+        },
+        {
+          "id": "x-ai/grok-4.20",
+          "name": "xAI: Grok 4.20",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 2000000
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro",
+          "name": "DeepSeek: DeepSeek V4 Pro",
+          "input": 0.435,
+          "output": 0.87,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek: DeepSeek V4 Flash",
+          "input": 0.09,
+          "output": 0.18,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek: DeepSeek V3.2",
+          "input": 0.2145,
+          "output": 0.32175,
+          "context": 131072
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek: R1",
+          "input": 0.7,
+          "output": 2.5,
+          "context": 163840
+        },
+        {
+          "id": "meta-llama/llama-4-maverick",
+          "name": "Meta: Llama 4 Maverick",
+          "input": 0.19999999999999998,
+          "output": 0.7999999999999999,
+          "context": 1048576
+        },
+        {
+          "id": "meta-llama/llama-4-scout",
+          "name": "Meta: Llama 4 Scout",
+          "input": 0.09999999999999999,
+          "output": 0.3,
+          "context": 10000000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct",
+          "name": "Meta: Llama 3.3 70B Instruct",
+          "input": 0.09999999999999999,
+          "output": 0.32,
+          "context": 131072
+        },
+        {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral: Mistral Large 3 2512",
+          "input": 0.5,
+          "output": 1.5,
+          "context": 262144
+        },
+        {
+          "id": "mistralai/mistral-medium-3.1",
+          "name": "Mistral: Mistral Medium 3.1",
+          "input": 0.39999999999999997,
+          "output": 2,
+          "context": 131072
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen: Qwen3.7 Max",
+          "input": 1.25,
+          "output": 3.75,
+          "context": 1000000
+        },
+        {
+          "id": "qwen/qwen3.5-397b-a17b",
+          "name": "Qwen: Qwen3.5 397B A17B",
+          "input": 0.385,
+          "output": 2.4499999999999997,
+          "context": 256000
+        }
+      ],
+      "totalModels": 343,
+      "paidModels": 315,
+      "medianInput": 0.455,
+      "meanInput": 2.2771
     }
   ],
   "gpuHistory": [
@@ -17467,6 +18483,786 @@
           "count": 3,
           "min": 0.7356,
           "p25": 0.7356,
+          "median": 1.0022,
+          "p75": 1.0022,
+          "max": 1.0022,
+          "vram": 80,
+          "vastMedian": 1.0022,
+          "runpodSecure": 1.39,
+          "runpodCommunity": 1.19,
+          "consensus": 1.0961,
+          "sourceSpread": 17,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        }
+      }
+    },
+    {
+      "date": "2026-07-08",
+      "gpus": {
+        "RTX 3090": {
+          "name": "RTX 3090",
+          "count": 6,
+          "min": 0.1244,
+          "p25": 0.1296,
+          "median": 0.1356,
+          "p75": 0.1483,
+          "max": 1.3356,
+          "vram": 24,
+          "vastMedian": 0.1356,
+          "runpodSecure": 0.46,
+          "runpodCommunity": 0.22,
+          "consensus": 0.1778,
+          "sourceSpread": 47,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 5090": {
+          "name": "RTX 5090",
+          "count": 6,
+          "min": 0.6704,
+          "p25": 0.8704,
+          "median": 1.0116,
+          "p75": 3.9253,
+          "max": 53.3437,
+          "vram": 32,
+          "vastMedian": 1.0116,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.69,
+          "consensus": 0.8508,
+          "sourceSpread": 38,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200 NVL": {
+          "name": "H200 NVL",
+          "count": 4,
+          "min": 2.9356,
+          "p25": 3.0689,
+          "median": 3.1222,
+          "p75": 5.3396,
+          "max": 5.3396,
+          "vram": 140,
+          "vastMedian": 3.1222,
+          "runpodSecure": 3.79,
+          "runpodCommunity": 0.5,
+          "consensus": 3.1222,
+          "sourceSpread": null,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200": {
+          "name": "H200",
+          "count": 2,
+          "min": 3.6136,
+          "p25": 3.6136,
+          "median": 4.0811,
+          "p75": 4.0811,
+          "max": 4.0811,
+          "vram": 140,
+          "vastMedian": 4.0811,
+          "runpodSecure": 4.39,
+          "runpodCommunity": 3.59,
+          "consensus": 3.8356,
+          "sourceSpread": 13,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 SXM": {
+          "name": "H100 SXM",
+          "count": 3,
+          "min": 2.2693,
+          "p25": 2.2693,
+          "median": 2.9387,
+          "p75": 3.6541,
+          "max": 3.6541,
+          "vram": 80,
+          "vastMedian": 2.9387,
+          "runpodSecure": 2.99,
+          "runpodCommunity": 2.69,
+          "consensus": 2.8144,
+          "sourceSpread": 9,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 4090": {
+          "name": "RTX 4090",
+          "count": 5,
+          "min": 0.6689,
+          "p25": 0.6711,
+          "median": 0.737,
+          "p75": 0.8693,
+          "max": 2.7489,
+          "vram": 24,
+          "vastMedian": 0.737,
+          "runpodSecure": 0.69,
+          "runpodCommunity": 0.34,
+          "consensus": 0.5385,
+          "sourceSpread": 74,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 NVL": {
+          "name": "H100 NVL",
+          "count": 2,
+          "min": 1.7348,
+          "p25": 1.7348,
+          "median": 2.3622,
+          "p75": 2.3622,
+          "max": 2.3622,
+          "vram": 94,
+          "vastMedian": 2.3622,
+          "runpodSecure": 3.19,
+          "runpodCommunity": 2.59,
+          "consensus": 2.4761,
+          "sourceSpread": 9,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 PCIE": {
+          "name": "A100 PCIE",
+          "count": 4,
+          "min": 0.8681,
+          "p25": 1.0022,
+          "median": 1.0022,
+          "p75": 1.2681,
+          "max": 1.2681,
+          "vram": 80,
+          "vastMedian": 1.0022,
+          "runpodSecure": 1.39,
+          "runpodCommunity": 1.19,
+          "consensus": 1.0961,
+          "sourceSpread": 17,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "L40S": {
+          "name": "L40S",
+          "count": 2,
+          "min": 0.8015,
+          "p25": 0.8015,
+          "median": 1.2074,
+          "p75": 1.2074,
+          "max": 1.2074,
+          "vram": 45,
+          "vastMedian": 1.2074,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.79,
+          "consensus": 0.9987,
+          "sourceSpread": 42,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 SXM4": {
+          "name": "A100 SXM4",
+          "count": 6,
+          "min": 0.7348,
+          "p25": 0.8681,
+          "median": 1.016,
+          "p75": 1.0427,
+          "max": 1.0968,
+          "vram": 80,
+          "vastMedian": 1.016,
+          "runpodSecure": 1.49,
+          "runpodCommunity": 1.39,
+          "consensus": 1.203,
+          "sourceSpread": 31,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        }
+      }
+    },
+    {
+      "date": "2026-07-09",
+      "gpus": {
+        "RTX 3090": {
+          "name": "RTX 3090",
+          "count": 5,
+          "min": 0.1296,
+          "p25": 0.1296,
+          "median": 0.1356,
+          "p75": 0.1356,
+          "max": 1.3356,
+          "vram": 24,
+          "vastMedian": 0.1356,
+          "runpodSecure": 0.46,
+          "runpodCommunity": 0.22,
+          "consensus": 0.1778,
+          "sourceSpread": 47,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 4090": {
+          "name": "RTX 4090",
+          "count": 7,
+          "min": 0.1356,
+          "p25": 0.1689,
+          "median": 0.7237,
+          "p75": 0.8676,
+          "max": 2.7489,
+          "vram": 24,
+          "vastMedian": 0.7237,
+          "runpodSecure": 0.69,
+          "runpodCommunity": 0.34,
+          "consensus": 0.5319,
+          "sourceSpread": 72,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 5090": {
+          "name": "RTX 5090",
+          "count": 6,
+          "min": 0.6037,
+          "p25": 0.6289,
+          "median": 1.0116,
+          "p75": 13.2022,
+          "max": 53.3437,
+          "vram": 32,
+          "vastMedian": 1.0116,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.69,
+          "consensus": 0.8508,
+          "sourceSpread": 38,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200 NVL": {
+          "name": "H200 NVL",
+          "count": 4,
+          "min": 2.9356,
+          "p25": 3.0689,
+          "median": 3.1222,
+          "p75": 4.6437,
+          "max": 4.6437,
+          "vram": 140,
+          "vastMedian": 3.1222,
+          "runpodSecure": 3.79,
+          "runpodCommunity": 0.5,
+          "consensus": 3.1222,
+          "sourceSpread": null,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200": {
+          "name": "H200",
+          "count": 2,
+          "min": 3.5307,
+          "p25": 3.5307,
+          "median": 4.0811,
+          "p75": 4.0811,
+          "max": 4.0811,
+          "vram": 140,
+          "vastMedian": 4.0811,
+          "runpodSecure": 4.39,
+          "runpodCommunity": 3.59,
+          "consensus": 3.8356,
+          "sourceSpread": 13,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 SXM": {
+          "name": "H100 SXM",
+          "count": 3,
+          "min": 2.2693,
+          "p25": 2.2693,
+          "median": 2.7756,
+          "p75": 2.9387,
+          "max": 2.9387,
+          "vram": 80,
+          "vastMedian": 2.7756,
+          "runpodSecure": 2.99,
+          "runpodCommunity": 2.69,
+          "consensus": 2.7328,
+          "sourceSpread": 3,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 NVL": {
+          "name": "H100 NVL",
+          "count": 4,
+          "min": 1.3348,
+          "p25": 1.4681,
+          "median": 2.1529,
+          "p75": 2.5919,
+          "max": 2.5919,
+          "vram": 94,
+          "vastMedian": 2.1529,
+          "runpodSecure": 3.19,
+          "runpodCommunity": 2.59,
+          "consensus": 2.3714,
+          "sourceSpread": 18,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 SXM4": {
+          "name": "A100 SXM4",
+          "count": 7,
+          "min": 0.6022,
+          "p25": 0.8681,
+          "median": 1.0015,
+          "p75": 1.1893,
+          "max": 1.3156,
+          "vram": 80,
+          "vastMedian": 1.0015,
+          "runpodSecure": 1.49,
+          "runpodCommunity": 1.39,
+          "consensus": 1.1957,
+          "sourceSpread": 32,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 PCIE": {
+          "name": "A100 PCIE",
+          "count": 3,
+          "min": 0.8681,
+          "p25": 0.8681,
+          "median": 1.0022,
+          "p75": 1.2351,
+          "max": 1.2351,
+          "vram": 80,
+          "vastMedian": 1.0022,
+          "runpodSecure": 1.39,
+          "runpodCommunity": 1.19,
+          "consensus": 1.0961,
+          "sourceSpread": 17,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "L40S": {
+          "name": "L40S",
+          "count": 2,
+          "min": 1.0037,
+          "p25": 1.0037,
+          "median": 1.2074,
+          "p75": 1.2074,
+          "max": 1.2074,
+          "vram": 45,
+          "vastMedian": 1.2074,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.79,
+          "consensus": 0.9987,
+          "sourceSpread": 42,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        }
+      }
+    },
+    {
+      "date": "2026-07-10",
+      "gpus": {
+        "RTX 3090": {
+          "name": "RTX 3090",
+          "count": 7,
+          "min": 0.1163,
+          "p25": 0.1296,
+          "median": 0.1489,
+          "p75": 1.0681,
+          "max": 1.3363,
+          "vram": 24,
+          "vastMedian": 0.1489,
+          "runpodSecure": 0.46,
+          "runpodCommunity": 0.22,
+          "consensus": 0.1845,
+          "sourceSpread": 39,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 4090": {
+          "name": "RTX 4090",
+          "count": 6,
+          "min": 0.1356,
+          "p25": 0.6689,
+          "median": 0.697,
+          "p75": 0.7342,
+          "max": 0.8676,
+          "vram": 24,
+          "vastMedian": 0.697,
+          "runpodSecure": 0.69,
+          "runpodCommunity": 0.34,
+          "consensus": 0.5185,
+          "sourceSpread": 69,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 5090": {
+          "name": "RTX 5090",
+          "count": 5,
+          "min": 0.8704,
+          "p25": 1.0022,
+          "median": 1.2333,
+          "p75": 13.2022,
+          "max": 53.3437,
+          "vram": 32,
+          "vastMedian": 1.2333,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.69,
+          "consensus": 0.9617,
+          "sourceSpread": 56,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200 NVL": {
+          "name": "H200 NVL",
+          "count": 3,
+          "min": 3.0689,
+          "p25": 3.0689,
+          "median": 3.1222,
+          "p75": 5.2182,
+          "max": 5.2182,
+          "vram": 140,
+          "vastMedian": 3.1222,
+          "runpodSecure": 3.79,
+          "runpodCommunity": 0.5,
+          "consensus": 3.1222,
+          "sourceSpread": null,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200": {
+          "name": "H200",
+          "count": 3,
+          "min": 3.953,
+          "p25": 3.953,
+          "median": 4.2912,
+          "p75": 4.9399,
+          "max": 4.9399,
+          "vram": 140,
+          "vastMedian": 4.2912,
+          "runpodSecure": 4.39,
+          "runpodCommunity": 3.59,
+          "consensus": 3.9406,
+          "sourceSpread": 18,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 SXM": {
+          "name": "H100 SXM",
+          "count": 3,
+          "min": 2.2693,
+          "p25": 2.2693,
+          "median": 2.9387,
+          "p75": 4.3222,
+          "max": 4.3222,
+          "vram": 80,
+          "vastMedian": 2.9387,
+          "runpodSecure": 2.99,
+          "runpodCommunity": 2.69,
+          "consensus": 2.8144,
+          "sourceSpread": 9,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "L40S": {
+          "name": "L40S",
+          "count": 3,
+          "min": 0.8015,
+          "p25": 0.8015,
+          "median": 1.2074,
+          "p75": 2.4422,
+          "max": 2.4422,
+          "vram": 45,
+          "vastMedian": 1.2074,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.79,
+          "consensus": 0.9987,
+          "sourceSpread": 42,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 NVL": {
+          "name": "H100 NVL",
+          "count": 2,
+          "min": 1.3348,
+          "p25": 1.3348,
+          "median": 2.3889,
+          "p75": 2.3889,
+          "max": 2.3889,
+          "vram": 94,
+          "vastMedian": 2.3889,
+          "runpodSecure": 3.19,
+          "runpodCommunity": 2.59,
+          "consensus": 2.4894,
+          "sourceSpread": 8,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 SXM4": {
+          "name": "A100 SXM4",
+          "count": 4,
+          "min": 0.6681,
+          "p25": 0.9348,
+          "median": 1.0778,
+          "p75": 1.2822,
+          "max": 1.2822,
+          "vram": 80,
+          "vastMedian": 1.0778,
+          "runpodSecure": 1.49,
+          "runpodCommunity": 1.39,
+          "consensus": 1.2339,
+          "sourceSpread": 25,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 PCIE": {
+          "name": "A100 PCIE",
+          "count": 3,
+          "min": 0.8681,
+          "p25": 0.8681,
+          "median": 0.8733,
+          "p75": 1.0022,
+          "max": 1.0022,
+          "vram": 80,
+          "vastMedian": 0.8733,
+          "runpodSecure": 1.39,
+          "runpodCommunity": 1.19,
+          "consensus": 1.0316,
+          "sourceSpread": 31,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        }
+      }
+    },
+    {
+      "date": "2026-07-13",
+      "gpus": {
+        "RTX 3090": {
+          "name": "RTX 3090",
+          "count": 6,
+          "min": 0.0956,
+          "p25": 0.1222,
+          "median": 0.1356,
+          "p75": 0.1507,
+          "max": 1.3363,
+          "vram": 24,
+          "vastMedian": 0.1356,
+          "runpodSecure": 0.46,
+          "runpodCommunity": 0.22,
+          "consensus": 0.1778,
+          "sourceSpread": 47,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 4090": {
+          "name": "RTX 4090",
+          "count": 5,
+          "min": 0.1489,
+          "p25": 0.6681,
+          "median": 0.6711,
+          "p75": 0.8676,
+          "max": 1.3378,
+          "vram": 24,
+          "vastMedian": 0.6711,
+          "runpodSecure": 0.69,
+          "runpodCommunity": 0.34,
+          "consensus": 0.5056,
+          "sourceSpread": 65,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 5090": {
+          "name": "RTX 5090",
+          "count": 6,
+          "min": 0.6289,
+          "p25": 0.8704,
+          "median": 1.0116,
+          "p75": 1.3373,
+          "max": 53.3437,
+          "vram": 32,
+          "vastMedian": 1.0116,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.69,
+          "consensus": 0.8508,
+          "sourceSpread": 38,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200 NVL": {
+          "name": "H200 NVL",
+          "count": 3,
+          "min": 3.0689,
+          "p25": 3.0689,
+          "median": 3.9667,
+          "p75": 4.4277,
+          "max": 4.4277,
+          "vram": 140,
+          "vastMedian": 3.9667,
+          "runpodSecure": 3.79,
+          "runpodCommunity": 0.5,
+          "consensus": 3.9667,
+          "sourceSpread": null,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 SXM": {
+          "name": "H100 SXM",
+          "count": 4,
+          "min": 2.0022,
+          "p25": 2.2693,
+          "median": 2.6735,
+          "p75": 4.1222,
+          "max": 4.1222,
+          "vram": 80,
+          "vastMedian": 2.6735,
+          "runpodSecure": 2.99,
+          "runpodCommunity": 2.69,
+          "consensus": 2.6818,
+          "sourceSpread": 1,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200": {
+          "name": "H200",
+          "count": 3,
+          "min": 1.318,
+          "p25": 1.318,
+          "median": 3.5451,
+          "p75": 4.0811,
+          "max": 4.0811,
+          "vram": 140,
+          "vastMedian": 3.5451,
+          "runpodSecure": 4.39,
+          "runpodCommunity": 3.59,
+          "consensus": 3.5675,
+          "sourceSpread": 1,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "L40S": {
+          "name": "L40S",
+          "count": 3,
+          "min": 0.8022,
+          "p25": 0.8022,
+          "median": 1.2074,
+          "p75": 2.4422,
+          "max": 2.4422,
+          "vram": 45,
+          "vastMedian": 1.2074,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.79,
+          "consensus": 0.9987,
+          "sourceSpread": 42,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 NVL": {
+          "name": "H100 NVL",
+          "count": 3,
+          "min": 1.3348,
+          "p25": 1.3348,
+          "median": 2.2279,
+          "p75": 2.2862,
+          "max": 2.2862,
+          "vram": 94,
+          "vastMedian": 2.2279,
+          "runpodSecure": 3.19,
+          "runpodCommunity": 2.59,
+          "consensus": 2.4089,
+          "sourceSpread": 15,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 SXM4": {
+          "name": "A100 SXM4",
+          "count": 7,
+          "min": 0.7785,
+          "p25": 0.8681,
+          "median": 1.0293,
+          "p75": 1.056,
+          "max": 1.5631,
+          "vram": 80,
+          "vastMedian": 1.0293,
+          "runpodSecure": 1.49,
+          "runpodCommunity": 1.39,
+          "consensus": 1.2096,
+          "sourceSpread": 30,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 PCIE": {
+          "name": "A100 PCIE",
+          "count": 3,
+          "min": 1.0022,
+          "p25": 1.0022,
           "median": 1.0022,
           "p75": 1.0022,
           "max": 1.0022,
