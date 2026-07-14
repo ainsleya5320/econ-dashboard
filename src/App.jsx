@@ -12,6 +12,7 @@ import StocksTab from "./tabs/StocksTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
 import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
+import ForecastsTab from "./tabs/ForecastsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
 import CommoditiesTab from "./tabs/CommoditiesTab.jsx";
 import ChatDrawer from "./components/ChatDrawer.jsx";
@@ -386,7 +387,7 @@ export default function Dashboard() {
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
-    { label: "Themes",    items: [{ id: "ai", label: "AI Economy" }, { id: "history", label: "Historical" }] },
+    { label: "Themes",    items: [{ id: "ai", label: "AI Economy" }, { id: "forecasts", label: "Forecasts" }, { id: "history", label: "Historical" }] },
   ];
   const stripPct = (v) => v == null ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
 
@@ -463,6 +464,7 @@ export default function Dashboard() {
             {tab === "options" && <OptionsTab />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
+            {tab === "forecasts" && <ForecastsTab />}
             {tab === "history" && <HistoricalReturnsTab />}
           </div>
 

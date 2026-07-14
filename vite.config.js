@@ -2854,6 +2854,209 @@ async function getSemiH100() {
   return data
 }
 
+/* ── FutureSearch Markets — live trading track record + valuations ────────
+   markets.futuresearch.ai server-renders its ENTIRE dataset into the page as
+   Next.js flight data (no API needed): ~180 prediction-market positions on
+   Kalshi/Polymarket (FS probability vs market price, entry, value, W/L) and
+   ~477 S&P valuations (FS fair value vs market cap, long/short buckets).
+   We fetch the page, unescape the flight-data quoting, and extract objects
+   with a balanced-brace scanner. Disk-cached; only complete parses cached. */
+let fsMarketsCache = { data: null, ts: 0 }
+const FS_MARKETS_TTL = 6 * 60 * 60 * 1000
+const FS_MARKETS_FILE = path.join(__dirname, 'fs-markets.json')
+
+// Extract one balanced {...} JSON object starting at index `start` (must point at '{')
+function extractJsonObject(text, start) {
+  let depth = 0, inStr = false, esc = false
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (esc) { esc = false; continue }
+    if (ch === '\\') { esc = true; continue }
+    if (ch === '"') { inStr = !inStr; continue }
+    if (inStr) continue
+    if (ch === '{') depth++
+    else if (ch === '}') { depth--; if (depth === 0) return text.slice(start, i + 1) }
+  }
+  return null
+}
+
+async function fetchFsMarkets() {
+  if (fsMarketsCache.data && Date.now() - fsMarketsCache.ts < FS_MARKETS_TTL) return fsMarketsCache.data
+  let positions = [], companies = [], liveOk = false
+  try {
+    const resp = await fetch('https://markets.futuresearch.ai/', { headers: { 'User-Agent': UA } })
+    if (resp.ok) {
+      const html = await resp.text()
+      const u = html.split('\\"').join('"')
+      // prediction positions: every {"status":"...","venue":... object
+      let idx = 0
+      while ((idx = u.indexOf('{"status":"', idx)) !== -1) {
+        const raw = extractJsonObject(u, idx)
+        if (raw) {
+          try {
+            const o = JSON.parse(raw)
+            if (o.venue && o.p && o.p.title) {
+              positions.push({
+                status: o.status, venue: o.venue, id: o.p.id, title: o.p.title, url: o.p.url,
+                position: o.p.position, shares: o.p.shares, avgPricePaid: o.p.avgPricePaid,
+                marketPrice: o.p.marketPrice, value: o.p.value, probabilityYes: o.p.probabilityYes,
+                forecastAt: o.p.forecastAt, endDate: o.p.endDate,
+              })
+            }
+          } catch { /* not one of ours */ }
+          idx += raw.length
+        } else idx += 10
+      }
+      // dedupe by market id (page may render an item twice)
+      const seen = new Set()
+      positions = positions.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+      // stock valuations: the "companies":[ ... ] array
+      const ci = u.indexOf('"companies":[')
+      if (ci !== -1) {
+        let j = u.indexOf('[', ci), depth2 = 0, inStr2 = false, esc2 = false
+        for (let i = j; i < u.length; i++) {
+          const ch = u[i]
+          if (esc2) { esc2 = false; continue }
+          if (ch === '\\') { esc2 = true; continue }
+          if (ch === '"') { inStr2 = !inStr2; continue }
+          if (inStr2) continue
+          if (ch === '[') depth2++
+          else if (ch === ']') { depth2--; if (depth2 === 0) { try { companies = JSON.parse(u.slice(j, i + 1)) } catch {} ; break } }
+        }
+      }
+      liveOk = positions.length > 20 && companies.length > 50
+      console.log(`FS markets: ${positions.length} positions, ${companies.length} companies (live ${liveOk ? 'OK' : 'INCOMPLETE'})`)
+    }
+  } catch (e) { console.warn('FS markets fetch:', e.message) }
+
+  if (!liveOk) {
+    // serve archive if the live scrape failed or came back partial
+    try {
+      if (fs.existsSync(FS_MARKETS_FILE)) {
+        const arch = JSON.parse(fs.readFileSync(FS_MARKETS_FILE, 'utf8'))
+        return { ...arch, liveOk: false, reason: 'live_unavailable_serving_archive' }
+      }
+    } catch {}
+  }
+
+  const settled = positions.filter(p => p.status === 'won' || p.status === 'lost')
+  const data = {
+    liveOk,
+    fetchedAt: new Date().toISOString(),
+    positions,
+    companies,
+    summary: {
+      open: positions.filter(p => p.status === 'open').length,
+      won: positions.filter(p => p.status === 'won').length,
+      lost: positions.filter(p => p.status === 'lost').length,
+      winRate: settled.length ? +(positions.filter(p => p.status === 'won').length / settled.length * 100).toFixed(1) : null,
+      openValue: +positions.filter(p => p.status === 'open').reduce((s, p) => s + (p.value || 0), 0).toFixed(0),
+      stocksLong: companies.filter(c => c.bucket === 'long').length,
+      stocksShort: companies.filter(c => c.bucket === 'short').length,
+    },
+  }
+  if (liveOk) {
+    fsMarketsCache = { data, ts: Date.now() }
+    try { fs.writeFileSync(FS_MARKETS_FILE, JSON.stringify(data)) } catch (e) { console.error('FS markets cache save:', e.message) }
+  }
+  return data
+}
+
+/* ── Ornn AI — GPU rental index + OTPI token prices ───────────────────────
+   dashboard.ornnai.com publishes a genuinely public, no-auth REST API
+   (api.ornnai.com): daily GPU compute rental indices (H100 SXM back to
+   2024-06, A100 to 2024-01, plus H200/B200/RTX 5090) and OTPI — daily
+   settled volume-weighted USD per million tokens, per lab (11 labs, ~1yr).
+   Third methodology alongside our Vast+RunPod spot and SemiAnalysis 1-yr
+   contract. Server pre-merges into chart-ready rows; disk archive fallback. */
+let ornnCache = { data: null, ts: 0 }
+const ORNN_TTL = 6 * 60 * 60 * 1000
+const ORNN_FILE = path.join(__dirname, 'ornn-data.json')
+const ORNN_GPUS = [
+  { id: 'H100 SXM',  key: 'h100',  color: '#818cf8' },
+  { id: 'H200',      key: 'h200',  color: '#22d3ee' },
+  { id: 'B200',      key: 'b200',  color: '#f97316' },
+  { id: 'A100 SXM4', key: 'a100',  color: '#4ade80' },
+  { id: 'RTX 5090',  key: 'rtx5090', color: '#94a3b8' },
+]
+const ORNN_LABS = ['anthropic', 'openai', 'google', 'deepseek', 'z-ai', 'qwen', 'moonshotai', 'minimax', 'mistralai', 'meta-llama', 'xiaomi']
+
+async function fetchOrnn() {
+  if (ornnCache.data && Date.now() - ornnCache.ts < ORNN_TTL) return ornnCache.data
+  const today = new Date().toISOString().slice(0, 10)
+  let gpuSeries = {}, otpi = []
+  try {
+    await Promise.all([
+      ...ORNN_GPUS.map(async g => {
+        const url = `https://api.ornnai.com/api/gpu/${encodeURIComponent(g.id)}/index-history?startDate=2024-01-01&endDate=${today}`
+        const resp = await fetch(url, { headers: { 'User-Agent': UA } })
+        if (!resp.ok) return
+        const j = await resp.json()
+        if (j.success && Array.isArray(j.data)) gpuSeries[g.key] = j.data.map(r => ({ d: r.timestamp.slice(0, 10), v: r.index_value }))
+      }),
+      (async () => {
+        const resp = await fetch(`https://api.ornnai.com/api/otpi?startDate=2025-01-01&endDate=${today}`, { headers: { 'User-Agent': UA } })
+        if (!resp.ok) return
+        const j = await resp.json()
+        if (j.success && Array.isArray(j.data)) otpi = j.data
+      })(),
+    ])
+  } catch (e) { console.warn('Ornn fetch:', e.message) }
+
+  const liveOk = Object.keys(gpuSeries).length >= 4 && otpi.length > 100
+  if (!liveOk) {
+    try {
+      if (fs.existsSync(ORNN_FILE)) {
+        const arch = JSON.parse(fs.readFileSync(ORNN_FILE, 'utf8'))
+        return { ...arch, liveOk: false, reason: 'live_unavailable_serving_archive' }
+      }
+    } catch {}
+  }
+
+  // merge GPU series onto one daily grid
+  const gpuDates = [...new Set(Object.values(gpuSeries).flat().map(p => p.d))].sort()
+  const byKey = Object.fromEntries(Object.entries(gpuSeries).map(([k, arr]) => [k, Object.fromEntries(arr.map(p => [p.d, p.v]))]))
+  const gpuRows = gpuDates.map(d => {
+    const row = { d }
+    for (const g of ORNN_GPUS) { const v = byKey[g.key]?.[d]; if (v != null) row[g.key] = v }
+    return row
+  })
+  const gpuLatest = {}
+  for (const g of ORNN_GPUS) {
+    const arr = gpuSeries[g.key] || []
+    if (!arr.length) continue
+    const cur = arr[arr.length - 1].v
+    const d30 = arr.length > 30 ? arr[arr.length - 31].v : null
+    gpuLatest[g.key] = { id: g.id, color: g.color, current: cur, chg30: d30 ? +(((cur / d30) - 1) * 100).toFixed(1) : null, since: arr[0].d }
+  }
+
+  // merge OTPI per-lab onto one daily grid
+  const otpiDates = [...new Set(otpi.map(r => r.date))].sort()
+  const otpiByLab = {}
+  otpi.forEach(r => { (otpiByLab[r.lab] = otpiByLab[r.lab] || {})[r.date] = r.indexPerMtok })
+  const otpiRows = otpiDates.map(d => {
+    const row = { d }
+    for (const lab of ORNN_LABS) { const v = otpiByLab[lab]?.[d]; if (v != null) row[lab] = +v.toFixed(4) }
+    return row
+  })
+  const otpiLatest = {}
+  for (const lab of ORNN_LABS) {
+    const dates = Object.keys(otpiByLab[lab] || {}).sort()
+    if (!dates.length) continue
+    const cur = otpiByLab[lab][dates[dates.length - 1]]
+    const past = dates.length > 30 ? otpiByLab[lab][dates[dates.length - 31]] : null
+    otpiLatest[lab] = { current: +cur.toFixed(3), chg30: past ? +(((cur / past) - 1) * 100).toFixed(1) : null }
+  }
+
+  const data = { liveOk, fetchedAt: new Date().toISOString(), gpuRows, gpuLatest, otpiRows, otpiLatest }
+  if (liveOk) {
+    ornnCache = { data, ts: Date.now() }
+    try { fs.writeFileSync(ORNN_FILE, JSON.stringify(data)) } catch (e) { console.error('Ornn cache save:', e.message) }
+    console.log(`Ornn: ${gpuRows.length} GPU days (${Object.keys(gpuLatest).length} GPUs), ${otpiRows.length} OTPI days (${Object.keys(otpiLatest).length} labs)`)
+  }
+  return data
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -2873,6 +3076,32 @@ export default defineConfig({
           }
         })
 
+        // Ornn — GPU rental index + OTPI token prices (public API)
+        server.middlewares.use('/api/ornn', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { ornnCache = { data: null, ts: 0 } }
+            const data = await fetchOrnn()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // FutureSearch Markets — positions + valuations scraped from their page
+        server.middlewares.use('/api/fs-markets', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { fsMarketsCache = { data: null, ts: 0 } }
+            const data = await fetchFsMarkets()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
         // SemiAnalysis H100 1-year contract price index (free public slice)
         server.middlewares.use('/api/semi-h100', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3288,7 +3517,9 @@ export default defineConfig({
     }
   ],
   server: {
-    port: 5180,
+    // Honor a harness-assigned port (autoPort) so multiple sessions can run
+    // side-by-side; fall back to the usual 5180.
+    port: Number(process.env.PORT) || 5180,
     host: true,
     proxy: {
       '/cboe-api': {

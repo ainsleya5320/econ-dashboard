@@ -4060,6 +4060,7 @@ function SupplyDemandTab() {
   const [impact, setImpact] = useState(null);
   const [hf, setHf] = useState(null);
   const [semi, setSemi] = useState(null);
+  const [ornn, setOrnn] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -4071,7 +4072,8 @@ function SupplyDemandTab() {
       fetch("/api/ai-impact").then(r => r.json()).catch(() => null),
       fetch("/api/hf-rankings").then(r => r.json()).catch(() => null),
       fetch("/api/semi-h100").then(r => r.json()).catch(() => null),
-    ]).then(([a, b, c, d, e, f, g]) => { setOr(a); setPrices(b); setSdk(c); setCapex(d); setImpact(e); setHf(f); setSemi(g); })
+      fetch("/api/ornn").then(r => r.json()).catch(() => null),
+    ]).then(([a, b, c, d, e, f, g, o]) => { setOr(a); setPrices(b); setSdk(c); setCapex(d); setImpact(e); setHf(f); setSemi(g); setOrnn(o); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -4080,15 +4082,17 @@ function SupplyDemandTab() {
   const h100Compare = useMemo(() => {
     if (!semi?.available || !semi.series?.length) return null;
     const spot = (prices?.history?.gpuHistory || []).map(s => ({ d: s.date, v: sdH100(s) })).filter(p => p.v != null);
-    const asOf = ds => { let r = null; for (const p of spot) { if (p.d <= ds) r = p; else break; } return r; };
-    const rows = semi.series.map(r => ({ d: r.date, contract: r.h100, spot: asOf(r.date)?.v ?? null }));
+    const ornnH100 = (ornn?.gpuRows || []).filter(r => r.h100 != null).map(r => ({ d: r.d, v: r.h100 }));
+    const asOfIn = (arr, ds) => { let r = null; for (const p of arr) { if (p.d <= ds) r = p; else break; } return r; };
+    const rows = semi.series.map(r => ({ d: r.date, contract: r.h100, spot: asOfIn(spot, r.date)?.v ?? null, ornn: asOfIn(ornnH100, r.date)?.v ?? null }));
     const last = rows[rows.length - 1];
     // latest spot even if newer than the last contract week
     const spotNow = spot.length ? spot[spot.length - 1].v : (last?.spot ?? null);
     const contractNow = last?.contract ?? null;
+    const ornnNow = ornnH100.length ? ornnH100[ornnH100.length - 1].v : null;
     const gap = (spotNow != null && contractNow) ? ((spotNow / contractNow) - 1) * 100 : null;
-    return { rows, spotNow, contractNow, gap, asOf: semi.asOf, liveOk: semi.liveOk, daysStale: semi.daysStale, source: semi.source };
-  }, [semi, prices]);
+    return { rows, spotNow, contractNow, ornnNow, gap, asOf: semi.asOf, liveOk: semi.liveOk, daysStale: semi.daysStale, source: semi.source };
+  }, [semi, prices, ornn]);
 
   const calc = useMemo(() => {
     const weekTot = orWeeklyTotals(or); // partial trailing week trimmed — a fake cliff here flips the verdict
@@ -4278,6 +4282,7 @@ function SupplyDemandTab() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
         <StatCard label="H100 Spot (Vast+RunPod)" val={h100Compare.spotNow != null ? `$${h100Compare.spotNow.toFixed(2)}/hr` : "—"} sub="live rental marketplace" color={SD_RED} />
         <StatCard label="H100 1-yr Contract (SemiAnalysis)" val={h100Compare.contractNow != null ? `$${h100Compare.contractNow.toFixed(2)}/hr` : "—"} sub={`index as of ${h100Compare.asOf}`} color={SD_INDIGO} />
+        {h100Compare.ornnNow != null && <StatCard label="H100 Cloud Index (Ornn)" val={`$${h100Compare.ornnNow.toFixed(2)}/hr`} sub="daily composite, 3rd methodology" color={SD_AMBER} />}
         <StatCard label="Spot vs Contract" val={h100Compare.gap != null ? `${h100Compare.gap >= 0 ? "+" : ""}${h100Compare.gap.toFixed(0)}%` : "—"} sub={h100Compare.gap != null ? (h100Compare.gap >= 0 ? "spot at a premium" : "spot below contract") : ""} color={h100Compare.gap == null ? "#94a3b8" : h100Compare.gap >= 0 ? SD_AMBER : SD_GREEN} />
       </div>
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
@@ -4290,10 +4295,60 @@ function SupplyDemandTab() {
             <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
             <Line type="monotone" dataKey="contract" name="1-yr contract (SemiAnalysis)" stroke={SD_INDIGO} strokeWidth={2.4} dot={false} connectNulls isAnimationActive={false} />
             <Line type="monotone" dataKey="spot" name="Spot (Vast+RunPod)" stroke={SD_RED} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="ornn" name="Cloud index (Ornn)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
         <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
           Absolute $/GPU-hr. <strong style={{ color: "#94a3b8" }}>Contract</strong> = what firms commit to on a 1-year term (SemiAnalysis&apos;s free public H100 index) — the structural cost signal. <strong style={{ color: "#94a3b8" }}>Spot</strong> = live rental marketplace (Vast.ai + RunPod consensus) — noisier, but the leading edge. Spot rising above contract = tightening; spot below = slack capacity being dumped.
+        </div>
+      </div>
+    </>)}
+
+    {/* ── Ornn: multi-GPU rental index (daily, back to 2024) ── */}
+    {ornn?.gpuRows?.length > 0 && (<>
+      <SH>GPU Rental Index — All Generations (Ornn, daily)</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>
+        {Object.entries(ornn.gpuLatest || {}).map(([k, g]) => (
+          <StatCard key={k} label={g.id} val={`$${g.current.toFixed(2)}/hr`} sub={g.chg30 != null ? `${g.chg30 >= 0 ? "+" : ""}${g.chg30}% /30d · since ${g.since.slice(0, 7)}` : `since ${g.since.slice(0, 7)}`} color={g.color} />
+        ))}
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={ornn.gpuRows} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={46} />
+            <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`$${(+v).toFixed(2)}/hr`, n]} labelFormatter={d => d.slice(0, 10)} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+            {Object.entries(ornn.gpuLatest || {}).map(([k, g]) => (
+              <Line key={k} type="monotone" dataKey={k} name={g.id} stroke={g.color} strokeWidth={k === "h100" ? 2.2 : 1.6} dot={false} connectNulls isAnimationActive={false} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Log scale, $/GPU-hr, daily composite cloud index from <a href="https://dashboard.ornnai.com" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>Ornn</a> (public API). The cross-generation read is the point: if B200 falls while H100 holds, the premium for the newest silicon is compressing — the leading edge of a supply glut. A100&apos;s long decay shows what full depreciation looks like.
+        </div>
+      </div>
+    </>)}
+
+    {/* ── Ornn OTPI: what a token actually costs, by lab ── */}
+    {ornn?.otpiRows?.length > 0 && (<>
+      <SH>Token Prices by Lab — Ornn OTPI (volume-weighted $/M tokens)</SH>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={ornn.otpiRows} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={46} />
+            <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`$${(+v).toFixed(2)}/Mtok`, n]} labelFormatter={d => d.slice(0, 10)} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+            {[["anthropic", "#E8553A"], ["openai", "#10B981"], ["google", "#3B82F6"], ["deepseek", "#8B5CF6"], ["z-ai", "#F59E0B"], ["qwen", "#22D3EE"]].map(([lab, color]) => (
+              <Line key={lab} type="monotone" dataKey={lab} name={lab} stroke={color} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Daily settled, volume-weighted price actually paid per million tokens across each lab&apos;s models (Ornn OTPI, log scale — top 6 of 11 labs shown). This is realized price, not list price: the spread between Anthropic/OpenAI (~$1.4–2) and DeepSeek (~$0.12) is the market&apos;s live quality premium, and its compression rate is the deflation term in every token-revenue forecast.
         </div>
       </div>
     </>)}
