@@ -4138,6 +4138,23 @@ function SupplyDemandTab() {
     const demMap = Object.fromEntries(idx(weekTot).map(p => [p.d, p.v]));
     const asOf = (arr, ds) => { let r = null; for (const p of arr) { if (p.d <= ds) r = p; else break; } return r; };
     const lastDem = weekTot[weekTot.length - 1].d;
+    // Ornn clearing prices (both indexed to their value AT the chart's start
+    // date, not their own 2024 history start, so all lines begin at 100):
+    // H100 daily cloud index, and realized token $/Mtok (avg of the four big
+    // labs' OTPI — realized > list price as a clearing-price signal).
+    const chartStart = weekTot[0].d;
+    const ornnHRaw = (ornn?.gpuRows || []).filter(r => r.h100 != null).map(r => ({ d: r.d, v: r.h100 }));
+    const OTPI_BIG4 = ["anthropic", "openai", "google", "deepseek"];
+    const ornnTRaw = (ornn?.otpiRows || []).map(r => {
+      const vals = OTPI_BIG4.map(l => r[l]).filter(v => v != null);
+      return vals.length >= 2 ? { d: r.d, v: vals.reduce((a, b) => a + b, 0) / vals.length } : null;
+    }).filter(Boolean);
+    const idxAt = (arr) => {
+      if (!arr.length) return [];
+      const base = asOf(arr, chartStart)?.v ?? arr[0].v;
+      return base ? arr.filter(p => p.d >= chartStart).map(p => ({ d: p.d, v: +(p.v / base * 100).toFixed(1) })) : [];
+    };
+    const ornnHIdx = idxAt(ornnHRaw), ornnTIdx = idxAt(ornnTRaw);
     const priceTail = ghIdx.filter(p => p.d > lastDem).filter((_, i) => i % 7 === 0).map(p => p.d);
     const grid = [...weekTot.map(w => w.d), ...priceTail];
     const chart = grid.map(ds => ({
@@ -4145,6 +4162,8 @@ function SupplyDemandTab() {
       demand: demMap[ds] ?? null,
       gpu: asOf(ghIdx, ds)?.v ?? null,
       tok: asOf(thIdx, ds)?.v ?? null,
+      ornnGpu: asOf(ornnHIdx, ds)?.v ?? null,
+      ornnTok: asOf(ornnTIdx, ds)?.v ?? null,
     }));
 
     // Quadrant trail: sample weekly over the GPU-history window
@@ -4212,7 +4231,7 @@ function SupplyDemandTab() {
       verdict, chart, trail,
       sdkLatest, sdk90, hfLatest, hfChg, capexQ, capexYoY, semis, power,
     };
-  }, [or, prices, sdk, capex, impact, hf]);
+  }, [or, prices, sdk, capex, impact, hf, ornn]);
 
   if (loading && !calc) return <div style={{ padding: 50, textAlign: "center", color: "#94a3b8", fontFamily: fonts.heading, fontSize: 14 }}>Weighing compute supply against token demand…</div>;
   if (!calc) return <InfoBox color="#F97316">Unable to load supply/demand data — check that the dev server endpoints are reachable.</InfoBox>;
@@ -4259,12 +4278,14 @@ function SupplyDemandTab() {
           <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
           <ReferenceLine y={100} stroke="rgba(148,163,184,0.4)" strokeDasharray="4 4" />
           <Line type="monotone" dataKey="demand" name="Token demand (OpenRouter, weekly)" stroke={SD_INDIGO} strokeWidth={2.2} dot={false} connectNulls />
-          <Line type="monotone" dataKey="gpu" name="H100 spot $/hr" stroke={SD_RED} strokeWidth={1.6} dot={false} connectNulls />
-          <Line type="monotone" dataKey="tok" name="Token price (median $/M input)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls />
+          <Line type="monotone" dataKey="gpu" name="H100 spot $/hr (Vast+RunPod)" stroke={SD_RED} strokeWidth={1.6} dot={false} connectNulls />
+          <Line type="monotone" dataKey="ornnGpu" name="H100 cloud index (Ornn)" stroke="#22d3ee" strokeWidth={1.6} dot={false} connectNulls />
+          <Line type="monotone" dataKey="tok" name="Token list price (median $/M input)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls />
+          <Line type="monotone" dataKey="ornnTok" name="Token realized price (Ornn OTPI, big-4 avg)" stroke="#a78bfa" strokeWidth={1.6} dot={false} connectNulls />
         </LineChart>
       </ResponsiveContainer>
       <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
-        Log scale; each series indexed to 100 at its own first observation (demand: {c.weeks} weeks · prices: since {c.gpuSince}). Demand climbing while price lines stay flat = supply keeping pace. Price lines turning up = shortage. Early GPU history is Vast-only (noisier); the two-source consensus starts later.
+        Log scale; each series indexed to 100 at the chart start (demand: {c.weeks} weeks · Vast/median-price series at their own first observation, since {c.gpuSince}). Demand climbing while price lines stay flat = supply keeping pace; price lines turning up = shortage. The Ornn pair adds independent clearing prices: a daily H100 cloud composite (cyan) and <em>realized</em> $/Mtok actually paid across the big-4 labs (violet) — realized token price falling while demand compounds is the supply side winning on efficiency, not weakness.
       </div>
     </div>
 
