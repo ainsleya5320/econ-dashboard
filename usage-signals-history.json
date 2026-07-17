@@ -1019,6 +1019,108 @@
           "forks": 14186
         }
       ]
+    },
+    "2026-07-15": {
+      "date": "2026-07-15",
+      "stackOverflow": [
+        {
+          "tag": "openai-api",
+          "totalQuestions": 2869,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "chatgpt-api",
+          "totalQuestions": 549,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "langchain",
+          "totalQuestions": 2175,
+          "questionsLast30Days": 5
+        },
+        {
+          "tag": "huggingface-transformers",
+          "totalQuestions": 3497,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "huggingface",
+          "totalQuestions": 995,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "llama-index",
+          "totalQuestions": 345,
+          "questionsLast30Days": 0
+        },
+        {
+          "tag": "ollama",
+          "totalQuestions": 333,
+          "questionsLast30Days": 2
+        },
+        {
+          "tag": "google-gemini",
+          "totalQuestions": 467,
+          "questionsLast30Days": 4
+        },
+        {
+          "tag": "anthropic",
+          "totalQuestions": 13,
+          "questionsLast30Days": 1
+        }
+      ],
+      "github": [
+        {
+          "repo": "langchain-ai/langchain",
+          "stars": 141846,
+          "forks": 23572
+        },
+        {
+          "repo": "openai/openai-python",
+          "stars": 31279,
+          "forks": 5045
+        },
+        {
+          "repo": "anthropics/anthropic-sdk-python",
+          "stars": 3742,
+          "forks": 775
+        },
+        {
+          "repo": "vercel/ai",
+          "stars": 25574,
+          "forks": 4774
+        },
+        {
+          "repo": "ggml-org/llama.cpp",
+          "stars": 120495,
+          "forks": 20609
+        },
+        {
+          "repo": "huggingface/transformers",
+          "stars": 162629,
+          "forks": 33889
+        },
+        {
+          "repo": "ollama/ollama",
+          "stars": 176171,
+          "forks": 16969
+        },
+        {
+          "repo": "run-llama/llama_index",
+          "stars": 50869,
+          "forks": 7756
+        },
+        {
+          "repo": "BerriAI/litellm",
+          "stars": 53696,
+          "forks": 9794
+        },
+        {
+          "repo": "comfyanonymous/ComfyUI",
+          "stars": 120845,
+          "forks": 14208
+        }
+      ]
     }
   }
 }

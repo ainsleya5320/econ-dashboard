@@ -3898,6 +3898,74 @@ const SD_GREEN = "#4ade80", SD_AMBER = "#fbbf24", SD_RED = "#f87171", SD_INDIGO 
 const sdPct = (v, dp = 0) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(dp)}%`;
 const sdTok = n => n == null ? "—" : n >= 1e12 ? `${(n / 1e12).toFixed(1)}T` : n >= 1e9 ? `${(n / 1e9).toFixed(0)}B` : `${(n / 1e6).toFixed(0)}M`;
 
+// ── Ornn OTPI per-lab token pricing (all companies, toggleable) ─────────────
+const OTPI_LAB_META = [
+  { id: "anthropic",  label: "Anthropic",  color: "#E8553A", def: true },
+  { id: "openai",     label: "OpenAI",     color: "#10B981", def: true },
+  { id: "google",     label: "Google",     color: "#3B82F6", def: true },
+  { id: "deepseek",   label: "DeepSeek",   color: "#8B5CF6", def: true },
+  { id: "z-ai",       label: "Z AI (GLM)", color: "#F59E0B", def: true },
+  { id: "qwen",       label: "Qwen",       color: "#22D3EE", def: true },
+  { id: "moonshotai", label: "Moonshot",   color: "#EC4899", def: false },
+  { id: "minimax",    label: "MiniMax",    color: "#A78BFA", def: false },
+  { id: "mistralai",  label: "Mistral",    color: "#FB923C", def: false },
+  { id: "meta-llama", label: "Meta Llama", color: "#94A3B8", def: false },
+  { id: "xiaomi",     label: "Xiaomi",     color: "#4ADE80", def: false },
+];
+
+function OrnnTokenPricePanel({ ornn }) {
+  const [on, setOn] = useState(() => new Set(OTPI_LAB_META.filter(l => l.def).map(l => l.id)));
+  if (!ornn?.otpiRows?.length) return null;
+  const latest = ornn.otpiLatest || {};
+  const toggle = (id) => setOn(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const fmtP = v => v == null ? "—" : v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`;
+  return (<>
+    <SH>Token Prices by Company — Ornn OTPI (volume-weighted $/M tokens)</SH>
+    {/* Company chips: click to toggle a line; each shows current realized price + 30d move */}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {OTPI_LAB_META.filter(l => latest[l.id]).map(l => {
+        const v = latest[l.id];
+        const active = on.has(l.id);
+        return (
+          <button key={l.id} onClick={() => toggle(l.id)} style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", borderRadius: 10, cursor: "pointer",
+            border: `1px solid ${active ? l.color : "rgba(255,255,255,0.08)"}`,
+            background: active ? `${l.color}22` : "rgba(255,255,255,0.03)",
+            opacity: active ? 1 : 0.55, transition: "all 0.15s",
+          }}>
+            <span style={{ width: 9, height: 9, borderRadius: "50%", background: l.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontFamily: fonts.heading, fontWeight: 600, color: "var(--text-primary)" }}>{l.label}</span>
+            <span style={{ fontSize: 11, fontFamily: fonts.mono, fontWeight: 700, color: l.color }}>{fmtP(v.current)}</span>
+            {v.chg30 != null && (
+              <span style={{ fontSize: 9.5, fontFamily: fonts.mono, color: v.chg30 >= 0 ? "#4ade80" : "#f87171" }}>{v.chg30 >= 0 ? "+" : ""}{v.chg30}%/30d</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={ornn.otpiRows} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+          <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={46} />
+          <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+          <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`$${(+v).toFixed(3)}/Mtok`, OTPI_LAB_META.find(l => l.id === n)?.label || n]} labelFormatter={d => d.slice(0, 10)} />
+          {OTPI_LAB_META.filter(l => on.has(l.id)).map(l => (
+            <Line key={l.id} type="monotone" dataKey={l.id} name={l.id} stroke={l.color} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+        Daily settled, volume-weighted price actually paid per million tokens across each company&apos;s models (log scale) — realized price, not list price. Click a company chip to add/remove its line. The Anthropic/OpenAI vs DeepSeek/Qwen spread is the market&apos;s live quality premium; watch whether it compresses (commoditization) or holds (durable moat). Source: <a href="https://dashboard.ornnai.com/tokens" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>Ornn OTPI</a>.
+      </div>
+    </div>
+  </>);
+}
+
 // ── AI debt-market tracker (curated, extend by hand) ───────────────────────
 // SemiAnalysis ("NVIDIA GPU debt backstop" article) forecasts AI debt becoming
 // the 2nd-largest credit market after US mortgages (~$13T): ~$7T outstanding
@@ -4352,27 +4420,8 @@ function SupplyDemandTab() {
       </div>
     </>)}
 
-    {/* ── Ornn OTPI: what a token actually costs, by lab ── */}
-    {ornn?.otpiRows?.length > 0 && (<>
-      <SH>Token Prices by Lab — Ornn OTPI (volume-weighted $/M tokens)</SH>
-      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={ornn.otpiRows} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={46} />
-            <YAxis scale="log" domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`$${(+v).toFixed(2)}/Mtok`, n]} labelFormatter={d => d.slice(0, 10)} />
-            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
-            {[["anthropic", "#E8553A"], ["openai", "#10B981"], ["google", "#3B82F6"], ["deepseek", "#8B5CF6"], ["z-ai", "#F59E0B"], ["qwen", "#22D3EE"]].map(([lab, color]) => (
-              <Line key={lab} type="monotone" dataKey={lab} name={lab} stroke={color} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
-          Daily settled, volume-weighted price actually paid per million tokens across each lab&apos;s models (Ornn OTPI, log scale — top 6 of 11 labs shown). This is realized price, not list price: the spread between Anthropic/OpenAI (~$1.4–2) and DeepSeek (~$0.12) is the market&apos;s live quality premium, and its compression rate is the deflation term in every token-revenue forecast.
-        </div>
-      </div>
-    </>)}
+    {/* ── Ornn OTPI: what a token actually costs, by company (toggleable) ── */}
+    <OrnnTokenPricePanel ornn={ornn} />
 
     {/* ── FutureSearch forward view (live values overlaid where we track them) ── */}
     <ForecastPanel tag="ai" live={{

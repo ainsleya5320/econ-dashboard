@@ -10235,6 +10235,260 @@
       "paidModels": 316,
       "medianInput": 0.455,
       "meanInput": 2.263
+    },
+    {
+      "date": "2026-07-15",
+      "models": [
+        {
+          "id": "openai/gpt-5.5-pro",
+          "name": "OpenAI: GPT-5.5 Pro",
+          "input": 30,
+          "output": 180,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.5",
+          "name": "OpenAI: GPT-5.5",
+          "input": 5,
+          "output": 30,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.4",
+          "name": "OpenAI: GPT-5.4",
+          "input": 2.5,
+          "output": 15,
+          "context": 1050000
+        },
+        {
+          "id": "openai/gpt-5.2-pro",
+          "name": "OpenAI: GPT-5.2 Pro",
+          "input": 21,
+          "output": 168,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5-codex",
+          "name": "OpenAI: GPT-5 Codex",
+          "input": 1.25,
+          "output": 10,
+          "context": 400000
+        },
+        {
+          "id": "openai/o3-pro",
+          "name": "OpenAI: o3 Pro",
+          "input": 20,
+          "output": 80,
+          "context": 200000
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "input": 0.75,
+          "output": 4.5,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "input": 0.19999999999999998,
+          "output": 1.25,
+          "context": 400000
+        },
+        {
+          "id": "openai/gpt-4.1",
+          "name": "OpenAI: GPT-4.1",
+          "input": 2,
+          "output": 8,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "OpenAI: GPT-4.1 Mini",
+          "input": 0.39999999999999997,
+          "output": 1.5999999999999999,
+          "context": 1047576
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "name": "OpenAI: gpt-oss-120b",
+          "input": 0.037,
+          "output": 0.16999999999999998,
+          "context": 131072
+        },
+        {
+          "id": "anthropic/claude-opus-4.8",
+          "name": "Anthropic: Claude Opus 4.8",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.7",
+          "name": "Anthropic: Claude Opus 4.7",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-opus-4.6",
+          "name": "Anthropic: Claude Opus 4.6",
+          "input": 5,
+          "output": 25,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "name": "Anthropic: Claude Sonnet 4.6",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-sonnet-4.5",
+          "name": "Anthropic: Claude Sonnet 4.5",
+          "input": 3,
+          "output": 15,
+          "context": 1000000
+        },
+        {
+          "id": "anthropic/claude-haiku-4.5",
+          "name": "Anthropic: Claude Haiku 4.5",
+          "input": 1,
+          "output": 5,
+          "context": 200000
+        },
+        {
+          "id": "google/gemini-3.1-pro-preview",
+          "name": "Google: Gemini 3.1 Pro Preview",
+          "input": 2,
+          "output": 12,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-3.5-flash",
+          "name": "Google: Gemini 3.5 Flash",
+          "input": 1.5,
+          "output": 9,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-pro",
+          "name": "Google: Gemini 2.5 Pro",
+          "input": 1.25,
+          "output": 10,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash",
+          "name": "Google: Gemini 2.5 Flash",
+          "input": 0.3,
+          "output": 2.5,
+          "context": 1048576
+        },
+        {
+          "id": "google/gemini-2.5-flash-lite",
+          "name": "Google: Gemini 2.5 Flash Lite",
+          "input": 0.09999999999999999,
+          "output": 0.39999999999999997,
+          "context": 1048576
+        },
+        {
+          "id": "x-ai/grok-4.3",
+          "name": "xAI: Grok 4.3",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 1000000
+        },
+        {
+          "id": "x-ai/grok-4.20",
+          "name": "xAI: Grok 4.20",
+          "input": 1.25,
+          "output": 2.5,
+          "context": 2000000
+        },
+        {
+          "id": "deepseek/deepseek-v4-pro",
+          "name": "DeepSeek: DeepSeek V4 Pro",
+          "input": 0.435,
+          "output": 0.87,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v4-flash",
+          "name": "DeepSeek: DeepSeek V4 Flash",
+          "input": 0.098,
+          "output": 0.196,
+          "context": 1048576
+        },
+        {
+          "id": "deepseek/deepseek-v3.2",
+          "name": "DeepSeek: DeepSeek V3.2",
+          "input": 0.26899999999999996,
+          "output": 0.39999999999999997,
+          "context": 163840
+        },
+        {
+          "id": "deepseek/deepseek-r1",
+          "name": "DeepSeek: R1",
+          "input": 0.7,
+          "output": 2.5,
+          "context": 163840
+        },
+        {
+          "id": "meta-llama/llama-4-maverick",
+          "name": "Meta: Llama 4 Maverick",
+          "input": 0.19999999999999998,
+          "output": 0.7999999999999999,
+          "context": 1048576
+        },
+        {
+          "id": "meta-llama/llama-4-scout",
+          "name": "Meta: Llama 4 Scout",
+          "input": 0.09999999999999999,
+          "output": 0.3,
+          "context": 10000000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct",
+          "name": "Meta: Llama 3.3 70B Instruct",
+          "input": 0.13,
+          "output": 0.39999999999999997,
+          "context": 131072
+        },
+        {
+          "id": "mistralai/mistral-large-2512",
+          "name": "Mistral: Mistral Large 3 2512",
+          "input": 0.5,
+          "output": 1.5,
+          "context": 262144
+        },
+        {
+          "id": "mistralai/mistral-medium-3.1",
+          "name": "Mistral: Mistral Medium 3.1",
+          "input": 0.39999999999999997,
+          "output": 2,
+          "context": 131072
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen: Qwen3.7 Max",
+          "input": 1.25,
+          "output": 3.75,
+          "context": 1000000
+        },
+        {
+          "id": "qwen/qwen3.5-397b-a17b",
+          "name": "Qwen: Qwen3.5 397B A17B",
+          "input": 0.44999999999999996,
+          "output": 3,
+          "context": 262144
+        }
+      ],
+      "totalModels": 342,
+      "paidModels": 315,
+      "medianInput": 0.5,
+      "meanInput": 2.2763
     }
   ],
   "gpuHistory": [
@@ -19720,6 +19974,201 @@
           "runpodSecure": 1.49,
           "runpodCommunity": 1.39,
           "consensus": 1.2096,
+          "sourceSpread": 30,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        }
+      }
+    },
+    {
+      "date": "2026-07-15",
+      "gpus": {
+        "RTX 3090": {
+          "name": "RTX 3090",
+          "count": 6,
+          "min": 0.103,
+          "p25": 0.1156,
+          "median": 0.123,
+          "p75": 0.1356,
+          "max": 0.6704,
+          "vram": 24,
+          "vastMedian": 0.123,
+          "runpodSecure": 0.46,
+          "runpodCommunity": 0.22,
+          "consensus": 0.1715,
+          "sourceSpread": 57,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 4090": {
+          "name": "RTX 4090",
+          "count": 5,
+          "min": 0.1356,
+          "p25": 0.5637,
+          "median": 0.6711,
+          "p75": 0.7148,
+          "max": 0.8676,
+          "vram": 24,
+          "vastMedian": 0.6711,
+          "runpodSecure": 0.69,
+          "runpodCommunity": 0.34,
+          "consensus": 0.5056,
+          "sourceSpread": 65,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "RTX 5090": {
+          "name": "RTX 5090",
+          "count": 6,
+          "min": 0.6289,
+          "p25": 0.9209,
+          "median": 1.0037,
+          "p75": 3.6689,
+          "max": 53.3437,
+          "vram": 32,
+          "vastMedian": 1.0037,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.69,
+          "consensus": 0.8468,
+          "sourceSpread": 37,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200": {
+          "name": "H200",
+          "count": 2,
+          "min": 3.5307,
+          "p25": 3.5307,
+          "median": 4.0811,
+          "p75": 4.0811,
+          "max": 4.0811,
+          "vram": 140,
+          "vastMedian": 4.0811,
+          "runpodSecure": 4.39,
+          "runpodCommunity": 3.59,
+          "consensus": 3.8356,
+          "sourceSpread": 13,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H200 NVL": {
+          "name": "H200 NVL",
+          "count": 3,
+          "min": 3.2864,
+          "p25": 3.2864,
+          "median": 3.4867,
+          "p75": 3.6689,
+          "max": 3.6689,
+          "vram": 140,
+          "vastMedian": 3.4867,
+          "runpodSecure": 3.79,
+          "runpodCommunity": 0.5,
+          "consensus": 3.4867,
+          "sourceSpread": null,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 SXM": {
+          "name": "H100 SXM",
+          "count": 3,
+          "min": 1.7889,
+          "p25": 1.7889,
+          "median": 3.2135,
+          "p75": 3.2689,
+          "max": 3.2689,
+          "vram": 80,
+          "vastMedian": 3.2135,
+          "runpodSecure": 2.99,
+          "runpodCommunity": 2.69,
+          "consensus": 2.9517,
+          "sourceSpread": 18,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "H100 NVL": {
+          "name": "H100 NVL",
+          "count": 1,
+          "min": 2.1356,
+          "p25": 2.1356,
+          "median": 2.1356,
+          "p75": 2.1356,
+          "max": 2.1356,
+          "vram": 94,
+          "vastMedian": 2.1356,
+          "runpodSecure": 3.19,
+          "runpodCommunity": 2.59,
+          "consensus": 2.3628,
+          "sourceSpread": 19,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 SXM4": {
+          "name": "A100 SXM4",
+          "count": 8,
+          "min": 0.5748,
+          "p25": 0.7785,
+          "median": 1.0293,
+          "p75": 1.0778,
+          "max": 1.7644,
+          "vram": 80,
+          "vastMedian": 1.0293,
+          "runpodSecure": 1.49,
+          "runpodCommunity": 1.39,
+          "consensus": 1.2096,
+          "sourceSpread": 30,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "A100 PCIE": {
+          "name": "A100 PCIE",
+          "count": 5,
+          "min": 0.5348,
+          "p25": 0.5378,
+          "median": 0.8681,
+          "p75": 1.0022,
+          "max": 1.4444,
+          "vram": 80,
+          "vastMedian": 0.8681,
+          "runpodSecure": 1.39,
+          "runpodCommunity": 1.19,
+          "consensus": 1.0291,
+          "sourceSpread": 31,
+          "sources": [
+            "vast",
+            "runpod"
+          ]
+        },
+        "L40S": {
+          "name": "L40S",
+          "count": 2,
+          "min": 0.737,
+          "p25": 0.737,
+          "median": 1.0741,
+          "p75": 1.0741,
+          "max": 1.0741,
+          "vram": 45,
+          "vastMedian": 1.0741,
+          "runpodSecure": 0.99,
+          "runpodCommunity": 0.79,
+          "consensus": 0.9321,
           "sourceSpread": 30,
           "sources": [
             "vast",
