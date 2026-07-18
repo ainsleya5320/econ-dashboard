@@ -4153,6 +4153,21 @@ function SupplyDemandTab() {
     const ornnH100 = (ornn?.gpuRows || []).filter(r => r.h100 != null).map(r => ({ d: r.d, v: r.h100 }));
     const asOfIn = (arr, ds) => { let r = null; for (const p of arr) { if (p.d <= ds) r = p; else break; } return r; };
     const rows = semi.series.map(r => ({ d: r.date, contract: r.h100, spot: asOfIn(spot, r.date)?.v ?? null, ornn: asOfIn(ornnH100, r.date)?.v ?? null }));
+    // Centered 5-week moving average per series (window shrinks at the edges
+    // so endpoints stay current). The contract index wiggles inside a tight
+    // band week to week — at chart scale that's noise, not signal.
+    const smoothKey = (key, out) => {
+      rows.forEach((row, i) => {
+        const win = [];
+        for (let j = Math.max(0, i - 2); j <= Math.min(rows.length - 1, i + 2); j++) {
+          if (rows[j][key] != null) win.push(rows[j][key]);
+        }
+        row[out] = win.length ? +(win.reduce((a, b) => a + b, 0) / win.length).toFixed(3) : null;
+      });
+    };
+    smoothKey("contract", "contractS");
+    smoothKey("spot", "spotS");
+    smoothKey("ornn", "ornnS");
     const last = rows[rows.length - 1];
     // latest spot even if newer than the last contract week
     const spotNow = spot.length ? spot[spot.length - 1].v : (last?.spot ?? null);
@@ -4381,14 +4396,20 @@ function SupplyDemandTab() {
             <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
             <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(1)}`} domain={["auto", "auto"]} />
             <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [v != null ? `$${(+v).toFixed(2)}/hr` : "—", n]} labelFormatter={d => d.slice(0, 10)} />
-            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
-            <Line type="monotone" dataKey="contract" name="1-yr contract (SemiAnalysis)" stroke={SD_INDIGO} strokeWidth={2.4} dot={false} connectNulls isAnimationActive={false} />
-            <Line type="monotone" dataKey="spot" name="Spot (Vast+RunPod)" stroke={SD_RED} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
-            <Line type="monotone" dataKey="ornn" name="Cloud index (Ornn)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls isAnimationActive={false} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7}
+              payload={[
+                { value: "1-yr contract (SemiAnalysis, 5wk avg)", type: "circle", color: SD_INDIGO },
+                { value: "Spot (Vast+RunPod, 5wk avg)", type: "circle", color: SD_RED },
+                { value: "Cloud index (Ornn, 5wk avg)", type: "circle", color: SD_AMBER },
+              ]} />
+            <Line type="monotone" dataKey="contract" name="contract, raw weekly" stroke={SD_INDIGO} strokeWidth={1} strokeOpacity={0.25} dot={false} connectNulls isAnimationActive={false} legendType="none" />
+            <Line type="monotone" dataKey="contractS" name="1-yr contract (SemiAnalysis, 5wk avg)" stroke={SD_INDIGO} strokeWidth={2.4} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="spotS" name="Spot (Vast+RunPod, 5wk avg)" stroke={SD_RED} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="ornnS" name="Cloud index (Ornn, 5wk avg)" stroke={SD_AMBER} strokeWidth={1.6} dot={false} connectNulls isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
         <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
-          Absolute $/GPU-hr. <strong style={{ color: "#94a3b8" }}>Contract</strong> = what firms commit to on a 1-year term (SemiAnalysis&apos;s free public H100 index) — the structural cost signal. <strong style={{ color: "#94a3b8" }}>Spot</strong> = live rental marketplace (Vast.ai + RunPod consensus) — noisier, but the leading edge. Spot rising above contract = tightening; spot below = slack capacity being dumped.
+          Absolute $/GPU-hr, all lines smoothed with a centered 5-week average (faint indigo trace = raw weekly contract prints). <strong style={{ color: "#94a3b8" }}>Contract</strong> = what firms commit to on a 1-year term (SemiAnalysis&apos;s free public H100 index) — the structural cost signal. <strong style={{ color: "#94a3b8" }}>Spot</strong> = live rental marketplace (Vast.ai + RunPod consensus) — noisier, but the leading edge. Spot rising above contract = tightening; spot below = slack capacity being dumped. Stat cards above show latest unsmoothed values.
         </div>
       </div>
     </>)}
