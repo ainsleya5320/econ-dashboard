@@ -2,6 +2,17 @@ import React, { useEffect, useState, useMemo } from "react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
+import DAMODARAN from "../lib/damodaran.json";
+
+// Damodaran synthetic rating: interest coverage → rating → default spread
+// (large non-financial firm table from ratings.xls, updated each January).
+const ratingFor = (coverage) => {
+  if (coverage == null || !isFinite(coverage)) return null;
+  const bands = DAMODARAN.ratings?.large || [];
+  const b = bands.find(b => coverage > b.min && coverage <= b.max);
+  return b ? { rating: b.rating.split("/")[1] || b.rating, spread: b.spread } : null;
+};
+const ratingColor = (r) => !r ? "#475569" : /^A/.test(r) ? "#4ade80" : /^BBB|^BB\+/.test(r) ? "#fbbf24" : "#f87171";
 
 /*
  * DebtMarketTab — what is credit priced for, and can corporates carry it?
@@ -199,23 +210,28 @@ function DebtMarketTab() {
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr>
-            {["Ticker", "FY", "Coverage", "Net Debt/EBITDA"].map((h, i) => (
+            {["Ticker", "FY", "Coverage", "Synthetic Rating", "Implied Spread", "Net Debt/EBITDA"].map((h, i) => (
               <th key={h} style={{ padding: "7px 14px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase", textAlign: i >= 2 ? "right" : "left", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {(b.rows || []).slice(0, 8).map((r, i, arr) => (
-              <tr key={r.t} style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-                <td style={{ padding: "6px 14px", fontSize: 11.5, fontFamily: fonts.heading, color: "var(--text-primary)", fontWeight: 600 }}>{r.t}</td>
-                <td style={{ padding: "6px 14px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{r.fy}</td>
-                <td style={{ padding: "6px 14px", fontSize: 11.5, fontFamily: fonts.mono, textAlign: "right", fontWeight: 600, color: r.coverage == null ? "#475569" : r.coverage < 3 ? RED : r.coverage < 6 ? AMBER : GREEN }}>{r.coverage != null ? `${r.coverage.toFixed(1)}×` : "—"}</td>
-                <td style={{ padding: "6px 14px", fontSize: 11, fontFamily: fonts.mono, textAlign: "right", color: r.netDebtToEbitda == null ? "#475569" : r.netDebtToEbitda > 3 ? RED : "var(--text-secondary)" }}>{r.netDebtToEbitda != null ? `${r.netDebtToEbitda.toFixed(1)}×` : "—"}</td>
-              </tr>
-            ))}
+            {(b.rows || []).slice(0, 8).map((r, i, arr) => {
+              const syn = ratingFor(r.coverage);
+              return (
+                <tr key={r.t} style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
+                  <td style={{ padding: "6px 14px", fontSize: 11.5, fontFamily: fonts.heading, color: "var(--text-primary)", fontWeight: 600 }}>{r.t}</td>
+                  <td style={{ padding: "6px 14px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{r.fy}</td>
+                  <td style={{ padding: "6px 14px", fontSize: 11.5, fontFamily: fonts.mono, textAlign: "right", fontWeight: 600, color: r.coverage == null ? "#475569" : r.coverage < 3 ? RED : r.coverage < 6 ? AMBER : GREEN }}>{r.coverage != null ? `${r.coverage.toFixed(1)}×` : "—"}</td>
+                  <td style={{ padding: "6px 14px", fontSize: 11.5, fontFamily: fonts.mono, textAlign: "right", fontWeight: 700, color: ratingColor(syn?.rating) }}>{syn?.rating ?? "—"}</td>
+                  <td style={{ padding: "6px 14px", fontSize: 11, fontFamily: fonts.mono, textAlign: "right", color: syn ? "var(--text-secondary)" : "#475569" }}>{syn ? `+${(syn.spread * 100).toFixed(2)}pp` : "—"}</td>
+                  <td style={{ padding: "6px 14px", fontSize: 11, fontFamily: fonts.mono, textAlign: "right", color: r.netDebtToEbitda == null ? "#475569" : r.netDebtToEbitda > 3 ? RED : "var(--text-secondary)" }}>{r.netDebtToEbitda != null ? `${r.netDebtToEbitda.toFixed(1)}×` : "—"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {b.latest && <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, padding: "8px 14px", lineHeight: 1.5 }}>
-          Basket medians FY{b.latest.fy}: coverage {b.latest.coverage?.toFixed(1)}×, net debt/EBITDA {b.latest.netDebtToEbitda?.toFixed(1)}× ({b.latest.n} filers). Annual data (quarterly is premium-gated); nulls = issuers that don&apos;t break out interest expense.
+          Basket medians FY{b.latest.fy}: coverage {b.latest.coverage?.toFixed(1)}×, net debt/EBITDA {b.latest.netDebtToEbitda?.toFixed(1)}× ({b.latest.n} filers). <strong style={{ color: "#94a3b8" }}>Synthetic rating</strong> = Damodaran&apos;s coverage→rating map (large non-financial firms, Jan {(DAMODARAN.asOf || "").slice(0, 4)}); implied spread is the default premium over treasuries that rating carries — coverage + spread = a fundamentals-based cost of debt, no agency required. Caveat: one ratio, not a full credit model; agencies weigh scale, industry and cash-flow stability too. Annual data; nulls = issuers that don&apos;t break out interest expense.
         </div>}
       </div>
     </div>

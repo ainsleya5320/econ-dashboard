@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 import { fetchFMP } from "../../lib/api.js";
+import DAMODARAN from "../../lib/damodaran.json";
 
 // ─── Shared bits ─────────────────────────────────────────────────────────────
 const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8";
@@ -336,6 +337,45 @@ export function EarningsWeekAhead({ tickers, fmpKey }) {
             {r.epsEstimated != null && <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, marginLeft: 10 }}>est. EPS ${Number(r.epsEstimated).toFixed(2)}</span>}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Synthetic credit rating (Damodaran coverage→rating→spread) ──────────────
+// Interest coverage mapped through Damodaran's ratings.xls bands: large
+// non-financial table for mkt cap ≥ $5B, small/risky table below. Financial
+// firms excluded (his non-financial tables don't apply to banks). Data comes
+// entirely from the detail payload already fetched — zero extra API calls.
+export function SyntheticRating({ data }) {
+  const sector = data.prof?.sector || "";
+  if (/financial/i.test(sector)) return null;
+  const inc = data.inc?.[data.inc.length - 1];
+  const rat = data.rat?.[data.rat.length - 1];
+  let cov = rat?.interestCoverageRatio;
+  if (!fin(cov) || cov === 0) {
+    const ebit = inc?.operatingIncome, ie = inc?.interestExpense;
+    cov = (fin(ebit) && fin(ie) && ie !== 0) ? ebit / Math.abs(ie) : null;
+  }
+  const mkt = data.quote?.marketCap ?? data.prof?.mktCap ?? 0;
+  const sizeLarge = mkt >= 5e9;
+  const table = (sizeLarge ? DAMODARAN.ratings?.large : DAMODARAN.ratings?.small) || [];
+  const band = fin(cov) ? table.find(b => cov > b.min && cov <= b.max) : null;
+  const rating = band ? (band.rating.split("/")[1] || band.rating) : null;
+  const color = !rating ? "#64748b" : /^A/.test(rating) ? GREEN : /^BBB|^BB\+/.test(rating) ? AMBER : RED;
+
+  return (
+    <div style={{ background: cardBg, border: cardBorder, borderLeft: `3px solid ${color}`, borderRadius: 14, padding: "12px 22px", marginBottom: 16, display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+      <div>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase" }}>Synthetic Credit Rating</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color, fontFamily: fonts.heading, lineHeight: 1.15 }}>{rating ?? "n/a"}</div>
+      </div>
+      <div style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono, lineHeight: 1.55, flex: 1, minWidth: 240 }}>
+        {rating ? (<>
+          Interest coverage <strong style={{ color: "#cbd5e1" }}>{cov.toFixed(1)}×</strong> → Damodaran&apos;s {sizeLarge ? "large" : "small"}-firm map → default spread <strong style={{ color: "#cbd5e1" }}>+{(band.spread * 100).toFixed(2)}pp</strong> over treasuries. A fundamentals-only rating — one ratio, so treat it as a floor check, not an agency opinion.
+        </>) : (
+          <>No disclosed interest expense in the latest fiscal year (common for cash-rich firms) — coverage, and therefore a synthetic rating, can&apos;t be computed.</>
+        )}
       </div>
     </div>
   );

@@ -251,11 +251,25 @@ const AI_FRED_SERIES = {
   IPG2211A2N:     { label: 'Electric Power Generation',     group: 'power',        freq: 'M', limit: 240, color: '#EAB308', unit: 'index' },
 }
 
+// Global FRED throttle: serialize every FRED request with spacing so cold
+// starts can NEVER burst. FRED's Akamai edge IP-blocked us (403 Access
+// Denied, even keyless) after a day of dev restarts each firing 40-60
+// parallel calls — a hard block is far worse than a slow warm-up. ~1.8 req/s
+// stays well under their 120/min limit even with the browser's own calls.
+let fredChain = Promise.resolve()
+function fredThrottle() {
+  const p = fredChain.then(() => new Promise(r => setTimeout(r, 550)))
+  fredChain = p.catch(() => {})
+  return p
+}
+// Per-series response cache for the /api/fred relay (id:limit → body)
+const fredRelayCache = new Map()
+
 async function fetchFredSeries(id, limit) {
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${FRED_KEY}&limit=${limit}&sort_order=desc&file_type=json`
-  // Retry on 429 — batch endpoints fire many FRED calls in parallel on a cold
-  // start and blow FRED's per-minute limit; a short backoff lets them succeed
-  // instead of returning empty and (worse) getting cached as empty.
+  await fredThrottle()
+  // Retry on 429 — a short backoff beats returning empty and (worse) getting
+  // cached as empty. The throttle above keeps even retries from bursting.
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const resp = await fetch(url, { headers: { 'User-Agent': UA } })
@@ -3076,6 +3090,31 @@ export default defineConfig({
           }
         })
 
+        // FRED relay — ALL client-side FRED traffic routes through here so it
+        // shares the global throttle + retry + UA (the browser's ~40 direct
+        // calls per reload are what helped trip FRED's Akamai IP block).
+        // Per-series 30-min cache means page reloads cost zero FRED requests.
+        server.middlewares.use('/api/fred', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            const u = new URL(req.url || '', 'http://localhost')
+            const id = (u.searchParams.get('series_id') || '').trim()
+            const limit = Math.max(1, Math.min(100000, parseInt(u.searchParams.get('limit') || '100', 10) || 100))
+            if (!/^[A-Za-z0-9_.-]{1,64}$/.test(id)) { res.statusCode = 400; res.end('{"error":"bad series_id"}'); return }
+            const key = `${id}:${limit}`
+            const hit = fredRelayCache.get(key)
+            if (hit && Date.now() - hit.ts < 30 * 60 * 1000) { res.end(hit.body); return }
+            const obs = await fetchFredSeries(id, limit) // throttled + 429-retried
+            // client expects FRED's native shape in DESC order (it reverses)
+            const body = JSON.stringify({ observations: obs.slice().reverse().map(o => ({ date: o.d, value: String(o.v) })) })
+            if (obs.length) fredRelayCache.set(key, { ts: Date.now(), body })
+            res.end(body)
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
         // Ornn — GPU rental index + OTPI token prices (public API)
         server.middlewares.use('/api/ornn', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')

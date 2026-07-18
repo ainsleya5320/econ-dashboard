@@ -4,6 +4,7 @@ import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import FearGreedGauge from "../components/FearGreedGauge.jsx";
 import { fetchOptionsChain } from "../lib/api.js";
+import DAMODARAN from "../lib/damodaran.json";
 
 // ── Sparkline: tiny line chart, 60×24px, color tracks direction ──────────────
 function Sparkline({ data, color = "#10b981", height = 24, width = "100%" }) {
@@ -298,6 +299,54 @@ function ErpHero({ erp }) {
             <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, textAlign: "right", marginTop: -2 }}>25-yr history · dashed = 0 (stocks = bonds)</div>
           </div>
         )}
+      </div>
+      <DamodaranErpStrip />
+    </div>
+  );
+}
+
+// Damodaran's implied ERP (FCFE) — the PROPER risk premium, from expected cash
+// flows discounted back to today's index level, not the crude EY − 10Y gap.
+// Annual series 1960→ from src/lib/damodaran.json (refresh script, January).
+function DamodaranErpStrip() {
+  const series = (DAMODARAN.erp || []).filter(r => r.erp != null);
+  if (series.length < 20) return null;
+  const last = series[series.length - 1];
+  const vals = series.map(r => r.erp);
+  const pct = Math.round((vals.filter(v => v < last.erp).length / vals.length) * 100);
+  const dColor = pct >= 70 ? "#4ade80" : pct >= 30 ? "#fbbf24" : "#f87171";
+  const spark = series.map(r => ({ i: r.y, v: +(r.erp * 100).toFixed(2) }));
+  const ys = spark.map(p => p.v);
+  return (
+    <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase" }}>
+          Damodaran Implied ERP (FCFE) · end-{last.y}
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 3, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 22, fontWeight: 700, color: dColor, fontFamily: fonts.heading, lineHeight: 1 }}>{(last.erp * 100).toFixed(2)}%</span>
+          <span style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono }}>
+            {pct}th pctile since {series[0].y} · vs 10Y {(last.tbond * 100).toFixed(2)}%
+          </span>
+        </div>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 5, lineHeight: 1.5, maxWidth: 520 }}>
+          The forward-looking premium (expected cash flows vs today&apos;s index) — the measure Damodaran argues for. It differs from the simple gap above because that gap ignores buybacks and growth; when the two diverge hard, growth expectations are carrying the market.
+        </div>
+      </div>
+      <div style={{ flex: "1 1 220px", minWidth: 180, height: 56 }}>
+        <ResponsiveContainer width="100%" height={56}>
+          <AreaChart data={spark} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="derp-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={dColor} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={dColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <YAxis hide domain={[Math.min(...ys) - 0.3, Math.max(...ys) + 0.3]} />
+            <Area type="monotone" dataKey="v" stroke={dColor} fill="url(#derp-grad)" strokeWidth={1.6} dot={false} isAnimationActive={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, textAlign: "right", marginTop: -2 }}>{series[0].y}–{last.y} annual · source: Damodaran (updated {DAMODARAN.asOf})</div>
       </div>
     </div>
   );

@@ -1,4 +1,7 @@
-const FRED_BASE = "/fred-api/fred/series/observations";
+// All client FRED traffic goes through the server relay (/api/fred): shared
+// throttle + retry + 30-min per-series cache. The old direct proxy
+// ("/fred-api/...") helped trip FRED's Akamai IP block — don't go back.
+const FRED_BASE = "/api/fred";
 const FMP_BASE = "https://financialmodelingprep.com/stable";
 
 const US_MORTGAGE_SERIES = { MORTGAGE30US: { label: "30-Year Fixed", color: "#E8553A" }, MORTGAGE15US: { label: "15-Year Fixed", color: "#F2A93B" }, MORTGAGE5US: { label: "5/1 ARM", color: "#4ECDC4" } };

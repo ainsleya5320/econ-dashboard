@@ -7,7 +7,7 @@ import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import TickerSearch from "../components/TickerSearch.jsx";
-import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel } from "./stocks/ResearchPanels.jsx";
+import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel, SyntheticRating } from "./stocks/ResearchPanels.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 
@@ -1144,6 +1144,8 @@ function StockDetailView({ data, onBack, fmpKey }) {
       )}
       {/* Valuation vs its own 20-year history */}
       <ValuationBands data={data} fmpKey={fmpKey} />
+      {/* Damodaran synthetic credit rating from interest coverage */}
+      <SyntheticRating data={data} />
       {/* Dividend safety read */}
       <DividendSafety data={data} fmpKey={fmpKey} />
       {prof?.description && (
