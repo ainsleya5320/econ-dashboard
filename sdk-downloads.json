@@ -36026,11 +36026,11 @@
       {
         "date": "2026-07-20",
         "pulls": {
-          "ollama/ollama": 155446085,
-          "vllm/vllm-openai": 28058017
+          "vllm/vllm-openai": 28072671,
+          "ollama/ollama": 155496492
         }
       }
     ]
   },
-  "updated": 1784568971171
+  "updated": 1784582110894
 }

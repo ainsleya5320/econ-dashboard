@@ -444,7 +444,7 @@ function HyperscalerCapexPanel() {
     {stats && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 14 }}>
         <StatCard label="Total Capex Last Q" val={fmtB(stats.lastTotal)} sub={`${stats.lastDate} · ${fmtPct1(stats.yoyGrowth)} YoY`} color="#6366F1" />
-        <StatCard label="Implied AI Capex" val={fmtB(stats.lastAi)} sub={`${fmtPct1(stats.yoyAiGrowth)} YoY · ${((stats.lastAi/stats.lastTotal)*100).toFixed(0)}% of total`} color="#10B981" />
+        <StatCard label="Implied AI Capex" val={fmtB(stats.lastAi)} sub={`${fmtPct1(stats.yoyAiGrowth)} YoY${stats.lastTotal > 0 ? ` · ${((stats.lastAi/stats.lastTotal)*100).toFixed(0)}% of total` : ""}`} color="#10B981" />
         <StatCard label="TTM Total Capex" val={fmtB(stats.ttmTotal)} sub="Trailing 4 quarters" color="#3B82F6" />
         <StatCard label="TTM Implied AI" val={fmtB(stats.ttmAi)} sub={`Annualized: ${fmtB(stats.ttmAi)}/yr`} color="#F59E0B" />
       </div>
@@ -544,6 +544,112 @@ function HyperscalerCapexPanel() {
     <InfoBox color="#6366F1">
       <strong style={{ color: "#cbd5e1" }}>What this is telling you.</strong> Hyperscaler capex is the most important upstream demand signal in the AI economy — it&apos;s the dollars that get converted into chips, data centers, and ultimately tokens. Adjusted YoY growth above 50% (sustained) means we&apos;re still in expansion. A sharp deceleration would be the clearest signal yet that the build-out is peaking. Raw company numbers are exact (from quarterly filings); the AI-share split is your editorial call.
     </InfoBox>
+  </>);
+}
+
+// ── Adoption breadth: Census BTOS % of firms using AI (curated releases) ────
+function BtosAdoptionPanel() {
+  const last = BTOS_AI_ADOPTION[BTOS_AI_ADOPTION.length - 1];
+  const first = BTOS_AI_ADOPTION[0];
+  return (<>
+    <SH>Adoption Breadth — % of U.S. Firms Using AI (Census BTOS)</SH>
+    <div style={{ display: "flex", gap: 14, alignItems: "stretch", flexWrap: "wrap", marginBottom: 14 }}>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 18px", flex: "0 1 220px", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: "#22C55E" }} />
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>Using AI Now</div>
+        <div style={{ fontSize: 30, fontWeight: 700, color: "#22C55E", fontFamily: fonts.heading, marginTop: 4 }}>{last.pct}%</div>
+        <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 4, lineHeight: 1.5 }}>as of {last.d} — {(last.pct / first.pct).toFixed(1)}× since {first.d.slice(0, 4)}. Expected next 6mo: 20–23%.</div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 14px 6px 4px", flex: "1 1 300px" }}>
+        <ResponsiveContainer width="100%" height={130}>
+          <LineChart data={BTOS_AI_ADOPTION} margin={{ top: 6, right: 12, left: -18, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n, p) => [`${v}%${p.payload.approx ? " (≈)" : ""}`, "firms using AI"]} />
+            <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2.2} dot={{ r: 3 }} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 18px", flex: "0 1 260px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Who&apos;s Adopting (May 2026)</div>
+        {BTOS_SPLITS.map(s => (
+          <div key={s.label} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10.5, fontFamily: fonts.mono, padding: "2.5px 0" }}>
+            <span style={{ color: "#cbd5e1" }}>{s.label}</span>
+            <span style={{ color: s.pct >= 30 ? "#4ade80" : s.pct >= 18 ? "#fbbf24" : "#94a3b8", fontWeight: 700 }}>{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <InfoBox color="#22C55E">
+      <strong style={{ color: "#cbd5e1" }}>Why breadth matters more than depth here.</strong> Capability (above) says AI <em>can</em> do the work; this says how much of the economy is actually letting it. ~1.2M firms surveyed biweekly by Census — the least gameable adoption number that exists. The 3.7%→{last.pct}% path in under three years is the diffusion curve steepening; when this crosses ~30–40% while capability keeps compounding, the productivity series below stops being an academic question. Points marked ≈ are press-reported between official releases — update from each BTOS release (biweekly cadence, curated in <code style={{ color: "#a5b4fc" }}>BTOS_AI_ADOPTION</code>).
+    </InfoBox>
+  </>);
+}
+
+// ── The power bottleneck, priced: PJM capacity auctions + retail electricity ─
+function PowerBottleneckPanel() {
+  const [elec, setElec] = useState(null);
+  useEffect(() => {
+    fetch("/api/fred?series_id=APU000072610&limit=240")
+      .then(r => r.json())
+      .then(d => {
+        const obs = (d.observations || []).map(o => ({ d: o.date, v: +o.value })).filter(o => isFinite(o.v)).reverse();
+        if (obs.length) setElec(obs);
+      })
+      .catch(() => {});
+  }, []);
+  const elecNow = elec?.length ? elec[elec.length - 1] : null;
+  const elecYr = elec?.length > 12 ? elec[elec.length - 13] : null;
+  const pjmLast = PJM_CAPACITY[PJM_CAPACITY.length - 1];
+  const pjmPrev = PJM_CAPACITY[PJM_CAPACITY.length - 3]; // two auctions back = pre-spike base
+  return (<>
+    <SH>The Power Bottleneck — What the Grid Charges for Scarcity</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 12, marginBottom: 14 }}>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 14px 6px 4px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", paddingLeft: 14, marginBottom: 6 }}>
+          PJM Capacity Auction Clearing Price ($/MW-day)
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={PJM_CAPACITY} margin={{ top: 6, right: 10, left: -14, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="auction" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={v => [`$${v}/MW-day`, "clearing price"]} />
+            <Bar dataKey="price" radius={[4, 4, 0, 0]}>
+              {PJM_CAPACITY.map((r, i) => <Cell key={i} fill={r.price > 100 ? "#f87171" : "#818cf8"} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, padding: "4px 0 6px 14px", lineHeight: 1.5 }}>
+          The largest US grid&apos;s price for guaranteed capacity: {pjmPrev ? `~${Math.round(pjmLast.price / pjmPrev.price)}× in two auctions` : "a step-change"} — the purest &ldquo;datacenters ate the slack&rdquo; market print. Public auction results; add each new BRA to <code style={{ color: "#a5b4fc" }}>PJM_CAPACITY</code>.
+        </div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 14px 6px 4px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 14, paddingRight: 10, marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>US Retail Electricity ($/kWh)</div>
+          {elecNow && elecYr && (
+            <div style={{ fontSize: 10, color: elecNow.v > elecYr.v ? "#f87171" : "#4ade80", fontFamily: fonts.mono, fontWeight: 600 }}>
+              {((elecNow.v / elecYr.v - 1) * 100).toFixed(1)}% YoY
+            </div>
+          )}
+        </div>
+        {elec ? (
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={elec} margin={{ top: 6, right: 10, left: -14, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 4)} minTickGap={40} />
+              <YAxis domain={["auto", "auto"]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(2)}`} />
+              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={v => [`$${(+v).toFixed(3)}/kWh`, "avg retail price"]} labelFormatter={d => d.slice(0, 7)} />
+              <Line type="monotone" dataKey="v" stroke="#F59E0B" strokeWidth={1.8} dot={false} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>Loading FRED series…</div>}
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, padding: "4px 0 6px 14px", lineHeight: 1.5 }}>
+          FRED APU000072610, monthly. The consumer-facing echo of grid tightness — politically explosive if datacenter demand keeps pushing it. Rising power prices are simultaneously the compute thesis CONFIRMING and its biggest regulatory risk.
+        </div>
+      </div>
+    </div>
   </>);
 }
 
@@ -736,6 +842,12 @@ function AIImpactTab() {
     <InfoBox color="#F59E0B">
       <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> This Elo is <em>relative to other AI models</em>, not a fixed "50% = human parity" bar like the original GDPval used - a big methodology change, so don&apos;t compare these numbers to older GDPval win-rate figures you may have seen. It&apos;s run by a third party (Artificial Analysis), not OpenAI. It measures task-level deliverable quality, not workflow integration, judgment under ambiguity, or sustained performance. And several leaderboard rows are the same underlying model at different effort/reasoning settings, so treat "125 models" as configs, not 125 distinct frontier labs.
     </InfoBox>
+
+    {/* ======== ADOPTION BREADTH (Census BTOS) ======== */}
+    <BtosAdoptionPanel />
+
+    {/* ======== POWER BOTTLENECK ======== */}
+    <PowerBottleneckPanel />
 
     {/* ======== PRODUCTIVITY ======== */}
     <SH>Productivity - The Ultimate Test</SH>
@@ -2291,6 +2403,70 @@ const TOKEN_DISCLOSURES = [
 ];
 const DISC_COLOR = { Google: "#4285F4", Microsoft: "#00A4EF", OpenAI: "#10B981", Anthropic: "#E8553A" };
 
+// ── AI KPI curated constants (verify & extend — same pattern as TOKEN_DISCLOSURES) ──
+// Lab classification for market-structure KPIs (OpenRouter ys keys are lab slugs)
+const OPEN_LABS = new Set(["deepseek", "qwen", "z-ai", "meta-llama", "mistralai", "moonshotai", "minimax", "tencent", "xiaomi", "nvidia", "microsoft", "nousresearch", "cognitivecomputations"]);
+const CLOSED_LABS = new Set(["anthropic", "openai", "google", "x-ai", "amazon", "cohere", "perplexity", "inflection"]);
+
+// Disclosed AI revenue run-rates ($B annualized) — reported figures from press
+// releases / earnings; the DOLLAR check on the token-volume estimate.
+const REVENUE_DISCLOSURES = [
+  { d: "2023-12", co: "OpenAI",       arr: 1.6,  src: "reported ARR" },
+  { d: "2024-06", co: "OpenAI",       arr: 3.4,  src: "reported ARR" },
+  { d: "2025-06", co: "OpenAI",       arr: 10,   src: "reported ARR" },
+  { d: "2025-12", co: "OpenAI",       arr: 20,   src: "reported ~$20B ARR" },
+  { d: "2024-12", co: "Anthropic",    arr: 1.0,  src: "reported ARR" },
+  { d: "2025-03", co: "Anthropic",    arr: 2.0,  src: "reported ARR" },
+  { d: "2025-08", co: "Anthropic",    arr: 5.0,  src: "reported ARR" },
+  { d: "2026-01", co: "Anthropic",    arr: 9.0,  src: "reported ~$9B ARR", approx: true },
+  { d: "2025-01", co: "Microsoft AI", arr: 13,   src: "disclosed run-rate" },
+];
+const REV_CO_COLOR = { OpenAI: "#10B981", Anthropic: "#E8553A", "Microsoft AI": "#00A4EF" };
+
+// PJM capacity auction clearing prices ($/MW-day, RTO) — the market's price on
+// grid scarcity. Public auction results; add each Base Residual Auction.
+const PJM_CAPACITY = [
+  { auction: "2023/24", price: 34.13 },
+  { auction: "2024/25", price: 28.92 },
+  { auction: "2025/26", price: 269.92 },
+  { auction: "2026/27", price: 329.17 },
+];
+
+// Census BTOS: % of US firms using AI to produce goods/services. Biweekly
+// survey of ~1.2M businesses; points below from Census releases (≈ = read
+// from press coverage between official releases — verify on next release).
+const BTOS_AI_ADOPTION = [
+  { d: "2023-09", pct: 3.7 },
+  { d: "2024-02", pct: 5.4 },
+  { d: "2024-11", pct: 6.6 },
+  { d: "2025-06", pct: 12.0, approx: true },
+  { d: "2025-12", pct: 17.0 },
+  { d: "2026-05", pct: 19.8 },
+];
+const BTOS_SPLITS = [
+  { label: "Firms 250+ employees", pct: 37 },
+  { label: "Firms 100–249", pct: 32 },
+  { label: "Information sector", pct: 39.7 },
+  { label: "Finance & Insurance", pct: 33.9 },
+  { label: "Retail trade", pct: 14 },
+];
+
+// Supply ceiling: TSMC CoWoS advanced-packaging capacity (k wafers/month,
+// TrendForce-reported estimates — approximate) + HBM sold-out statements.
+const SUPPLY_CEILING = {
+  cowos: [
+    { d: "2023-12", kwpm: 14 },
+    { d: "2024-12", kwpm: 35 },
+    { d: "2025-12", kwpm: 70 },
+    { d: "2026-12", kwpm: 105, est: true },
+  ],
+  hbm: [
+    { d: "2024-05", note: "SK Hynix: 2025 HBM capacity essentially sold out" },
+    { d: "2025-04", note: "SK Hynix: 2026 HBM capacity nearly fully booked" },
+    { d: "2026-02", note: "Samsung/SKH: HBM4 allocations contested through 2027", approx: true },
+  ],
+};
+
 // OpenRouter reports the CURRENT in-progress week, whose token total is only
 // partly accumulated — it collapses to a fraction of trend and craters any
 // level/growth read (the "cliff"). Return weekly totals with trailing partial
@@ -2649,6 +2825,43 @@ function DemandTab() {
         </div>
       </div>
     </>)}
+
+    {/* ═══ THE DOLLAR CHECK — disclosed revenue run-rates ═══ */}
+    {(() => {
+      const cos = [...new Set(REVENUE_DISCLOSURES.map(r => r.co))];
+      const byMonth = {};
+      REVENUE_DISCLOSURES.forEach(r => { byMonth[r.d] = { ...(byMonth[r.d] || { d: r.d }), [r.co]: r.arr }; });
+      const chart = Object.values(byMonth).sort((a, b) => a.d.localeCompare(b.d));
+      const latestByCo = cos.map(co => {
+        const pts = REVENUE_DISCLOSURES.filter(r => r.co === co).sort((a, b) => a.d.localeCompare(b.d));
+        return { co, ...pts[pts.length - 1] };
+      });
+      return (<>
+        <SH>The Dollar Check — Disclosed AI Revenue Run-Rates</SH>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
+          {latestByCo.map(r => (
+            <StatCard key={r.co} label={r.co} val={`$${r.arr}B/yr`} sub={`${r.d} · ${r.src}${r.approx ? " (≈)" : ""}`} color={REV_CO_COLOR[r.co] || "#818cf8"} />
+          ))}
+        </div>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chart} margin={{ top: 8, right: 14, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} minTickGap={40} />
+              <YAxis scale="log" domain={[0.8, 40]} ticks={[1, 2, 5, 10, 20]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}B`} />
+              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [`$${v}B/yr`, n]} />
+              <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+              {cos.map(co => (
+                <Line key={co} type="monotone" dataKey={co} stroke={REV_CO_COLOR[co] || "#818cf8"} strokeWidth={2} dot={{ r: 4 }} connectNulls isAnimationActive={false} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+            Log scale, $B annualized. Revenue = tokens × price — the dollar leg of the triangle with the token estimate above and realized prices on Supply &amp; Demand. Curated from press/earnings disclosures (≈ = press-reported, verify); add each new disclosure to <code style={{ color: "#a5b4fc" }}>REVENUE_DISCLOSURES</code>. Doubling roughly yearly at multi-billion scale is the demand thesis in dollars.
+          </div>
+        </div>
+      </>);
+    })()}
 
     {/* ═══ GROWTH, COMPARED — the slope chart ═══ */}
     {growth && growth.rows.length > 3 && (<>
@@ -3777,6 +3990,33 @@ function ApiUsageTab() {
     return { chartRows, providers, growth };
   }, [data]);
 
+  // ── Market structure: concentration + open-weights share, weekly ──
+  // The KPI battery for the "do leading models keep the market?" thesis.
+  const structure = useMemo(() => {
+    const complete = new Set(orWeeklyTotals(data).map(w => w.d));
+    const ms = (data?.marketShare || []).filter(w => complete.has(w.x));
+    if (ms.length < 8) return null;
+    const rows = ms.map(w => {
+      const entries = Object.entries(w.ys || {});
+      const tot = entries.reduce((s, [, v]) => s + v, 0);
+      if (!tot) return null;
+      const shares = entries.map(([k, v]) => ({ k, s: v / tot }));
+      const hhi = Math.round(shares.reduce((s, x) => s + x.s * x.s * 10000, 0));
+      const top3 = +(shares.map(x => x.s).sort((a, b) => b - a).slice(0, 3).reduce((a, b) => a + b, 0) * 100).toFixed(1);
+      let open = 0, closed = 0;
+      for (const { k, s } of shares) {
+        if (OPEN_LABS.has(k)) open += s;
+        else if (CLOSED_LABS.has(k)) closed += s;
+      }
+      const openShare = (open + closed) > 0 ? +((open / (open + closed)) * 100).toFixed(1) : null;
+      const frontierShare = +((((w.ys.anthropic || 0) + (w.ys.openai || 0) + (w.ys.google || 0)) / tot) * 100).toFixed(1);
+      return { d: w.x, hhi, hhiScaled: +(hhi / 100).toFixed(1), top3, openShare, frontierShare };
+    }).filter(Boolean);
+    const last = rows[rows.length - 1];
+    const yrAgo = rows.length > 52 ? rows[rows.length - 53] : rows[0];
+    return { rows, last, yrAgo };
+  }, [data]);
+
   // Top individual models (latest snapshot date)
   const topModels = useMemo(() => {
     const rows = data?.rows || [];
@@ -3852,6 +4092,54 @@ function ApiUsageTab() {
       </div>
     </div>
 
+    {/* ── Market structure: the "do leaders keep the market?" KPIs ── */}
+    {structure && (<>
+      <SH>Market Structure — Concentration &amp; Open-Weights Share</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginBottom: 12 }}>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#22d3ee" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>Open-Weights Token Share</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginTop: 3 }}>{structure.last.openShare}%</div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>{(structure.last.openShare - structure.yrAgo.openShare) >= 0 ? "+" : ""}{(structure.last.openShare - structure.yrAgo.openShare).toFixed(1)}pp over 12mo</div>
+        </div>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#E8553A" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>Frontier Share (A+O+G)</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginTop: 3 }}>{structure.last.frontierShare}%</div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>{(structure.last.frontierShare - structure.yrAgo.frontierShare) >= 0 ? "+" : ""}{(structure.last.frontierShare - structure.yrAgo.frontierShare).toFixed(1)}pp over 12mo</div>
+        </div>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#8B5CF6" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>Top-3 Lab Share</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginTop: 3 }}>{structure.last.top3}%</div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>whoever they are that week</div>
+        </div>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#F59E0B" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>HHI (Concentration)</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginTop: 3 }}>{structure.last.hhi.toLocaleString()}</div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>&lt;1500 = unconcentrated (DOJ scale)</div>
+        </div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={structure.rows} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={46} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} labelFormatter={d => d.slice(0, 10)} />
+            <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+            <Line type="monotone" dataKey="openShare" name="Open-weights share %" stroke="#22d3ee" strokeWidth={2.2} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="frontierShare" name="Frontier (Anthropic+OpenAI+Google) %" stroke="#E8553A" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+            <Line type="monotone" dataKey="hhiScaled" name="HHI ÷ 100" stroke="#F59E0B" strokeWidth={1.4} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          The commoditization scoreboard. <strong style={{ color: "#94a3b8" }}>Big caveat:</strong> OpenRouter over-samples open-weights — closed-model enterprise traffic mostly goes direct to Anthropic/OpenAI/Azure and never touches this data. Read the <em>trend</em> (is open share gaining?), not the level. Cross-check against the realized price premium on Supply &amp; Demand: share moving to open weights while the frontier premium HOLDS means segmentation, not commoditization; share moving while the premium COLLAPSES is the real bear case for closed labs.
+        </div>
+      </div>
+    </>)}
+
     {/* Top individual models */}
     <SH>Top Models by API Token Usage{topModels.latest ? ` — ${topModels.latest}` : ""}</SH>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
@@ -3917,6 +4205,28 @@ function OrnnTokenPricePanel({ ornn }) {
   const [on, setOn] = useState(() => new Set(OTPI_LAB_META.filter(l => l.def).map(l => l.id)));
   if (!ornn?.otpiRows?.length) return null;
   const latest = ornn.otpiLatest || {};
+
+  // ── Pricing KPIs: frontier quality premium + blended deflation rate ──
+  // premium = avg(frontier realized $/Mtok) ÷ cheapest open-weights lab that
+  // day. Holding premium + rising open share = segmentation; collapsing
+  // premium = the commoditization bear case actually biting.
+  const FRONTIER = ["anthropic", "openai"], OPEN_FLOOR = ["deepseek", "qwen", "z-ai", "meta-llama"];
+  const premiumSeries = ornn.otpiRows.map(r => {
+    const f = FRONTIER.map(l => r[l]).filter(v => v != null);
+    const o = OPEN_FLOOR.map(l => r[l]).filter(v => v != null);
+    if (f.length < 2 || !o.length) return null;
+    return { d: r.d, v: +((f.reduce((a, b) => a + b, 0) / f.length) / Math.min(...o)).toFixed(1) };
+  }).filter(Boolean);
+  const premNow = premiumSeries.length ? premiumSeries[premiumSeries.length - 1].v : null;
+  const premYr = premiumSeries.length > 250 ? premiumSeries[premiumSeries.length - 251].v : (premiumSeries[0]?.v ?? null);
+  // blended big-4 realized price, YoY = the deflation term in every AI revenue model
+  const blend = ornn.otpiRows.map(r => {
+    const vals = ["anthropic", "openai", "google", "deepseek"].map(l => r[l]).filter(v => v != null);
+    return vals.length >= 3 ? { d: r.d, v: vals.reduce((a, b) => a + b, 0) / vals.length } : null;
+  }).filter(Boolean);
+  const blendNow = blend.length ? blend[blend.length - 1].v : null;
+  const blendYr = blend.length > 250 ? blend[blend.length - 251].v : (blend[0]?.v ?? null);
+  const deflation = (blendNow != null && blendYr) ? +(((blendNow / blendYr) - 1) * 100).toFixed(1) : null;
   const toggle = (id) => setOn(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -3925,6 +4235,28 @@ function OrnnTokenPricePanel({ ornn }) {
   const fmtP = v => v == null ? "—" : v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`;
   return (<>
     <SH>Token Prices by Company — Ornn OTPI (volume-weighted $/M tokens)</SH>
+    {/* Pricing KPIs: the two numbers that decide the leading-models thesis */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 12 }}>
+      {premNow != null && (
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#E8553A" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>Frontier Quality Premium</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 3 }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading }}>{premNow}×</span>
+            <span style={{ fontSize: 10, color: premYr != null && premNow >= premYr ? "#4ade80" : "#f87171", fontFamily: fonts.mono }}>{premYr != null ? `${premNow >= premYr ? "+" : ""}${(premNow - premYr).toFixed(1)}× vs 1yr ago` : ""}</span>
+          </div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 3, lineHeight: 1.45 }}>avg(Anthropic, OpenAI) ÷ cheapest open-weights lab, realized prices. Holding = moat; collapsing = commoditization.</div>
+        </div>
+      )}
+      {deflation != null && (
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 16px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#8B5CF6" }} />
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>Blended Realized Price, YoY</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: deflation <= 0 ? "#22d3ee" : "#fbbf24", fontFamily: fonts.heading, marginTop: 3 }}>{deflation >= 0 ? "+" : ""}{deflation}%</div>
+          <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 3, lineHeight: 1.45 }}>big-4 average $/Mtok — the deflation term in every AI revenue forecast. Token volumes must outgrow this for revenue to rise.</div>
+        </div>
+      )}
+    </div>
     {/* Company chips: click to toggle a line; each shows current realized price + 30d move */}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
       {OTPI_LAB_META.filter(l => latest[l.id]).map(l => {
@@ -3996,6 +4328,51 @@ const AI_DEBT_FORECAST = [
   { date: "2024-06", v: 40 }, { date: "2025-06", v: 150 }, { date: "2026-06", v: 450 },
   { date: "2027-06", v: 1200 }, { date: "2028-06", v: 3000 }, { date: "2029-12", v: 7000 },
 ];
+
+// ── Supply ceiling: advanced packaging (CoWoS) + HBM sold-out timeline ──────
+// Accelerator supply is packaging/memory-limited, not wafer-limited. Whether
+// supply CAN respond decides if the compute thesis pays via volumes or prices.
+function SupplyCeilingPanel() {
+  const c = SUPPLY_CEILING;
+  return (<>
+    <SH>Supply Ceiling — CoWoS Packaging &amp; HBM</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 12, marginBottom: 14 }}>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 14px 6px 4px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", paddingLeft: 14, marginBottom: 6 }}>
+          TSMC CoWoS Capacity (k wafers/month)
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={c.cowos} margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="d" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} tickFormatter={d => d.slice(0, 4)} />
+            <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n, p) => [`${v}k wpm${p.payload.est ? " (est.)" : ""}`, "CoWoS capacity"]} />
+            <Bar dataKey="kwpm" radius={[4, 4, 0, 0]}>
+              {c.cowos.map((r, i) => <Cell key={i} fill={r.est ? "rgba(129,140,248,0.45)" : "#818cf8"} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, padding: "4px 0 6px 14px", lineHeight: 1.5 }}>
+          ~{Math.round(c.cowos[c.cowos.length - 1].kwpm / c.cowos[0].kwpm)}× in three years, and still the binding constraint. TrendForce-reported estimates (faded bar = forward estimate) — update from TSMC earnings commentary.
+        </div>
+      </div>
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 18px" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+          HBM Sold-Out Timeline
+        </div>
+        {c.hbm.map(h => (
+          <div key={h.d} style={{ display: "flex", gap: 12, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <span style={{ fontSize: 10, color: "#818cf8", fontFamily: fonts.mono, flexShrink: 0, fontWeight: 700 }}>{h.d}</span>
+            <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.heading, lineHeight: 1.45 }}>{h.note}{h.approx ? " (≈)" : ""}</span>
+          </div>
+        ))}
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 10, lineHeight: 1.5 }}>
+          Memory makers pre-selling capacity 12-24 months out is the market saying demand exceeds supply as far as contracts can reach. The signal to fear: this list <em>stops</em> growing — HBM going un-sold-out would be the first hard evidence the compute-demand thesis is breaking.
+        </div>
+      </div>
+    </div>
+  </>);
+}
 
 function AIDebtPanel() {
   const calc = useMemo(() => {
@@ -4449,6 +4826,9 @@ function SupplyDemandTab() {
       "h100-1y-oct26": h100Compare?.contractNow != null ? { value: h100Compare.contractNow, label: "SemiAnalysis index, latest" } : undefined,
       "or-tokens-sep26": c?.demandWk != null ? { value: c.demandWk / 1e12, label: "last complete week" } : undefined,
     }} />
+
+    {/* ── Supply ceiling: packaging + memory (curated) ── */}
+    <SupplyCeilingPanel />
 
     {/* ── AI debt-market tracker (curated $7T scoreboard) ── */}
     <AIDebtPanel />
