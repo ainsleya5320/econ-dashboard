@@ -389,7 +389,7 @@
       },
       {
         "month": "2026-07",
-        "count": 0
+        "count": 1
       }
     ],
     "huggingface": [
@@ -487,7 +487,7 @@
       },
       {
         "month": "2026-07",
-        "count": 0
+        "count": 1
       }
     ],
     "llama-index": [

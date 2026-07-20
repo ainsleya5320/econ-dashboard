@@ -14,6 +14,7 @@ import LaborSubTab from "./LaborSubTab.jsx";
 import FedSubTab from "./FedSubTab.jsx";
 import MacroDashboardSubTab from "./MacroDashboardSubTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
+import BankCreditTab from "./BankCreditTab.jsx";
 
 function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
   const [econSubTab, setEconSubTab] = useState("dashboard");
@@ -52,6 +53,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
     { id: "dashboard",  label: "Dashboard"           },
     { id: "rates",      label: "Rates"               },
     { id: "debt",       label: "Debt & Credit"       },
+    { id: "banks",      label: "Bank Credit"         },
     { id: "fed",        label: "Fed Balance Sheet"   },
     { id: "gdp",        label: "GDP"                 },
     { id: "housing",    label: "Housing"             },
@@ -118,6 +120,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
     {/* Debt & Credit sub-tab */}
     {econSubTab === "debt" && <DebtMarketTab />}
+    {econSubTab === "banks" && <BankCreditTab />}
 
     {/* Fed Balance Sheet sub-tab */}
     {econSubTab === "fed" && <FedSubTab fredKey={fredKey} />}

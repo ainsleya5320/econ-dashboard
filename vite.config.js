@@ -1715,6 +1715,103 @@ async function fetchReplacementCost() {
   return data
 }
 
+/* ── Bank Credit — the lender's view of the credit cycle ─────────────────
+   Eisman's lens: banks see credit deterioration first and confess it in
+   loan growth, charge-offs, and provisions. Aggregate side is rock-solid
+   FRED data: the Fed's weekly H.8 release IS the combined loan book of all
+   US commercial banks, plus quarterly charge-off/delinquency rates by loan
+   type (with a top-100 vs small-bank split — where the stress hides).
+   Per-bank big-4 data is a curated client-side table: FMP's as-reported
+   bank statements proved untrustworthy (BAC missing its loans line, Citi
+   "total assets" 6x too small — partial XBRL flattening). */
+let bankCreditCache = { data: null, ts: 0 }
+const BANK_CREDIT_TTL = 6 * 60 * 60 * 1000
+
+const BANK_LOAN_SERIES = {
+  TOTLL:          { label: 'Total Loans & Leases', freq: 'w', limit: 1600, color: '#818cf8' },
+  BUSLOANS:       { label: 'Commercial & Industrial', freq: 'm', limit: 500, color: '#10B981' },
+  CREACBW027SBOG: { label: 'Commercial Real Estate', freq: 'w', limit: 1600, color: '#F59E0B' },
+  CCLACBW027SBOG: { label: 'Credit Cards', freq: 'w', limit: 1600, color: '#EC4899' },
+  CLSACBW027SBOG: { label: 'Consumer (total)', freq: 'w', limit: 1600, color: '#22d3ee' },
+}
+const BANK_LOSS_SERIES = {
+  CORCCACBS:     { label: 'Credit Cards',        group: 'chargeoff', color: '#EC4899' },
+  CORBLACBS:     { label: 'C&I (Business)',      group: 'chargeoff', color: '#10B981' },
+  CORCREXFACBS:  { label: 'Commercial RE',       group: 'chargeoff', color: '#F59E0B' },
+  CORSFRMACBS:   { label: 'Residential Mortgage', group: 'chargeoff', color: '#818cf8' },
+  DRCCLACBS:     { label: 'Credit Cards',        group: 'delinq', color: '#EC4899' },
+  DRBLACBS:      { label: 'C&I (Business)',      group: 'delinq', color: '#10B981' },
+  DRCRELEXFACBS: { label: 'Commercial RE',       group: 'delinq', color: '#F59E0B' },
+  DRSFRMACBS:    { label: 'Residential Mortgage', group: 'delinq', color: '#818cf8' },
+  CORCCT100S:    { label: 'Cards — Top 100 banks', group: 'split', color: '#4ade80' },
+  CORCCOBS:      { label: 'Cards — Small banks',   group: 'split', color: '#f87171' },
+  CORBLT100S:    { label: 'C&I — Top 100 banks',   group: 'split2', color: '#4ade80' },
+  CORBLOBS:      { label: 'C&I — Small banks',     group: 'split2', color: '#f87171' },
+}
+
+async function fetchBankCredit() {
+  if (bankCreditCache.data && Date.now() - bankCreditCache.ts < BANK_CREDIT_TTL) return bankCreditCache.data
+  console.log('Bank credit: fetching FRED batch...')
+  const s = {}
+  await Promise.all([...Object.entries(BANK_LOAN_SERIES), ...Object.entries(BANK_LOSS_SERIES)].map(async ([id, meta]) => {
+    const obs = await fetchFredSeries(id, meta.limit || 200)
+    if (obs.length) s[id] = { ...meta, obs }
+  }))
+
+  // Loan growth YoY per series (weekly lag 52, monthly lag 12)
+  const loans = {}
+  for (const [id, meta] of Object.entries(BANK_LOAN_SERIES)) {
+    const t = s[id]
+    if (!t) continue
+    const lag = meta.freq === 'w' ? 52 : 12
+    const yoy = []
+    for (let i = lag; i < t.obs.length; i++) {
+      const past = t.obs[i - lag].v
+      if (past) yoy.push({ d: t.obs[i].d, v: +(((t.obs[i].v / past) - 1) * 100).toFixed(2) })
+    }
+    const cur = yoy.length ? yoy[yoy.length - 1].v : null
+    loans[id] = {
+      label: meta.label, color: meta.color,
+      level: t.obs[t.obs.length - 1].v, lastDate: t.obs[t.obs.length - 1].d,
+      yoy: cur, yoyPct: pctileOf(yoy.map(p => p.v), cur),
+      // thin weekly YoY series to ~monthly for the chart payload
+      series: yoy.filter((_, i) => meta.freq === 'w' ? i % 4 === 0 : true).slice(-320),
+    }
+  }
+
+  // Loss series: raw quarterly rates + percentile
+  const losses = {}
+  for (const [id, meta] of Object.entries(BANK_LOSS_SERIES)) {
+    const t = s[id]
+    if (!t) continue
+    const vals = t.obs.map(o => o.v)
+    const cur = vals[vals.length - 1]
+    const yrAgo = vals.length > 4 ? vals[vals.length - 5] : null
+    losses[id] = {
+      label: meta.label, group: meta.group, color: meta.color,
+      current: cur, chg1y: yrAgo != null ? +(cur - yrAgo).toFixed(2) : null,
+      pct: pctileOf(vals, cur), lastDate: t.obs[t.obs.length - 1].d,
+      series: t.obs.slice(-160),
+    }
+  }
+
+  // ── Verdict: loan growth (impulse) × loss direction ──
+  const g = loans.TOTLL?.yoy
+  const cardChg = losses.CORCCACBS?.chg1y
+  const lossesRising = (cardChg ?? 0) > 0.25 || (losses.CORBLACBS?.chg1y ?? 0) > 0.15
+  let verdict
+  if (g == null) verdict = { label: 'Data unavailable', color: '#64748b', note: '' }
+  else if (g < 0) verdict = { label: 'Contraction — Credit Crunch', color: '#ef4444', note: 'The aggregate loan book is shrinking — banks are pulling credit. Historically one of the most reliable recession signals there is.' }
+  else if (g < 3 && lossesRising) verdict = { label: 'Late Cycle — Tightening Into Losses', color: '#f97316', note: 'Loan growth is stalling while charge-offs climb — banks are seeing losses and quietly closing the window. Watch C&I growth for the turn negative.' }
+  else if (lossesRising) verdict = { label: 'Mid-to-Late Cycle — Losses Normalizing Up', color: '#fbbf24', note: 'Credit is still expanding but loss rates are climbing off their lows — the cycle is aging. The split to watch: small-bank vs big-bank charge-offs.' }
+  else verdict = { label: 'Expansion — Credit Flowing', color: '#4ade80', note: 'Loan books growing with stable-to-falling losses — the benign phase of the cycle.' }
+
+  const data = { verdict, loans, losses, updated: new Date().toISOString() }
+  // don't cache a rate-limited empty batch
+  if (g != null && losses.CORCCACBS) bankCreditCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── Housing Health — the synthesis layer for the real-estate page ────────
    Derived gauges, not levels: mortgage-payment share of median income
    (affordability, quarterly back to 1984), months' supply percentile, and
@@ -3423,6 +3520,19 @@ export default defineConfig({
             res.end(JSON.stringify({ error: e.message }))
           }
         })
+        // Bank credit — the lender's view of the credit cycle (H.8 + losses)
+        server.middlewares.use('/api/bank-credit', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { bankCreditCache = { data: null, ts: 0 } }
+            const data = await fetchBankCredit()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
         // Housing health — synthesis gauges (affordability, supply, valuation)
         server.middlewares.use('/api/housing-health', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3560,6 +3670,9 @@ export default defineConfig({
     // side-by-side; fall back to the usual 5180.
     port: Number(process.env.PORT) || 5180,
     host: true,
+    // OneDrive-synced folder: native fs events are unreliable (edits can be
+    // invisible to the dev server until restart). Poll instead.
+    watch: { usePolling: true, interval: 1200 },
     proxy: {
       '/cboe-api': {
         target: 'https://cdn.cboe.com/api/global/delayed_quotes/options',
