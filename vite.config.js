@@ -3168,6 +3168,77 @@ async function fetchOrnn() {
   return data
 }
 
+/* ── Vercel AI Gateway leaderboards — the second production sample ────────
+   vercel.com/ai-gateway/leaderboards publishes token/request/SPEND shares
+   by model and by lab (CC BY 4.0, updated daily), server-rendered into the
+   page HTML. Spend share is the differentiator — no other public source
+   shows where the DOLLARS go. Population skews product/enterprise (Vercel-
+   hosted apps), the natural complement to OpenRouter's indie/agentic skew. */
+let vercelAiCache = { data: null, ts: 0 }
+const VERCEL_AI_TTL = 6 * 60 * 60 * 1000
+const VERCEL_AI_FILE = path.join(__dirname, 'vercel-ai.json')
+
+function parseVercelLeaderboard(html) {
+  // rows render in strict DOM order: tokens list, requests list, spend list
+  const rows = []
+  const re = /leading-none">([^<]{2,48})<\/span><\/div><span class="[^"]*font-mono[^"]*">([\d.]+)%<\/span>/g
+  let m
+  while ((m = re.exec(html)) !== null) {
+    rows.push({ name: m[1].replace(/&amp;/g, '&').trim(), pct: parseFloat(m[2]) })
+  }
+  if (rows.length < 9 || rows.length % 3 !== 0) return null
+  const n = rows.length / 3
+  return { tokens: rows.slice(0, n), requests: rows.slice(n, 2 * n), spend: rows.slice(2 * n) }
+}
+
+async function fetchVercelAi() {
+  if (vercelAiCache.data && Date.now() - vercelAiCache.ts < VERCEL_AI_TTL) return vercelAiCache.data
+  const headers = { 'User-Agent': UA, 'Accept': 'text/html' }
+  let models = null, labs = null, windowLabel = null
+  try {
+    const [mResp, lResp] = await Promise.all([
+      fetch('https://vercel.com/ai-gateway/leaderboards/models', { headers }),
+      fetch('https://vercel.com/ai-gateway/leaderboards/labs', { headers }),
+    ])
+    if (mResp.ok) {
+      const h = await mResp.text()
+      models = parseVercelLeaderboard(h)
+      const w = h.match(/([A-Z][a-z]{2} \d{1,2}, \d{4})\s*[–-]\s*([A-Z][a-z]{2} \d{1,2}, \d{4})/)
+      if (w) windowLabel = `${w[1]} – ${w[2]}`
+    }
+    if (lResp.ok) labs = parseVercelLeaderboard(await lResp.text())
+  } catch (e) { console.warn('Vercel AI fetch:', e.message) }
+
+  const liveOk = !!(models && labs)
+  if (!liveOk) {
+    try {
+      if (fs.existsSync(VERCEL_AI_FILE)) {
+        const arch = JSON.parse(fs.readFileSync(VERCEL_AI_FILE, 'utf8'))
+        return { ...arch, liveOk: false, reason: 'live_unavailable_serving_archive' }
+      }
+    } catch {}
+  }
+
+  // derived: per-lab spend-per-token index (1.0 = gateway average)
+  const labStats = (labs?.tokens || []).map(t => {
+    const spend = labs.spend.find(s => s.name === t.name)?.pct ?? null
+    const reqs = labs.requests.find(r => r.name === t.name)?.pct ?? null
+    return { lab: t.name, tokens: t.pct, requests: reqs, spend, spendPerTokenIdx: spend != null && t.pct > 0 ? +(spend / t.pct).toFixed(2) : null }
+  })
+  // include labs that appear in spend but not tokens top-10
+  for (const s of labs?.spend || []) {
+    if (!labStats.find(x => x.lab === s.name)) labStats.push({ lab: s.name, tokens: null, requests: null, spend: s.pct, spendPerTokenIdx: null })
+  }
+
+  const data = { liveOk, fetchedAt: new Date().toISOString(), window: windowLabel, models, labs, labStats }
+  if (liveOk) {
+    vercelAiCache = { data, ts: Date.now() }
+    try { fs.writeFileSync(VERCEL_AI_FILE, JSON.stringify(data)) } catch (e) { console.error('Vercel AI cache save:', e.message) }
+    console.log(`Vercel AI: ${models.tokens.length}x3 model rows, ${labs.tokens.length}x3 lab rows (${windowLabel || 'window n/a'})`)
+  }
+  return data
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -3207,6 +3278,19 @@ export default defineConfig({
             const body = JSON.stringify({ observations: obs.slice().reverse().map(o => ({ date: o.d, value: String(o.v) })) })
             if (obs.length) fredRelayCache.set(key, { ts: Date.now(), body })
             res.end(body)
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Vercel AI Gateway leaderboards — token/request/spend shares
+        server.middlewares.use('/api/vercel-ai', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { vercelAiCache = { data: null, ts: 0 } }
+            const data = await fetchVercelAi()
+            res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500
             res.end(JSON.stringify({ error: e.message }))

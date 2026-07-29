@@ -3948,8 +3948,129 @@ const OR_PROVIDER_COLORS = {
 };
 const orProvColor = p => OR_PROVIDER_COLORS[p] || "#94a3b8";
 
+// ── Vercel AI Gateway panel — tokens vs DOLLARS, and the two-sample check ───
+// Design goal: maximum signal in two graphics. (1) The dumbbell: each lab's
+// token share vs spend share on one track — the entire premium-vs-commodity
+// story in one glance. (2) The cross-sample scatter: OpenRouter share vs
+// Vercel share per lab — quantifies each sample's bias instead of caveating it.
+const VERCEL_TO_OR = {
+  "Anthropic": "anthropic", "OpenAI": "openai", "Google": "google", "DeepSeek": "deepseek",
+  "Z.AI": "z-ai", "Moonshot AI": "moonshotai", "xAI": "x-ai", "Alibaba Cloud": "qwen",
+  "Xiaomi": "xiaomi", "Minimax": "minimax", "MiniMax": "minimax", "Tencent": "tencent",
+  "Meta": "meta-llama", "Mistral": "mistralai", "StepFun": "stepfun", "Inclusionai": "inclusionai", "NVIDIA": "nvidia",
+};
+
+function VercelGatewayPanel({ vercel, orMs }) {
+  const dumbbell = useMemo(() => {
+    if (!vercel?.labStats?.length) return [];
+    return vercel.labStats
+      .filter(l => l.spend != null || l.tokens != null)
+      .sort((a, b) => (b.spend ?? 0) - (a.spend ?? 0))
+      .slice(0, 8);
+  }, [vercel]);
+
+  const crossSample = useMemo(() => {
+    if (!vercel?.labs?.tokens || !orMs?.length) return [];
+    // OpenRouter lab shares, last complete week
+    const complete = orMs.filter(w => Object.values(w.ys || {}).reduce((s, v) => s + v, 0) > 0);
+    const wk = complete[complete.length - 2] || complete[complete.length - 1];
+    if (!wk) return [];
+    const tot = Object.values(wk.ys).reduce((s, v) => s + v, 0);
+    return vercel.labs.tokens.map(t => {
+      const slug = VERCEL_TO_OR[t.name];
+      const orShare = slug && wk.ys[slug] != null ? +((wk.ys[slug] / tot) * 100).toFixed(1) : null;
+      return orShare != null ? { lab: t.name, or: orShare, vercel: t.pct, open: OPEN_LABS.has(slug) } : null;
+    }).filter(Boolean);
+  }, [vercel, orMs]);
+
+  if (!vercel?.labStats?.length) return null;
+  const anth = vercel.labStats.find(l => l.lab === "Anthropic");
+  const cheap = vercel.labStats.filter(l => l.spendPerTokenIdx != null && OPEN_LABS.has(VERCEL_TO_OR[l.lab])).sort((a, b) => a.spendPerTokenIdx - b.spendPerTokenIdx)[0];
+  const maxPct = Math.max(...dumbbell.flatMap(l => [l.tokens ?? 0, l.spend ?? 0])) * 1.12;
+
+  return (<>
+    <SH>The Second Sample — Vercel AI Gateway (Tokens vs Dollars)</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
+      {anth && <StatCard label="Anthropic Spend Capture" val={`${anth.spend}%`} sub={`on ${anth.tokens}% of tokens → ${anth.spendPerTokenIdx}× avg $/token`} color="#E8553A" />}
+      {anth && cheap && <StatCard label="Price Realization Spread" val={`${(anth.spendPerTokenIdx / cheap.spendPerTokenIdx).toFixed(0)}×`} sub={`Anthropic vs ${cheap.lab} ($/token, same gateway)`} color="#F59E0B" />}
+      <StatCard label="Sample" val="Vercel-hosted apps" sub={`${vercel.window || "rolling window"} · CC BY 4.0 · product/enterprise skew`} color="#818cf8" />
+    </div>
+
+    {/* Graphic 1: tokens → spend dumbbell */}
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 20px", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>Who Wins Tokens vs Who Wins Dollars — by Lab</div>
+        <div style={{ fontSize: 9.5, fontFamily: fonts.mono, color: "#64748b" }}><span style={{ color: "#22d3ee" }}>●</span> token share · <span style={{ color: "#4ade80" }}>●</span> spend share</div>
+      </div>
+      {dumbbell.map(l => {
+        const t = l.tokens ?? 0, s = l.spend ?? 0;
+        const x = v => `${(v / maxPct) * 100}%`;
+        const premium = l.spendPerTokenIdx;
+        return (
+          <div key={l.lab} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0" }}>
+            <div style={{ width: 96, fontSize: 11, fontFamily: fonts.mono, color: "#cbd5e1", flexShrink: 0, textAlign: "right" }}>{l.lab}</div>
+            <div style={{ flex: 1, position: "relative", height: 18 }}>
+              <div style={{ position: "absolute", top: 8, left: 0, right: 0, height: 2, background: "rgba(255,255,255,0.05)" }} />
+              <div style={{ position: "absolute", top: 8, left: x(Math.min(t, s)), width: `calc(${x(Math.abs(s - t))})`, height: 2, background: s >= t ? "rgba(74,222,128,0.5)" : "rgba(248,113,113,0.45)" }} />
+              <div title={`tokens ${t}%`} style={{ position: "absolute", top: 4, left: `calc(${x(t)} - 5px)`, width: 10, height: 10, borderRadius: "50%", background: "#22d3ee", border: "2px solid #0f172a" }} />
+              <div title={`spend ${s}%`} style={{ position: "absolute", top: 4, left: `calc(${x(s)} - 5px)`, width: 10, height: 10, borderRadius: "50%", background: "#4ade80", border: "2px solid #0f172a" }} />
+            </div>
+            <div style={{ width: 130, flexShrink: 0, fontSize: 10, fontFamily: fonts.mono, textAlign: "right" }}>
+              <span style={{ color: "#22d3ee" }}>{l.tokens ?? "—"}%</span>
+              <span style={{ color: "#475569" }}> → </span>
+              <span style={{ color: "#4ade80" }}>{l.spend ?? "—"}%</span>
+              {premium != null && <span style={{ color: premium >= 1 ? "#fbbf24" : "#64748b", marginLeft: 8, fontWeight: 700 }}>{premium}×</span>}
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, marginTop: 8, lineHeight: 1.5 }}>
+        Green dot right of cyan = the lab captures MORE dollars than tokens (premium pricing holds); left = volume without revenue (commodity). The ×-figure is spend-share ÷ token-share — realized price vs the gateway average. This is the segmentation thesis in one picture: frontier labs monetize, open-weights labs circulate.
+      </div>
+    </div>
+
+    {/* Graphic 2: two-sample cross-check */}
+    {crossSample.length >= 5 && (
+      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", paddingLeft: 12, marginBottom: 6 }}>
+          Two Samples, One Market — Token Share: OpenRouter vs Vercel
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <ScatterChart margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis type="number" dataKey="or" name="OpenRouter" domain={[0, 40]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} tickFormatter={v => `${v}%`} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} label={{ value: "OpenRouter token share (indie/agentic skew)", position: "insideBottom", offset: -4, fill: "#475569", fontSize: 9.5, fontFamily: fonts.mono }} />
+            <YAxis type="number" dataKey="vercel" name="Vercel" domain={[0, 40]} tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} tickFormatter={v => `${v}%`} axisLine={false} tickLine={false} label={{ value: "Vercel share (product skew)", angle: -90, position: "insideLeft", fill: "#475569", fontSize: 9.5, fontFamily: fonts.mono }} />
+            <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 40, y: 40 }]} stroke="#64748b" strokeDasharray="5 4" />
+            <Tooltip content={({ payload }) => {
+              const d = payload?.[0]?.payload;
+              if (!d) return null;
+              return (
+                <div style={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, padding: "8px 12px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+                  <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{d.lab}</div>
+                  <div>OpenRouter {d.or}% · Vercel {d.vercel}%</div>
+                </div>
+              );
+            }} />
+            <ZAxis range={[70, 71]} />
+            <Scatter data={crossSample.filter(d => !d.open)} fill="#E8553A" fillOpacity={0.85} isAnimationActive={false} />
+            <Scatter data={crossSample.filter(d => d.open)} fill="#22d3ee" fillOpacity={0.85} isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
+        <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingBottom: 6, lineHeight: 1.5 }}>
+          Red = closed labs, cyan = open-weights. On the dashed diagonal, both samples agree. Above it = stronger with product builders (Vercel); below = stronger with the indie/agentic crowd (OpenRouter). The distance from the diagonal IS each sample&apos;s bias, measured — labs above the line skew enterprise, and enterprise is where the dollars are.
+        </div>
+      </div>
+    )}
+
+    <InfoBox color="#4ade80">
+      <strong style={{ color: "#cbd5e1" }}>What the second sample settles.</strong> OpenRouter alone says open-weights are winning; adding dollars says the market has split in two: open-weight models circulate the most tokens at near-zero realized prices, while frontier models take {anth ? `${anth.spend}% of every gateway dollar on ${anth.tokens}% of tokens` : "the overwhelming majority of spend"}. Both theses are true at once — volume commoditizes, value concentrates. The KPI to watch is the spend-per-token spread: if it compresses toward 1× while open share keeps climbing, the moat is failing; while it holds above ~2×, price is the moat.
+    </InfoBox>
+  </>);
+}
+
 function ApiUsageTab() {
   const [data, setData] = useState(null);
+  const [vercel, setVercel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [shareMode, setShareMode] = useState("absolute"); // "absolute" | "share"
@@ -3961,6 +4082,7 @@ function ApiUsageTab() {
       .then(d => { setData(d); setError(false); })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
+    fetch("/api/vercel-ai").then(r => r.json()).then(d => { if (!d.error) setVercel(d); }).catch(() => {});
   };
   useEffect(load, []);
 
@@ -4139,6 +4261,9 @@ function ApiUsageTab() {
         </div>
       </div>
     </>)}
+
+    {/* ── The second sample: Vercel AI Gateway (tokens vs dollars) ── */}
+    <VercelGatewayPanel vercel={vercel} orMs={data?.marketShare} />
 
     {/* Top individual models */}
     <SH>Top Models by API Token Usage{topModels.latest ? ` — ${topModels.latest}` : ""}</SH>

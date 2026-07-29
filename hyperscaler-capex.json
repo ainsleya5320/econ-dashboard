@@ -6,13 +6,6 @@
       "color": "#00A4EF",
       "quarters": [
         {
-          "date": "2021-06-30",
-          "fiscalYear": "2021",
-          "period": "Q4",
-          "capex": 6452000000,
-          "operatingCashFlow": 22710000000
-        },
-        {
           "date": "2021-09-30",
           "fiscalYear": "2022",
           "period": "Q1",
@@ -144,6 +137,13 @@
           "period": "Q3",
           "capex": 30876000000,
           "operatingCashFlow": 46679000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q4",
+          "capex": 35802000000,
+          "operatingCashFlow": 55441000000
         }
       ]
     },
@@ -152,13 +152,6 @@
       "name": "Alphabet",
       "color": "#4285F4",
       "quarters": [
-        {
-          "date": "2021-06-30",
-          "fiscalYear": "2021",
-          "period": "Q2",
-          "capex": 5496000000,
-          "operatingCashFlow": 21890000000
-        },
         {
           "date": "2021-09-30",
           "fiscalYear": "2021",
@@ -291,6 +284,13 @@
           "period": "Q1",
           "capex": 35674000000,
           "operatingCashFlow": 45790000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 44924000000,
+          "operatingCashFlow": 39069000000
         }
       ]
     },
@@ -299,13 +299,6 @@
       "name": "Meta",
       "color": "#1877F2",
       "quarters": [
-        {
-          "date": "2021-06-30",
-          "fiscalYear": "2021",
-          "period": "Q2",
-          "capex": 4612000000,
-          "operatingCashFlow": 13246000000
-        },
         {
           "date": "2021-09-30",
           "fiscalYear": "2021",
@@ -438,6 +431,13 @@
           "period": "Q1",
           "capex": 18997000000,
           "operatingCashFlow": 32226000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 30116000000,
+          "operatingCashFlow": 31862000000
         }
       ]
     },
@@ -737,5 +737,5 @@
     }
   },
   "source": "live",
-  "updated": 1784582108556
+  "updated": 1785359603092
 }
