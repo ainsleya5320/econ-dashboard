@@ -49,34 +49,94 @@ function HeroSparkArea({ data, color = "#10b981", height = 40 }) {
   );
 }
 
-// ── Hero tile (large, used for major indexes) ───────────────────────────────
-function HeroTile({ item, fmt = "stock" }) {
-  const chg = item.changePct;
-  const up = chg != null && chg >= 0;
-  const color = up ? "#10b981" : "#f87171";
-  const fmtPrice = v => {
-    if (v == null) return "—";
-    if (fmt === "stock")     return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (fmt === "crypto")    return v >= 1000 ? `$${Math.round(v).toLocaleString()}` : `$${v.toFixed(2)}`;
-    if (fmt === "commodity") return `$${v.toFixed(2)}`;
-    if (fmt === "vix")       return v.toFixed(2);
-    return String(v);
-  };
+// ── TODAY hero — the day's tape, synthesized ────────────────────────────────
+// One card that answers "what kind of day is it?": a derived risk-on/off
+// verdict from cross-asset moves, SPY as the anchor, and every other asset's
+// day move as a DIVERGING BAR on a shared scale — so relative magnitude is
+// visible, not just readable.
+function TodayHero({ indexes = [], commodities = [], crypto = [] }) {
+  const by = s => indexes.find(i => i.symbol === s);
+  const spy = by("SPY"), qqq = by("QQQ"), iwm = by("IWM"), dia = by("DIA");
+  const vix = indexes.find(i => /VIX/.test(i.symbol || ""));
+  const gold = commodities.find(c => c.symbol === "GC=F");
+  const oil = commodities.find(c => c.symbol === "CL=F");
+  const btc = crypto.find(c => c.symbol === "BTC");
+  if (!spy) return null;
+  const eqs = [spy, qqq, iwm, dia].filter(Boolean);
+  const eqAvg = eqs.reduce((s, i) => s + (i.changePct || 0), 0) / (eqs.length || 1) * 100;
+  const vixChg = (vix?.changePct ?? 0) * 100;
+  const upCount = eqs.filter(i => (i.changePct || 0) > 0).length;
+  const sorted = [...eqs].sort((a, b) => (b.changePct || 0) - (a.changePct || 0));
+  const leader = sorted[0], laggard = sorted[sorted.length - 1];
+
+  let regime, rColor, note;
+  if (eqAvg <= -0.8 && vixChg > 5) { regime = "Risk-Off"; rColor = "#f87171"; note = `broad selloff (${upCount}/${eqs.length} up) with a vol bid`; }
+  else if (eqAvg >= 0.8 && vixChg < 0) { regime = "Risk-On"; rColor = "#4ade80"; note = `broad advance (${upCount}/${eqs.length} up), vol offered`; }
+  else if (Math.abs(eqAvg) < 0.25) { regime = "Quiet Tape"; rColor = "#818cf8"; note = "indexes little changed"; }
+  else { regime = "Mixed Tape"; rColor = "#fbbf24"; note = `${leader.symbol} leads, ${laggard.symbol} lags — rotation, not direction`; }
+  if (eqAvg < -0.5 && (gold?.changePct ?? 0) > 0.3) note += " · safe-haven bid in gold";
+  if (eqAvg < -0.5 && (btc?.changePct ?? -1) > 0.5) note += " · crypto shrugging it off";
+
+  const spyChg = (spy.changePct || 0) * 100;
+  const spyColor = spyChg >= 0 ? "#4ade80" : "#f87171";
+
+  const rows = [
+    qqq && { label: "Nasdaq (QQQ)", chg: qqq.changePct * 100 },
+    iwm && { label: "Russell (IWM)", chg: iwm.changePct * 100 },
+    dia && { label: "Dow (DIA)", chg: dia.changePct * 100 },
+    vix && { label: `VIX ${vix.price?.toFixed(1)}`, chg: vixChg, invert: true },
+    gold && { label: "Gold", chg: gold.changePct * 100 },
+    oil && { label: "Oil (WTI)", chg: oil.changePct * 100 },
+    btc && { label: "Bitcoin", chg: btc.changePct * 100 },
+  ].filter(Boolean);
+  const maxAbs = Math.max(1, Math.abs(spyChg), ...rows.map(r => Math.abs(r.chg)));
+
   return (
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", position: "relative", overflow: "hidden", minWidth: 0 }}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: "14px 14px 0 0" }} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 }}>
-        <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" }}>{item.symbol}</span>
-        <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>{item.name}</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.5 }}>{fmtPrice(item.price)}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: fonts.mono }}>
-          {chg != null ? `${up ? "+" : ""}${(chg * 100).toFixed(2)}%` : "—"}
-        </span>
-      </div>
-      <div style={{ height: 40, marginTop: 6 }}>
-        <HeroSparkArea data={item.spark} color={color} height={40} />
+    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "18px 22px", marginBottom: 14, position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: rColor }} />
+      <div style={{ display: "flex", gap: 26, flexWrap: "wrap", alignItems: "stretch" }}>
+        {/* Left: SPY anchor + regime verdict */}
+        <div style={{ flex: "1 1 250px", minWidth: 230 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase" }}>Today — S&amp;P 500</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: rColor, background: `${rColor}1e`, padding: "2px 9px", borderRadius: 6, fontFamily: fonts.mono }}>{regime}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 4 }}>
+            <span style={{ fontSize: 40, fontWeight: 700, color: spyColor, fontFamily: fonts.heading, letterSpacing: -1.5, lineHeight: 1 }}>
+              {spyChg >= 0 ? "+" : ""}{spyChg.toFixed(2)}%
+            </span>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontFamily: fonts.mono }}>${spy.price?.toFixed(2)}</span>
+          </div>
+          <div style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 6, lineHeight: 1.5 }}>{note}</div>
+          <div style={{ height: 44, marginTop: 8 }}>
+            <HeroSparkArea data={spy.spark} color={spyColor} height={44} />
+          </div>
+          <div style={{ fontSize: 8.5, color: "#475569", fontFamily: fonts.mono, textAlign: "right" }}>trailing month</div>
+        </div>
+        {/* Right: everything else on one comparable scale */}
+        <div style={{ flex: "1 1 330px", minWidth: 300, display: "flex", flexDirection: "column", justifyContent: "center", gap: 3 }}>
+          {rows.map(r => {
+            const up = r.chg >= 0;
+            const good = r.invert ? !up : up;
+            const c = good ? "#4ade80" : "#f87171";
+            const w = Math.min(50, (Math.abs(r.chg) / maxAbs) * 50);
+            return (
+              <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ width: 96, fontSize: 10.5, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right", flexShrink: 0 }}>{r.label}</span>
+                <div style={{ flex: 1, position: "relative", height: 14 }}>
+                  <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.14)" }} />
+                  <div style={{ position: "absolute", top: 2, bottom: 2, borderRadius: 3, background: c, opacity: 0.85, left: up ? "50%" : `${50 - w}%`, width: `${w}%` }} />
+                </div>
+                <span style={{ width: 58, fontSize: 11, fontFamily: fonts.mono, fontWeight: 700, color: c, flexShrink: 0, textAlign: "right" }}>
+                  {up ? "+" : ""}{r.chg.toFixed(2)}%
+                </span>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 8.5, color: "#475569", fontFamily: fonts.mono, textAlign: "center", marginTop: 3 }}>
+            bars share one scale — length is the size of the move · VIX colored inverted (up = stress)
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -119,7 +179,12 @@ function EarningsYieldRow({ index }) {
         <div style={{ fontSize: 18, fontWeight: 700, color: index.earningsYield != null ? "#4ade80" : "var(--text-muted)", fontFamily: fonts.heading, letterSpacing: -0.3, lineHeight: 1.15 }}>
           {index.earningsYield != null ? `${index.earningsYield.toFixed(2)}%` : "—"}
         </div>
-        <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono, marginTop: 1 }}>
+        {index.earningsYield != null && (
+          <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, marginTop: 4, overflow: "hidden", maxWidth: 110 }}>
+            <div style={{ width: `${Math.min(100, (index.earningsYield / 10) * 100)}%`, height: "100%", background: "#4ade80", borderRadius: 2, opacity: 0.8 }} />
+          </div>
+        )}
+        <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono, marginTop: 3 }}>
           {index.pe != null ? `P/E ${index.pe.toFixed(1)}` : "P/E unavailable"}
         </div>
       </div>
@@ -466,7 +531,10 @@ function OverviewTab() {
       </div>
     </div>
 
-    {/* 1 · THE HERO — Equity Risk Premium */}
+    {/* 1 · TODAY — the day's tape, synthesized (leads the page) */}
+    <TodayHero indexes={indexes} commodities={commodities} crypto={crypto} />
+
+    {/* 2 · THE VALUATION HERO — Equity Risk Premium */}
     {erp ? <ErpHero erp={erp} /> : (
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 20px", marginBottom: 14, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>Loading equity risk premium…</div>
     )}
@@ -492,14 +560,6 @@ function OverviewTab() {
     {/* 4 · IMPLIED MOVE */}
     <ImpliedMovePanel />
 
-    {/* 5 · THE TAPE — index prices */}
-    <SH>The Tape — Index Prices</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))", gap: 10, marginBottom: 18 }}>
-      {indexes.map(item => (
-        <HeroTile key={item.symbol} item={item} fmt={item.symbol === "^VIX" || item.symbol === "VIX" ? "vix" : "stock"} />
-      ))}
-    </div>
-
     {/* 6 · DEMOTED — commodities + crypto as a thin strip */}
     <SH>Commodities &amp; Crypto</SH>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 12, padding: "6px 4px", marginBottom: 18, display: "flex", flexWrap: "wrap" }}>
@@ -520,11 +580,11 @@ function OverviewTab() {
     </div>
 
     <InfoBox color="#818cf8">
-      <strong style={{ color: "var(--text-primary)" }}>Reading the cockpit.</strong>
-      &nbsp;The <strong>Equity Risk Premium</strong> is the spread you earn owning stocks over risk-free bonds (S&amp;P earnings yield minus the 10-year). Below zero means bonds out-yield stocks on a fundamental basis — a headwind for equity valuations. The percentile shows where today sits in 25 years of history.
-      &nbsp;<strong>Earnings yield by index</strong> lets you compare how cheap each market is on a fundamental basis; higher is cheaper.
-      &nbsp;The <strong>yield curve</strong> and 2s10s spread frame the rate backdrop; <strong>Fear &amp; Greed</strong> is the contrarian sentiment gauge.
-      &nbsp;Commodities and crypto sit at the bottom as context, not the main event.
+      <strong style={{ color: "var(--text-primary)" }}>Reading the cockpit, top to bottom.</strong>
+      &nbsp;<strong>Today</strong> leads: SPY anchors the day, the chip names the regime (risk-on/off/mixed — derived from equities × VIX × gold), and every asset&apos;s move sits on one shared bar scale so the <em>size</em> of moves is comparable at a glance.
+      &nbsp;Then the slow stuff: the <strong>Equity Risk Premium</strong> (what you&apos;re paid to own stocks over bonds — the simple gap plus Damodaran&apos;s implied measure), <strong>earnings yield by index</strong> (bars on a shared 0–10% scale; longer = cheaper),
+      the <strong>yield curve</strong> and <strong>Fear &amp; Greed</strong> for the backdrop, and the <strong>implied move</strong> panel for what options price for the week ahead.
+      &nbsp;Commodities and crypto close as context, not the main event.
     </InfoBox>
   </>);
 }
