@@ -1715,6 +1715,87 @@ async function fetchReplacementCost() {
   return data
 }
 
+/* ── Kalecki-Levy profits decomposition — where profits COME FROM ─────────
+   The accounting identity (Variant Perception / Levy Forecasting framing):
+     Profits = Investment + Dividends − Household Saving − Gov Saving − RoW Saving
+   Not a leading indicator — a lens: it says WHICH engine is driving margins
+   (fiscal deficits and household dissaving are the big top-down drivers).
+   All NIPA/Z.1 via FRED, quarterly. Signs: TGDEF is net gov SAVING (negative
+   in deficit, so −gs adds to profits); RWLBACQ027S is RoW net lending(+) to
+   the US ≈ RoW saving vis-à-vis the US (Z.1, $M — scaled to $B). */
+let kaleckiCache = { data: null, ts: 0 }
+const KALECKI_TTL = 12 * 60 * 60 * 1000
+
+async function fetchKalecki() {
+  if (kaleckiCache.data && Date.now() - kaleckiCache.ts < KALECKI_TTL) return kaleckiCache.data
+  console.log('Kalecki: fetching NIPA batch...')
+  const [profits, cp, div, inv, hs, gs, row, gdp] = await Promise.all([
+    fetchFredSeries('A551RC1Q027SBEA', 320), // profits after tax w/ IVA & CCAdj
+    fetchFredSeries('CP', 320),              // profits after tax w/o IVA & CCAdj (fallback)
+    fetchFredSeries('DIVIDEND', 320),        // net dividends
+    fetchFredSeries('A557RC1Q027SBEA', 320), // net private domestic investment
+    fetchFredSeries('PSAVE', 320),           // personal saving
+    fetchFredSeries('TGDEF', 320),           // net government saving (total)
+    fetchFredSeries('RWLBACQ027S', 320),     // RoW net lending (+) / borrowing (−), $M
+    fetchFredSeries('GDP', 320),
+  ])
+  const m = arr => Object.fromEntries(arr.map(o => [o.d, o.v]))
+  const P = m(profits.length ? profits : cp), D = m(div), I = m(inv), H = m(hs), G = m(gs), R = m(row), Y = m(gdp)
+  const dates = Object.keys(Y).filter(d => P[d] != null && D[d] != null && I[d] != null && H[d] != null && G[d] != null && R[d] != null).sort()
+  const q = dates.map(d => {
+    const gdpV = Y[d]
+    const rowB = R[d] / 1000 // $M → $B
+    const invC = +(I[d] / gdpV * 100).toFixed(2)
+    const divC = +(D[d] / gdpV * 100).toFixed(2)
+    const hhC = +(-H[d] / gdpV * 100).toFixed(2)   // household DISsaving adds
+    const govC = +(-G[d] / gdpV * 100).toFixed(2)  // deficit adds
+    const rowC = +(-rowB / gdpV * 100).toFixed(2)  // RoW saving subtracts
+    const implied = +(invC + divC + hhC + govC + rowC).toFixed(2)
+    const actual = +(P[d] / gdpV * 100).toFixed(2)
+    return { d, inv: invC, div: divC, hh: hhC, gov: govC, row: rowC, implied, actual, resid: +(actual - implied).toFixed(2) }
+  })
+  if (q.length < 40) { return { error: 'insufficient data' } }
+
+  // identity health: |median residual| should be small relative to profits
+  const resids = q.slice(-40).map(r => Math.abs(r.resid)).sort((a, b) => a - b)
+  const medResid = resids[Math.floor(resids.length / 2)]
+
+  // annual averages for the long chart
+  const byYear = {}
+  for (const r of q) {
+    const y = r.d.slice(0, 4)
+    ;(byYear[y] = byYear[y] || []).push(r)
+  }
+  const annual = Object.entries(byYear).map(([y, rows]) => {
+    const avg = k => +(rows.reduce((s, r) => s + r[k], 0) / rows.length).toFixed(2)
+    return { d: y, inv: avg('inv'), div: avg('div'), hh: avg('hh'), gov: avg('gov'), row: avg('row'), actual: avg('actual') }
+  }).filter(r => +r.d >= 1960)
+
+  const last = q[q.length - 1], yrAgo = q[q.length - 5] || q[0]
+  // VP's "top-down drivers": gov + household. 4-quarter impulse in pp of GDP.
+  const impulse = +((last.gov + last.hh) - (yrAgo.gov + yrAgo.hh)).toFixed(2)
+  const totalChg = +(last.actual - yrAgo.actual).toFixed(2)
+  const actuals = q.map(r => r.actual)
+  const pct = pctileOf(actuals, last.actual)
+
+  let verdict
+  if (impulse >= 0.5) verdict = { label: 'Profit Tailwind — Fiscal & Household Engines Pushing', color: '#4ade80' }
+  else if (impulse <= -0.5) verdict = { label: 'Profit Headwind — The Top-Down Engines Are Reversing', color: '#ef4444' }
+  else verdict = { label: 'Profit Engines Neutral', color: '#fbbf24' }
+  // driver-mix note
+  const fiscalDriven = last.gov > last.inv
+  verdict.note = `Corporate profits are ${last.actual.toFixed(1)}% of GDP (p${pct} since ${q[0].d.slice(0, 4)}). Over the last year the fiscal+household engines ${impulse >= 0 ? 'added' : 'removed'} ${Math.abs(impulse).toFixed(1)}pp of GDP ${impulse >= 0 ? 'to' : 'from'} the profit equation (total profit share ${totalChg >= 0 ? '+' : ''}${totalChg}pp). ${fiscalDriven ? 'The single largest support is the GOVERNMENT DEFICIT — profits are being underwritten in Washington, which is powerful but politically fragile.' : 'Private investment is the largest support — the higher-quality, more durable kind of profit growth.'}`
+
+  const data = {
+    verdict, latest: last, yrAgo, impulse, pct,
+    quarterly: q.slice(-16), annual,
+    identity: { medianResidual: medResid, note: 'implied vs actual gap = NIPA statistical discrepancy + minor omitted terms' },
+    updated: new Date().toISOString(),
+  }
+  if (last && annual.length > 20) kaleckiCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── Bank Credit — the lender's view of the credit cycle ─────────────────
    Eisman's lens: banks see credit deterioration first and confess it in
    loan growth, charge-offs, and provisions. Aggregate side is rock-solid
@@ -3598,6 +3679,19 @@ export default defineConfig({
           try {
             if ((req.url || '').includes('refresh=1')) { consumerCache = { data: null, ts: 0 } }
             const data = await fetchConsumerHealth()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message }))
+          }
+        })
+        // Kalecki-Levy profits decomposition (NIPA identity)
+        server.middlewares.use('/api/kalecki', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { kaleckiCache = { data: null, ts: 0 } }
+            const data = await fetchKalecki()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

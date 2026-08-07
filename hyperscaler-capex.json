@@ -447,13 +447,6 @@
       "color": "#FF9900",
       "quarters": [
         {
-          "date": "2021-06-30",
-          "fiscalYear": "2021",
-          "period": "Q2",
-          "capex": 14288000000,
-          "operatingCashFlow": 12715000000
-        },
-        {
           "date": "2021-09-30",
           "fiscalYear": "2021",
           "period": "Q3",
@@ -585,6 +578,13 @@
           "period": "Q1",
           "capex": 44203000000,
           "operatingCashFlow": 26032000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 54208000000,
+          "operatingCashFlow": 45387000000
         }
       ]
     },
@@ -737,5 +737,5 @@
     }
   },
   "source": "live",
-  "updated": 1785359603092
+  "updated": 1785950805487
 }
