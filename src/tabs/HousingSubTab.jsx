@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, AreaChart, Area, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
 

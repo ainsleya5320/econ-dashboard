@@ -300,40 +300,6 @@ async function fetchFredSeries(id, limit) {
   return []
 }
 
-async function fetchFMPProfile(symbol) {
-  try {
-    const resp = await fetch(`https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${FMP_KEY}`, { headers: { 'User-Agent': UA } })
-    const data = await resp.json()
-    const p = data?.[0]
-    if (!p) return null
-    return {
-      symbol,
-      name: p.companyName,
-      price: p.price,
-      change: p.change,
-      changePct: p.changePercentage,
-      mktCap: p.marketCap,
-      sector: p.sector,
-      industry: p.industry,
-    }
-  } catch { return null }
-}
-
-async function fetchFMPHistorical(symbol, years = 5) {
-  try {
-    const resp = await fetch(`https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_KEY}`, { headers: { 'User-Agent': UA } })
-    const data = await resp.json()
-    const hist = data?.historical || data || []
-    if (!Array.isArray(hist)) return []
-    // Limit to `years` of data, weekly sampled for chart lightness
-    const cutoff = new Date(Date.now() - years * 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const filtered = hist.filter(d => d.date >= cutoff).reverse()
-    const weekly = []
-    for (let i = 0; i < filtered.length; i += 5) weekly.push({ d: filtered[i].date, v: filtered[i].close })
-    return weekly
-  } catch { return [] }
-}
-
 async function fetchAIImpact() {
   if (aiImpactCache.data && Date.now() - aiImpactCache.ts < AI_IMPACT_TTL) return aiImpactCache.data
 

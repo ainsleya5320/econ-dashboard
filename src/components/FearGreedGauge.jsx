@@ -11,15 +11,6 @@ const zoneColor = (score) => {
   return "#16A34A";                  // Extreme Greed - green
 };
 
-const zoneLabel = (score) => {
-  if (score == null) return "—";
-  if (score < 25) return "Extreme Fear";
-  if (score < 45) return "Fear";
-  if (score < 55) return "Neutral";
-  if (score < 75) return "Greed";
-  return "Extreme Greed";
-};
-
 /* Semi-circular gauge, needle pointing to composite score 0–100 */
 function SemiGauge({ score }) {
   const safeScore = score ?? 50;

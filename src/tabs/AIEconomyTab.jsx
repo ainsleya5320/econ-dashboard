@@ -70,13 +70,6 @@ function SortIcon({ col, sortCol, sortAsc }) {
 // ===========================================================
 
 // Format large numbers
-const fmtMCap = (v) => {
-  if (v == null) return "-";
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
-  if (v >= 1e9)  return `$${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6)  return `$${(v / 1e6).toFixed(0)}M`;
-  return `$${v.toLocaleString()}`;
-};
 const fmtPct = (v, decimals = 2) => v == null ? "-" : `${v > 0 ? "+" : ""}${v.toFixed(decimals)}%`;
 const fmtDate2 = (d) => {
   if (!d) return "";
@@ -1059,13 +1052,6 @@ function ModelMarketTab({ models }) {
 // ===========================================================
 // SUB-TAB 3: RANKINGS (live OpenRouter token usage data)
 // ===========================================================
-const fmtTokens = n => {
-  if (n >= 1e12) return `${(n / 1e12).toFixed(2)}T`;
-  if (n >= 1e9)  return `${(n / 1e9).toFixed(n >= 1e11 ? 0 : 1)}B`;
-  if (n >= 1e6)  return `${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3)  return `${(n / 1e3).toFixed(0)}K`;
-  return String(n);
-};
 const fmtReqs = n => {
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}K`;

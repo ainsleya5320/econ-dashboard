@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, BarChart, Bar, Cell, ReferenceLine, LineChart, Line, CartesianGrid } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart, BarChart, Bar, ReferenceLine, LineChart, Line, CartesianGrid } from "recharts";
 import createPlotlyComponent from "react-plotly.js/factory";
 import Plotly from "plotly.js-dist-min";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
-import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
+import { RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import TickerSearch from "../components/TickerSearch.jsx";
 import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel, SyntheticRating } from "./stocks/ResearchPanels.jsx";

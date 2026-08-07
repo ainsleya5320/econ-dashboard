@@ -117,22 +117,6 @@ async function fetchOpenRouterRankings() {
   return j.rows || [];
 }
 
-async function fetchFMPNews(fmpKey, limit = 40) {
-  const data = await fetchFMP(`/fmp-articles?limit=${limit}`, fmpKey);
-  if (!Array.isArray(data)) return [];
-  // Normalize fields: fmp-articles uses "link" not "url", "date" not "publishedDate", "content" (HTML) not "text"
-  return data.filter(n => n.title && n.link).map(n => ({
-    title: n.title,
-    url: n.link,
-    site: n.site || "FMP",
-    image: n.image,
-    publishedDate: n.date,
-    text: n.content ? n.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : "",
-    author: n.author,
-    tickers: n.tickers,
-  }));
-}
-
 // Recognizable publishers we whitelist from FMP's aggregated feeds. site domain
 // → clean chyron label + paywall flag (so the ticker can hint before a click).
 const PREMIUM_PUBLISHERS = {
@@ -367,4 +351,4 @@ async function fetchFMPCPI(fmpKey) {
   return { CPIAUCSL: { yoy: history[history.length - 1].v, lastDate: history[history.length - 1].d, history } };
 }
 
-export { fetchJson, fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPNews, fetchFMPPremiumNews, fetchZillowData };
+export { fetchJson, fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOptionsChain, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPPremiumNews, fetchZillowData };

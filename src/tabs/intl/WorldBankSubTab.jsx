@@ -65,13 +65,6 @@ function fmtPop(v) {
 const ttStyle = { background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading };
 
 /* ── subtab definitions ───────────────────────────────────────── */
-const WB_SUBS = [
-  { id: "gdp",   label: "GDP" },
-  { id: "debt",  label: "Debt" },
-  { id: "infl",  label: "Inflation" },
-  { id: "demo",  label: "Demographics" },
-];
-
 /* ── build latest-value map { countryCode → value } ──────────── */
 function latestByCountry(rows) {
   const map = {};
@@ -85,13 +78,6 @@ function latestByCountry(rows) {
 }
 
 /* ── build time-series array for one country ─────────────────── */
-function timeSeries(rows, cc) {
-  return rows
-    .filter(r => r.country.id === cc && r.value != null)
-    .map(r => ({ year: +r.date, value: r.value }))
-    .sort((a, b) => a.year - b.year);
-}
-
 /* ── reusable horizontal bar chart (ranked) ──────────────────── */
 function RankedBarChart({ data, formatter, unit, height = 380 }) {
   if (!data.length) return null;
