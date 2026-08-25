@@ -3,7 +3,8 @@ import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, Cell
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import ForecastPanel from "../components/ForecastPanel.jsx";
-import LabRevenueTracker from "../components/LabRevenueTracker.jsx";
+import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker.jsx";
+import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 
 const PRICING_TIERS = [
   { label: "Free",    color: "#10B981", test: p => p === 0 },
@@ -647,59 +648,12 @@ function PowerBottleneckPanel() {
   </>);
 }
 
-function AIImpactTab() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState(null);
-
-  const load = () => {
-    setLoading(true);
-    fetch("/api/ai-impact")
-      .then(r => r.json())
-      .then(d => { setData(d); setLastRefresh(Date.now()); })
-      .catch(e => console.error("AI Impact error:", e))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
-
-  if (loading && !data) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading real-economy AI metrics...</div>;
-  }
-  if (!data || !data.fred) {
-    return <InfoBox color="#F97316">Unable to load real-economy data. FRED API may be temporarily unavailable.</InfoBox>;
-  }
-
-  const f = data.fred;
-  // Convenience refs
-  const prod     = f.OPHNFB;
-  const infoProd = f.MPU4910063;
-  const softInv  = f.Y694RX1Q020SBEA;
-  const ipInv    = f.A679RC1Q027SBEA;
-  const hwInv    = f.Y033RC1Q027SBEA;
-  const semis    = f.IPG3344S;
-  const mfgCons  = f.TLMFGCONS;
-  const csdJobs  = f.CES6054150001;
-  const infoJobs = f.USINFO;
-  const power    = f.IPG2211A2N;
-
-  // Loaded count for health badge
-  const loadedCount = Object.keys(f).length;
-
+// Capability benchmarks (human-baseline table, METR time horizon, GDPval-AA)
+// — pure render from curated constants. Extracted from the old Economic
+// Impact tab; now mounted on Models & Labs (capability is why token demand
+// exists, so it lives with the labs, not the macro data).
+function CapabilityPanels() {
   return (<>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 10 }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5 }}>AI &amp; The Real Economy</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>{loadedCount} live series</span>
-        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>
-          {lastRefresh ? `| Updated ${new Date(lastRefresh).toLocaleTimeString()}` : ""}
-        </span>
-        <button onClick={load} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Refresh</button>
-      </div>
-    </div>
-    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 18, maxWidth: 780 }}>
-      Tracking AI&apos;s footprint on the real economy - not stock prices. If the AI thesis is right, we should see it show up in productivity growth, capital formation (chips, data centers, software), semiconductor output, and power demand. These are the series that will confirm or refute the boom.
-    </div>
-
     {/* ======== CAPABILITY ON HUMAN TASKS ======== */}
     <SH>Capability - Can AI Actually Do Human Work?</SH>
     {(() => {
@@ -836,9 +790,61 @@ function AIImpactTab() {
     <InfoBox color="#F59E0B">
       <strong style={{ color: "#cbd5e1" }}>Caveats.</strong> This Elo is <em>relative to other AI models</em>, not a fixed "50% = human parity" bar like the original GDPval used - a big methodology change, so don&apos;t compare these numbers to older GDPval win-rate figures you may have seen. It&apos;s run by a third party (Artificial Analysis), not OpenAI. It measures task-level deliverable quality, not workflow integration, judgment under ambiguity, or sustained performance. And several leaderboard rows are the same underlying model at different effort/reasoning settings, so treat "125 models" as configs, not 125 distinct frontier labs.
     </InfoBox>
+  </>);
+}
 
-    {/* ======== ADOPTION BREADTH (Census BTOS) ======== */}
-    <BtosAdoptionPanel />
+function ComputePowerTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/ai-impact")
+      .then(r => r.json())
+      .then(d => { setData(d); setLastRefresh(Date.now()); })
+      .catch(e => console.error("AI Impact error:", e))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  if (loading && !data) {
+    return <div style={{ padding: 40, textAlign: "center", color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading real-economy AI metrics...</div>;
+  }
+  if (!data || !data.fred) {
+    return <InfoBox color="#F97316">Unable to load real-economy data. FRED API may be temporarily unavailable.</InfoBox>;
+  }
+
+  const f = data.fred;
+  // Convenience refs
+  const prod     = f.OPHNFB;
+  const infoProd = f.MPU4910063;
+  const softInv  = f.Y694RX1Q020SBEA;
+  const ipInv    = f.A679RC1Q027SBEA;
+  const hwInv    = f.Y033RC1Q027SBEA;
+  const semis    = f.IPG3344S;
+  const mfgCons  = f.TLMFGCONS;
+  const csdJobs  = f.CES6054150001;
+  const infoJobs = f.USINFO;
+  const power    = f.IPG2211A2N;
+
+  // Loaded count for health badge
+  const loadedCount = Object.keys(f).length;
+
+  return (<>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5 }}>Compute &amp; Power — The Buildout</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>{loadedCount} live series</span>
+        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>
+          {lastRefresh ? `| Updated ${new Date(lastRefresh).toLocaleTimeString()}` : ""}
+        </span>
+        <button onClick={load} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Refresh</button>
+      </div>
+    </div>
+    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 18, maxWidth: 780 }}>
+      Stage 3 of the chain: the data-center buildout and what it costs. Who is spending (hyperscaler capex), who is financing it (the AI debt stack), what the grid charges for scarcity (PJM), and whether the buildout is showing up in the real economy — construction, semis output, jobs, power generation, and ultimately productivity.
+    </div>
 
     {/* ======== POWER BOTTLENECK ======== */}
     <PowerBottleneckPanel />
@@ -875,6 +881,9 @@ function AIImpactTab() {
 
     {/* ======== HYPERSCALER CAPEX ======== */}
     <HyperscalerCapexPanel />
+
+    {/* ======== AI DEBT MARKET (who funds the buildout) ======== */}
+    <AIDebtPanel />
 
     {/* ======== PHYSICAL BUILDOUT ======== */}
     <SH>Physical Buildout - Chips &amp; Data Centers</SH>
@@ -1613,7 +1622,9 @@ function IntelligencePerDollarPanel({ data }) {
   </>);
 }
 
-function PricingTab() {
+// section: "llm" renders only token pricing (Models & Labs tab), "gpu" only
+// GPU pricing (Silicon & Memory tab); omit for the original combined page.
+function PricingTab({ section }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -1674,14 +1685,17 @@ function PricingTab() {
   const snapCount = (data.history?.tokenHistory?.length || 0);
 
   return (<>
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5, marginBottom: 4 }}>AI Pricing Tracker</div>
-      <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>
-        Token prices from <a href="https://openrouter.ai" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>OpenRouter</a> | GPU spot from <a href="https://vast.ai" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>Vast.ai</a> | {snapCount} snapshot{snapCount !== 1 ? 's' : ''} saved | Auto-snapshots every 6h
+    {!section && (
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5, marginBottom: 4 }}>AI Pricing Tracker</div>
+        <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>
+          Token prices from <a href="https://openrouter.ai" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>OpenRouter</a> | GPU spot from <a href="https://vast.ai" target="_blank" rel="noopener" style={{ color: "#818cf8" }}>Vast.ai</a> | {snapCount} snapshot{snapCount !== 1 ? 's' : ''} saved | Auto-snapshots every 6h
+        </div>
       </div>
-    </div>
+    )}
 
     {/* -- Token Pricing -- */}
+    {section !== "gpu" && (<>
     <SH>LLM Token Prices (per 1M tokens)</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, marginBottom: 14 }}>
       <StatCard label="Models Tracked" val={live?.tokens?.totalModels || '-'} sub={`${live?.tokens?.paidModels || 0} paid`} color="#6366F1" />
@@ -1745,8 +1759,11 @@ function PricingTab() {
         <strong style={{ color: "#cbd5e1" }}>Price history will build over time.</strong> The system saves daily snapshots of token and GPU prices. Check back tomorrow to see your first trend line - after a week you'll have meaningful price movement data.
       </InfoBox>
     )}
+    {data && <IntelligencePerDollarPanel data={data} />}
+    </>)}
 
     {/* -- GPU Pricing -- */}
+    {section !== "llm" && (<>
     <SH>GPU Spot Prices (Vast.ai + RunPod Consensus)</SH>
     {gpuRows.length > 0 ? (<>
       {(() => {
@@ -1830,8 +1847,7 @@ function PricingTab() {
         <strong style={{ color: "#cbd5e1" }}>Two-source consensus.</strong> Each GPU&apos;s headline price blends Vast.ai&apos;s marketplace median with RunPod&apos;s community on-demand price. Vast&apos;s raw marketplace is noisy — its median shifts with whatever machines happen to be listed that day — while RunPod is a curated single quote, so averaging the two smooths the day-to-day jitter you were seeing. The <strong>Spread</strong> column shows how far the two sources disagree: high spread (&gt;35%, red) means treat that GPU&apos;s price with more caution. The history chart plots the blended consensus going forward.
       </InfoBox>
     )}
-
-    {data && <IntelligencePerDollarPanel data={data} />}
+    </>)}
 
     <InfoBox color="#8B5CF6">
       <strong style={{ color: "#cbd5e1" }}>How this works:</strong> Every 6 hours (and on each page load), the server snapshots current token and GPU prices to a local file (<code style={{ color: "#a5b4fc" }}>ai-prices.json</code>). Over time, this builds a price history that lets you track the deflation curve for both LLM inference and GPU compute. Keep the dev server running to accumulate data points.
@@ -4055,7 +4071,7 @@ function VercelGatewayPanel({ vercel, orMs }) {
   </>);
 }
 
-function ApiUsageTab() {
+function ApiUsagePanels() {
   const [data, setData] = useState(null);
   const [vercel, setVercel] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -4609,7 +4625,7 @@ function SdQuadrant({ trail }) {
   );
 }
 
-function SupplyDemandTab() {
+function SiliconMemoryTab() {
   const [or, setOr] = useState(null);
   const [prices, setPrices] = useState(null);
   const [sdk, setSdk] = useState(null);
@@ -4930,8 +4946,8 @@ function SupplyDemandTab() {
       </div>
     </>)}
 
-    {/* ── Ornn OTPI: what a token actually costs, by company (toggleable) ── */}
-    <OrnnTokenPricePanel ornn={ornn} />
+    {/* ── GPU spot table (Vast + RunPod consensus, from the pricing tracker) ── */}
+    <PricingTab section="gpu" />
 
     {/* ── FutureSearch forward view (live values overlaid where we track them) ── */}
     <ForecastPanel tag="ai" live={{
@@ -4942,11 +4958,8 @@ function SupplyDemandTab() {
     {/* ── Supply ceiling: packaging + memory (curated) ── */}
     <SupplyCeilingPanel />
 
-    {/* ── Rev-per-GW wedge tracker (hand-curated: does the buildout pay?) ── */}
-    <LabRevenueTracker />
-
-    {/* ── AI debt-market tracker (curated $7T scoreboard) ── */}
-    <AIDebtPanel />
+    {/* ── TrendForce memory spot (scraped daily, self-built archive) ── */}
+    <MemoryPricesPanel />
 
     {/* ── Quadrant + stacks ── */}
     <SH>Regime &amp; Growth Stacks</SH>
@@ -4985,19 +4998,254 @@ function SupplyDemandTab() {
 // ===========================================================
 // MAIN: AIEconomyTab
 // ===========================================================
-function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
-  const [subTab, setSubTab] = useState("balance");
+// ============================================================================
+// THE CHAIN — the section's organizing principle (2026-08 revamp)
+// End demand for tokens → models & labs that monetize them → the data centers
+// they run in → the silicon & memory underneath. Each stage's demand is the
+// next stage's revenue; the interesting metrics are the LINKS between stages:
+//   link A  $/token realized (do tokens still fetch a price?)
+//   link B  revenue per GW  (the wedge — the master KPI)
+//   link C  $/GPU-hr        (the clearing price for silicon in the DC)
+// ============================================================================
 
+// Small collapsible wrapper for demoted-but-kept panels.
+function Collapse({ title, sub, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        width: "100%", textAlign: "left", cursor: "pointer", background: cardBg,
+        border: cardBorder, borderRadius: 14, padding: "12px 16px",
+        fontSize: 12, fontFamily: fonts.heading, fontWeight: 700, color: "#cbd5e1",
+      }}>
+        <span style={{ color: "#818cf8", marginRight: 8 }}>{open ? "▾" : "▸"}</span>{title}
+        {sub && <span style={{ fontWeight: 400, fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginLeft: 10 }}>{sub}</span>}
+      </button>
+      {open && <div style={{ marginTop: 14 }}>{children}</div>}
+    </div>
+  );
+}
+
+// Self-fetching wrapper so the OTPI panel can live on Models & Labs without
+// dragging the whole Silicon tab's data loading with it (/api/ornn is
+// server-cached, so the duplicate fetch is nearly free).
+function OrnnTokenPriceSection() {
+  const [ornn, setOrnn] = useState(null);
+  useEffect(() => {
+    fetch("/api/ornn").then(r => r.json()).then(d => { if (!d.error) setOrnn(d); }).catch(() => {});
+  }, []);
+  if (!ornn) return null;
+  return <OrnnTokenPricePanel ornn={ornn} />;
+}
+
+// ── Stage 1: TOKEN DEMAND ───────────────────────────────────────────────────
+function TokenDemandTab() {
+  return (<>
+    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
+      Stage 1 of the chain: who wants intelligence, and how fast is that growing. OpenRouter token flow is the
+      highest-frequency sample; Vercel is the second sample; SDK installs and adoption breadth lead it.
+    </div>
+    <DemandTab />
+    <ApiUsagePanels />
+    <BtosAdoptionPanel />
+    <Collapse title="Corroborating Signals — Stack Overflow / GitHub / Cloudflare" sub="early-warning breadth, not headline signals">
+      <UsageSignalsPanel />
+    </Collapse>
+  </>);
+}
+
+// ── Stage 2: MODELS & LABS ──────────────────────────────────────────────────
+function ModelsLabsTab({ models, rankings, rankingsLoading }) {
+  return (<>
+    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
+      Stage 2 of the chain: who converts tokens into money, at what price and what quality. The wedge tracker is
+      the master KPI; capability benchmarks are why the demand exists; then what a token sells for, and the
+      model-catalog reference views.
+    </div>
+    <LabRevenueTracker />
+    <CapabilityPanels />
+    <PricingTab section="llm" />
+    <OrnnTokenPriceSection />
+    <Collapse title="Model Catalogs — HF Rankings & OpenRouter Market" sub="reference depth: leaderboards, author share, pricing tiers">
+      <RankingsTab rankings={rankings} rankingsLoading={rankingsLoading} />
+      <ModelMarketTab models={models} />
+    </Collapse>
+  </>);
+}
+
+// ── The Chain landing page ──────────────────────────────────────────────────
+const CHAIN_STAGES_NOTE = "Click any stage to open its full tab.";
+
+function StageCard({ n, title, question, kpi, kpiSub, verdict, color, extra, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 18px",
+      cursor: "pointer", transition: "border-color 120ms",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.6, textTransform: "uppercase" }}>
+          Stage {n} · {title} <span style={{ color: "#475569" }}>— {question}</span>
+        </div>
+        <div style={{ fontSize: 10, fontFamily: fonts.mono, fontWeight: 700, color, border: `1px solid ${color}44`, borderRadius: 12, padding: "2px 10px" }}>{verdict}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 26, fontWeight: 800, fontFamily: fonts.heading, color: "#f1f5f9" }}>{kpi}</div>
+        <div style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono }}>{kpiSub}</div>
+      </div>
+      {extra && <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 4, lineHeight: 1.5 }}>{extra}</div>}
+    </div>
+  );
+}
+
+function ChainLink({ label, value, color }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0 6px 26px" }}>
+      <span style={{ color: "#475569", fontSize: 14 }}>▼</span>
+      <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.4, textTransform: "uppercase" }}>{label}</span>
+      <span style={{ fontSize: 11, fontFamily: fonts.mono, fontWeight: 700, color }}>{value}</span>
+    </div>
+  );
+}
+
+function ChainTab({ go }) {
+  const [or, setOr] = useState(null);
+  const [ornn, setOrnn] = useState(null);
+  const [semi, setSemi] = useState(null);
+  const [mem, setMem] = useState(null);
+  useEffect(() => {
+    fetch("/api/or-rankings-history").then(r => r.json()).then(setOr).catch(() => {});
+    fetch("/api/ornn").then(r => r.json()).then(d => { if (!d.error) setOrnn(d); }).catch(() => {});
+    fetch("/api/semi-h100").then(r => r.json()).then(d => { if (!d.error) setSemi(d); }).catch(() => {});
+    fetch("/api/memory").then(r => r.json()).then(d => { if (!d.error) setMem(d); }).catch(() => {});
+  }, []);
+
+  const c = useMemo(() => {
+    // Stage 1 — token demand (last complete OpenRouter week + 13-week growth)
+    const wk = orWeeklyTotals(or);
+    const wkLast = wk.length ? wk[wk.length - 1] : null;
+    const wk13 = wk.length > 13 ? wk[wk.length - 14] : (wk[0] || null);
+    const demand13 = wkLast && wk13 && wk13.v && wkLast !== wk13 ? ((wkLast.v / wk13.v) - 1) * 100 : null;
+
+    // Link A — realized $/M tokens (avg of the big-4 labs' OTPI), ~30d change
+    const OTPI_BIG4 = ["anthropic", "openai", "google", "deepseek"];
+    const otpi = (ornn?.otpiRows || []).map(r => {
+      const vals = OTPI_BIG4.map(l => r[l]).filter(v => v != null);
+      return vals.length >= 2 ? { d: r.d, v: vals.reduce((a, b) => a + b, 0) / vals.length } : null;
+    }).filter(Boolean);
+    const otpiNow = otpi.length ? otpi[otpi.length - 1] : null;
+    const cut30 = otpiNow ? new Date(Date.parse(otpiNow.d) - 30 * 86400000).toISOString().slice(0, 10) : null;
+    const otpiBase = cut30 ? [...otpi].reverse().find(p => p.d <= cut30) : null;
+    const otpiChg = otpiNow && otpiBase?.v ? ((otpiNow.v / otpiBase.v) - 1) * 100 : null;
+
+    // Stage 2 — labs (latest disclosed ARR per lab + the wedge)
+    const wedge = wedgeSummary();
+    const latestByCo = {};
+    for (const r of REVENUE_DISCLOSURES) if (!latestByCo[r.co] || r.d > latestByCo[r.co].d) latestByCo[r.co] = r;
+    const arrTotal = Object.values(latestByCo).reduce((a, r) => a + r.arr, 0);
+    const spreadX = wedge.latestRev ? wedge.latestRev.rev / ((wedge.costBand.min + wedge.costBand.max) / 2) : null;
+
+    // Stage 3 — compute & power
+    const debtTotal = AI_DEBT_DEALS.reduce((a, d) => a + (d.amt || 0), 0);
+    const pjm = PJM_CAPACITY[PJM_CAPACITY.length - 1];
+    const pjmPrev = PJM_CAPACITY[PJM_CAPACITY.length - 2];
+
+    // Link C — H100 1y-contract clearing price (~4 weeks back for the change)
+    const hSeries = (semi?.series || []).filter(r => r.h100 != null);
+    const hNow = hSeries.length ? hSeries[hSeries.length - 1] : null;
+    const hBase = hSeries.length > 4 ? hSeries[hSeries.length - 5] : null;
+    const hChg = hNow && hBase?.h100 ? ((hNow.h100 / hBase.h100) - 1) * 100 : null;
+
+    // Stage 4 — silicon & memory (repricing breadth this session)
+    const items = (mem?.latest || []).filter(i => i.chg != null);
+    const memUp = items.filter(i => i.chg > 0).length;
+    const memDown = items.filter(i => i.chg < 0).length;
+    const ddr5 = (mem?.latest || []).find(i => i.n.startsWith("DDR5 16Gb (2Gx8) 4800"));
+
+    return { wkLast, demand13, otpiNow, otpiChg, wedge, arrTotal, spreadX, debtTotal, pjm, pjmPrev, hNow, hChg, memUp, memDown, memTotal: items.length, ddr5 };
+  }, [or, ornn, semi, mem]);
+
+  // Simple, honest verdicts — each one derived from a number shown on the card.
+  const vDemand = c.demand13 == null ? ["Loading", "#64748b"]
+    : c.demand13 < 0 ? ["Cooling", SD_RED]
+    : c.demand13 > 15 ? ["Compounding", SD_GREEN]
+    : ["Growing", SD_GREEN];
+  const vLabs = [c.wedge.status.title, c.wedge.status.color];
+  const vCompute = !c.pjm ? ["—", "#64748b"]
+    : c.pjm.price > (c.pjmPrev?.price ?? 0) ? ["Scarcity priced in", SD_AMBER]
+    : ["Easing", SD_GREEN];
+  const vSilicon = c.memTotal === 0 ? ["Loading", "#64748b"]
+    : c.memUp > c.memDown ? ["Repricing up", SD_RED]
+    : c.memUp === c.memDown ? ["Mixed", SD_AMBER]
+    : ["Cooling", SD_GREEN];
+
+  const linkColor = chg => chg == null ? "#64748b" : chg > 2 ? SD_RED : chg < -2 ? SD_GREEN : SD_AMBER;
+
+  return (<>
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5 }}>The Chain</div>
+      <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginTop: 4, maxWidth: 820, lineHeight: 1.55 }}>
+        End demand for tokens → the models that monetize them → the data centers they run in → the silicon &amp;
+        memory underneath. Each stage&apos;s demand is the next stage&apos;s revenue; the links between stages are the
+        prices that tell you whether the buildout still pays. {CHAIN_STAGES_NOTE}
+      </div>
+    </div>
+
+    <div style={{ display: "flex", flexDirection: "column", maxWidth: 880, margin: "14px 0 6px" }}>
+      <StageCard n={1} title="Token Demand" question="who wants intelligence?"
+        kpi={`${sdTok(c.wkLast?.v)}/wk`} kpiSub={`API tokens, last complete week (OpenRouter sample) · 13-week ${sdPct(c.demand13)}`}
+        verdict={vDemand[0]} color={vDemand[1]} onClick={() => go("tokens")}
+        extra="Corroborated by Vercel gateway, SDK installs, Census adoption breadth — all on the Token Demand tab." />
+      <ChainLink label="Link A · realized $ per M tokens" color={linkColor(c.otpiChg)}
+        value={c.otpiNow ? `$${c.otpiNow.v.toFixed(2)}/M big-4 avg · 30d ${sdPct(c.otpiChg, 1)}` : "loading…"} />
+      <StageCard n={2} title="Models & Labs" question="who converts it to money?"
+        kpi={`$${c.arrTotal.toFixed(0)}B`} kpiSub="latest disclosed AI revenue run-rates, summed (OpenAI + Anthropic + Microsoft AI)"
+        verdict={vLabs[0]} color={vLabs[1]} onClick={() => go("models")}
+        extra={c.wedge.latestRev
+          ? `The wedge: ~$${c.wedge.latestRev.rev.toFixed(0)}M/MW/yr latest print vs $${c.wedge.costBand.min}–${c.wedge.costBand.max}M cost${c.spreadX ? ` — ${c.spreadX.toFixed(1)}× base compute cost` : ""}. Needs a second print to trend.`
+          : "Wedge tracker awaiting first rev-per-MW print."} />
+      <ChainLink label="Link B · revenue per GW (the master KPI)" color={c.wedge.status.color}
+        value={c.wedge.latestRev ? `$${c.wedge.latestRev.rev.toFixed(0)}M/MW · ${c.wedge.status.title.toLowerCase()}` : "collecting baseline"} />
+      <StageCard n={3} title="Compute & Power" question="what does the buildout cost?"
+        kpi={c.wedge.gwTotal ? `${c.wedge.gwTotal.toFixed(0)} GW` : "—"}
+        kpiSub={`tracked lab footprint by ${c.wedge.gwDate || "—"} (incl. projections) · $${c.debtTotal.toFixed(0)}B AI debt announced · PJM $${c.pjm?.price}/MW-day`}
+        verdict={vCompute[0]} color={vCompute[1]} onClick={() => go("compute")}
+        extra={c.pjmPrev ? `Grid scarcity: PJM capacity cleared $${c.pjmPrev.price} → $${c.pjm.price} across the last two auctions.` : null} />
+      <ChainLink label="Link C · $ per GPU-hour (H100 1y contract)" color={linkColor(c.hChg)}
+        value={c.hNow ? `$${c.hNow.h100.toFixed(2)}/hr · 4wk ${sdPct(c.hChg, 1)}` : "loading…"} />
+      <StageCard n={4} title="Silicon & Memory" question="what does the hardware cost?"
+        kpi={c.ddr5 ? `$${c.ddr5.avg.toFixed(1)}` : "—"}
+        kpiSub={`DDR5 16Gb spot avg · memory breadth ${c.memUp}▲/${c.memDown}▼ of ${c.memTotal} parts this session`}
+        verdict={vSilicon[0]} color={vSilicon[1]} onClick={() => go("silicon")}
+        extra="H100 contract/spot, all-generation rental, CoWoS/HBM ceiling, and TrendForce memory spot — the upstream repricing evidence." />
+    </div>
+
+    <InfoBox color="#818cf8">
+      <strong style={{ color: "#cbd5e1" }}>How to read the chain.</strong> Healthy: stage 1 grows, link A holds or
+      falls slowly, link B widens, links C and stage 4 reprice UP (scarcity — bullish suppliers). The bear signature
+      is the reverse cascade: stage 1 still growing but link A collapsing, link B flat while GW lands (the wedge
+      plateau), then C and memory rolling over as supply catches demand. One stage alone is noise — watch for the
+      sequence.
+    </InfoBox>
+
+    <div style={{ margin: "22px 0 0" }}>
+      <SH>Full Scorecard — Every KPI in One Table</SH>
+      <ScorecardTab />
+    </div>
+  </>);
+}
+
+function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
+  const [subTab, setSubTab] = useState("chain");
+
+  // 2026-08 revamp: nine source-organized tabs consolidated into the chain
+  // (tokens → models → data centers → silicon), plus the Tokenomics workbench.
   const SUB_TABS = [
-    { id: "balance",    label: "Supply & Demand" },
-    { id: "scorecard",  label: "Scorecard"       },
-    { id: "demand",     label: "Demand"          },
-    { id: "usage",      label: "API Usage"       },
-    { id: "tokenomics", label: "Tokenomics"      },
-    { id: "rankings",   label: "Rankings"        },
-    { id: "pricing",    label: "Pricing"         },
-    { id: "index",      label: "Economic Impact" },
-    { id: "market",     label: "Model Market"    },
+    { id: "chain",      label: "The Chain"        },
+    { id: "tokens",     label: "Token Demand"     },
+    { id: "models",     label: "Models & Labs"    },
+    { id: "compute",    label: "Compute & Power"  },
+    { id: "silicon",    label: "Silicon & Memory" },
+    { id: "tokenomics", label: "Tokenomics"       },
   ];
 
   return (<>
@@ -5008,15 +5256,12 @@ function AIEconomyTab({ models, loading, rankings, rankingsLoading }) {
       ))}
     </div>
 
-    {subTab === "balance"    && <SupplyDemandTab />}
-    {subTab === "scorecard"  && <ScorecardTab />}
-    {subTab === "usage"      && <ApiUsageTab />}
+    {subTab === "chain"      && <ChainTab go={setSubTab} />}
+    {subTab === "tokens"     && <TokenDemandTab />}
+    {subTab === "models"     && <ModelsLabsTab models={models} rankings={rankings} rankingsLoading={rankingsLoading} />}
+    {subTab === "compute"    && <ComputePowerTab />}
+    {subTab === "silicon"    && <SiliconMemoryTab />}
     {subTab === "tokenomics" && <TokenomicsTab />}
-    {subTab === "demand"     && <DemandTab />}
-    {subTab === "rankings"   && <RankingsTab rankings={rankings} rankingsLoading={rankingsLoading} />}
-    {subTab === "pricing"    && <PricingTab />}
-    {subTab === "index"      && <AIImpactTab />}
-    {subTab === "market"     && <ModelMarketTab models={models} />}
   </>);
 }
 

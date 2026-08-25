@@ -3012,6 +3012,117 @@ async function getSemiH100() {
   return data
 }
 
+/* ── TrendForce memory spot prices (DRAM / modules / GDDR / NAND) ─────────
+   trendforce.com/price serves its spot-price tables fully server-rendered,
+   free, no login: DRAM chips (DDR3/4/5 + eTT), modules (UDIMM/RDIMM/SO-DIMM),
+   graphics DRAM (GDDR), NAND — each with session high/low/average and a
+   session change %. Price HISTORY is member-gated, so we build our own:
+   every successful fetch appends today's snapshot to memory-prices.json
+   (append-only archive, same pattern as semi-h100-index.json). Spot ≠
+   contract: quarterly contract prices move via TrendForce press releases and
+   are curated by hand in the MemoryPricesPanel component, not scraped. */
+const MEMORY_FILE = path.join(__dirname, 'memory-prices.json')
+let memoryCache = { data: null, ts: 0 }
+const MEMORY_TTL = 6 * 60 * 60 * 1000 // 6h — page updates once per Taiwan business day
+
+function loadMemoryArchive() {
+  try { if (fs.existsSync(MEMORY_FILE)) return JSON.parse(fs.readFileSync(MEMORY_FILE, 'utf8')) } catch {}
+  return { days: [], updated: 0 }
+}
+function saveMemoryArchive(store) {
+  try { fs.writeFileSync(MEMORY_FILE, JSON.stringify(store)) } catch (e) { console.error('Memory archive save:', e.message) }
+}
+
+// Classify a spot-table row by its item name; null = row we don't track.
+function memoryGroup(name) {
+  if (/^GDDR/i.test(name)) return 'gddr'
+  if (/DIMM/i.test(name)) return 'module'
+  if (/NAND|TLC|MLC|SLC|Flash/i.test(name)) return 'nand'
+  if (/^LPDDR/i.test(name)) return 'mobile'
+  if (/^DDR\d/i.test(name)) return 'chip'
+  return null
+}
+
+// Parse the server-rendered <table> rows into { n, g, avg, chg } items.
+// Column layouts differ per table (daily vs session vs weekly hi/lo), but in
+// every layout the LAST pure-numeric cell is the session average, and the
+// change cell is the first cell containing '%' (▲/▼ entity carries the sign).
+function parseTrendForce(html) {
+  const items = []
+  const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || []
+  for (const row of rows) {
+    const cells = (row.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || [])
+      .map(c => c.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim())
+    if (cells.length < 3) continue
+    const name = cells[0]
+    if (!name || /^Item$/i.test(name)) continue
+    const g = memoryGroup(name)
+    if (!g) continue
+    // pure-numeric cells only (change cells contain % / arrows and are excluded)
+    const nums = cells.filter(c => /^[\d,]+(\.\d+)?$/.test(c)).map(c => parseFloat(c.replace(/,/g, '')))
+    if (nums.length < 2) continue // guards against odd layouts (e.g. LPDDR nav rows)
+    const avg = nums[nums.length - 1]
+    let chg = null
+    const chgCell = cells.find(c => c.includes('%'))
+    if (chgCell) {
+      if (/&mdash;|—/.test(row)) chg = 0
+      const m = chgCell.match(/(-?\d+(\.\d+)?)\s*%/)
+      if (m) {
+        chg = parseFloat(m[1])
+        if (/&#9660;|▼/.test(row) && chg > 0) chg = -chg // down-arrow rows are negative
+      }
+    }
+    if (avg != null && isFinite(avg)) items.push({ n: name, g, avg, chg })
+  }
+  return items
+}
+
+async function fetchTrendForceLive() {
+  try {
+    const resp = await fetch('https://www.trendforce.com/price/', {
+      headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9' },
+    })
+    if (!resp.ok) return null
+    const items = parseTrendForce(await resp.text())
+    // complete-batch guard: a blocked/empty page must never poison the archive
+    return items.length >= 8 ? items : null
+  } catch { return null }
+}
+
+async function getMemoryPrices() {
+  if (memoryCache.data && Date.now() - memoryCache.ts < MEMORY_TTL) return memoryCache.data
+  const store = loadMemoryArchive()
+  const today = new Date().toISOString().slice(0, 10)
+  const items = await fetchTrendForceLive()
+  let liveOk = false
+  if (items) {
+    liveOk = true
+    const i = store.days.findIndex(d => d.date === today)
+    if (i >= 0) store.days[i] = { date: today, items } // same-day refresh replaces
+    else store.days.push({ date: today, items })
+    store.days.sort((a, b) => a.date.localeCompare(b.date))
+    if (store.days.length > 400) store.days = store.days.slice(-400)
+    store.updated = Date.now()
+    saveMemoryArchive(store)
+    console.log(`TrendForce memory: live OK, ${items.length} items, archive ${store.days.length} day(s)`)
+  } else {
+    console.log('TrendForce memory: live unavailable, serving archive')
+  }
+  const last = store.days.length ? store.days[store.days.length - 1] : null
+  const data = {
+    available: !!last,
+    liveOk,
+    source: liveOk ? 'live' : (last ? 'archive' : 'none'),
+    asOf: last ? last.date : null,
+    daysStale: last ? Math.floor((Date.now() - Date.parse(last.date)) / 86400000) : null,
+    latest: last ? last.items : [],
+    days: store.days,
+  }
+  // only cache complete batches — a failed fetch with no archive shouldn't pin for TTL
+  if (data.available) memoryCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── FutureSearch Markets — live trading track record + valuations ────────
    markets.futuresearch.ai server-renders its ENTIRE dataset into the page as
    Next.js flight data (no API needed): ~180 prediction-market positions on
@@ -3376,6 +3487,20 @@ export default defineConfig({
           try {
             if ((req.url || '').includes('refresh=1')) { semiH100Cache = { data: null, ts: 0 } }
             const data = await getSemiH100()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message, available: false }))
+          }
+        })
+
+        // TrendForce memory spot prices (self-built daily archive)
+        server.middlewares.use('/api/memory', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { memoryCache = { data: null, ts: 0 } }
+            const data = await getMemoryPrices()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

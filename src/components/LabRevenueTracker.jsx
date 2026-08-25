@@ -53,7 +53,8 @@ const CONF_COLORS = { reported: "#4ade80", estimate: "#fbbf24", rumor: "#f87171"
 
 // $M/MW for one observation: prefer the directly-reported number, else derive
 // it from ARR ÷ GW (numerically identical — see unit convention above).
-function revPerMw(o) {
+// (exported so The Chain tab can reuse the same math — one source of truth)
+export function revPerMw(o) {
   if (o.rev_per_mw_millions != null) return o.rev_per_mw_millions;
   if (o.arr_billions != null && o.deployed_gw != null && o.deployed_gw > 0)
     return o.arr_billions / o.deployed_gw;
@@ -76,7 +77,7 @@ const STATUS = {
   baseline:  { rank: 0, title: "COLLECTING BASELINE", color: "#818cf8", note: "Fewer than two rev-per-MW observations per lab so far — the indicator needs a second data point to compare against. Add observations as they leak (see the log below)." },
 };
 
-function statusForLab(obs) {
+export function statusForLab(obs) {
   // obs = one lab's observations, oldest → newest
   const revPts = obs.map(o => ({ date: o.date, rev: revPerMw(o) })).filter(p => p.rev != null);
   if (revPts.length < 2) return STATUS.baseline;
@@ -104,6 +105,23 @@ function statusForLab(obs) {
 }
 
 const fmtOrDash = (v, f) => (v == null ? "—" : f(v));
+
+// Compact summary for The Chain tab: overall wedge status, the latest known
+// rev-per-MW print, and the latest known deployed-GW total across labs.
+export function wedgeSummary() {
+  const obs = [...OBSERVATIONS].sort((a, b) => a.date.localeCompare(b.date));
+  const labs = [...new Set(obs.map(o => o.entity))].filter(e => e !== "benchmark");
+  const statuses = labs.map(l => statusForLab(obs.filter(o => o.entity === l)));
+  const status = statuses.reduce((w, s) => (s.rank > w.rank ? s : w), STATUS.baseline);
+  const revPts = obs.map(o => ({ date: o.date, entity: o.entity, rev: revPerMw(o) })).filter(p => p.rev != null && p.entity !== "benchmark");
+  const latestRev = revPts.length ? revPts[revPts.length - 1] : null;
+  // latest date where at least one lab reported GW; sum labs' most recent GW at that point
+  const gwByLab = {};
+  let gwDate = null;
+  for (const o of obs) if (o.deployed_gw != null && o.entity !== "benchmark") { gwByLab[o.entity] = o.deployed_gw; gwDate = o.date; }
+  const gwTotal = Object.values(gwByLab).reduce((a, b) => a + b, 0) || null;
+  return { status, latestRev, gwTotal, gwDate, costBand: COST_BAND, labs };
+}
 
 export default function LabRevenueTracker() {
   const model = useMemo(() => {
