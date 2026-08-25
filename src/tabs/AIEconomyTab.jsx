@@ -3,6 +3,7 @@ import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, Cell
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import ForecastPanel from "../components/ForecastPanel.jsx";
+import LabRevenueTracker from "../components/LabRevenueTracker.jsx";
 
 const PRICING_TIERS = [
   { label: "Free",    color: "#10B981", test: p => p === 0 },
@@ -4940,6 +4941,9 @@ function SupplyDemandTab() {
 
     {/* ── Supply ceiling: packaging + memory (curated) ── */}
     <SupplyCeilingPanel />
+
+    {/* ── Rev-per-GW wedge tracker (hand-curated: does the buildout pay?) ── */}
+    <LabRevenueTracker />
 
     {/* ── AI debt-market tracker (curated $7T scoreboard) ── */}
     <AIDebtPanel />
