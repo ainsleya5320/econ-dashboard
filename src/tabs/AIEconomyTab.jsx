@@ -5107,19 +5107,9 @@ function ChainLink({ label, value, color }) {
   );
 }
 
-function ChainTab({ go }) {
-  const [or, setOr] = useState(null);
-  const [ornn, setOrnn] = useState(null);
-  const [semi, setSemi] = useState(null);
-  const [mem, setMem] = useState(null);
-  useEffect(() => {
-    fetch("/api/or-rankings-history").then(r => r.json()).then(setOr).catch(() => {});
-    fetch("/api/ornn").then(r => r.json()).then(d => { if (!d.error) setOrnn(d); }).catch(() => {});
-    fetch("/api/semi-h100").then(r => r.json()).then(d => { if (!d.error) setSemi(d); }).catch(() => {});
-    fetch("/api/memory").then(r => r.json()).then(d => { if (!d.error) setMem(d); }).catch(() => {});
-  }, []);
-
-  const c = useMemo(() => {
+// Pure model of the chain from the four server-cached feeds — shared by the
+// Chain tab and the Cockpit's verdict tile so both always say the same thing.
+export function chainModel(or, ornn, semi, mem) {
     // Stage 1 — token demand (last complete OpenRouter week + 13-week growth)
     const wk = orWeeklyTotals(or);
     const wkLast = wk.length ? wk[wk.length - 1] : null;
@@ -5162,9 +5152,10 @@ function ChainTab({ go }) {
     const ddr5 = (mem?.latest || []).find(i => i.n.startsWith("DDR5 16Gb (2Gx8) 4800"));
 
     return { wkLast, demand13, otpiNow, otpiChg, wedge, arrTotal, spreadX, debtTotal, pjm, pjmPrev, hNow, hChg, memUp, memDown, memTotal: items.length, ddr5 };
-  }, [or, ornn, semi, mem]);
+}
 
-  // Simple, honest verdicts — each one derived from a number shown on the card.
+// Simple, honest verdicts — each one derived from a number shown on the card.
+export function chainVerdicts(c) {
   const vDemand = c.demand13 == null ? ["Loading", "#64748b"]
     : c.demand13 < 0 ? ["Cooling", SD_RED]
     : c.demand13 > 15 ? ["Compounding", SD_GREEN]
@@ -5177,6 +5168,43 @@ function ChainTab({ go }) {
     : c.memUp > c.memDown ? ["Repricing up", SD_RED]
     : c.memUp === c.memDown ? ["Mixed", SD_AMBER]
     : ["Cooling", SD_GREEN];
+  return { vDemand, vLabs, vCompute, vSilicon };
+}
+
+// One-line synthesis for the Cockpit tile: token-demand growth against the two
+// clearing prices we track daily (H100 1y contract, memory spot breadth).
+export function chainHeadline(c) {
+  if (c.demand13 == null || (c.hNow == null && c.memTotal === 0)) return { label: "Loading", color: "#64748b", why: "" };
+  const priceUp = (c.hChg != null && c.hChg > 2) || c.memUp > c.memDown;
+  const priceDown = (c.hChg != null && c.hChg < -2) && c.memDown >= c.memUp;
+  let label, color;
+  if (c.demand13 < 0) { label = "Demand cooling"; color = SD_RED; }
+  else if (c.demand13 > 15 && priceUp) { label = "Shortage forming"; color = SD_RED; }
+  else if (priceUp) { label = "Tightening"; color = SD_AMBER; }
+  else if (priceDown) { label = "Supply catching up"; color = SD_GREEN; }
+  else { label = "Supply keeping pace"; color = SD_GREEN; }
+  const why = [
+    `tokens ${sdPct(c.demand13)} /13wk`,
+    c.hNow ? `H100 $${c.hNow.h100.toFixed(2)}/hr ${sdPct(c.hChg, 1)} 4wk` : null,
+    c.memTotal ? `memory ${c.memUp}▲/${c.memDown}▼` : null,
+  ].filter(Boolean).join(" · ");
+  return { label, color, why };
+}
+
+function ChainTab({ go }) {
+  const [or, setOr] = useState(null);
+  const [ornn, setOrnn] = useState(null);
+  const [semi, setSemi] = useState(null);
+  const [mem, setMem] = useState(null);
+  useEffect(() => {
+    fetch("/api/or-rankings-history").then(r => r.json()).then(setOr).catch(() => {});
+    fetch("/api/ornn").then(r => r.json()).then(d => { if (!d.error) setOrnn(d); }).catch(() => {});
+    fetch("/api/semi-h100").then(r => r.json()).then(d => { if (!d.error) setSemi(d); }).catch(() => {});
+    fetch("/api/memory").then(r => r.json()).then(d => { if (!d.error) setMem(d); }).catch(() => {});
+  }, []);
+
+  const c = useMemo(() => chainModel(or, ornn, semi, mem), [or, ornn, semi, mem]);
+  const { vDemand, vLabs, vCompute, vSilicon } = chainVerdicts(c);
 
   const linkColor = chg => chg == null ? "#64748b" : chg > 2 ? SD_RED : chg < -2 ? SD_GREEN : SD_AMBER;
 
