@@ -9,6 +9,7 @@ import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import TickerSearch from "../components/TickerSearch.jsx";
 import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel, SyntheticRating } from "./stocks/ResearchPanels.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
+import ExpectationsPanel, { consensusGrowth } from "./stocks/ExpectationsPanel.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
@@ -165,7 +166,7 @@ async function fetchStockData(symbol, fmpKey) {
 }
 
 async function fetchStockDetail(symbol, fmpKey) {
-  const [incArr, bsArr, cfArr, ratArr, kmArr, profile, fullQuote, priceHist] = await Promise.all([
+  const [incArr, bsArr, cfArr, ratArr, kmArr, profile, fullQuote, priceHist, estArr, ptArr, gradesArr] = await Promise.all([
     fetchFMP(`/income-statement?symbol=${symbol}&limit=20`, fmpKey),
     fetchFMP(`/balance-sheet-statement?symbol=${symbol}&limit=20`, fmpKey),
     fetchFMP(`/cash-flow-statement?symbol=${symbol}&limit=20`, fmpKey),
@@ -174,13 +175,21 @@ async function fetchStockDetail(symbol, fmpKey) {
     fetchFMP(`/profile?symbol=${symbol}`, fmpKey),
     fetchFMP(`/quote?symbol=${symbol}`, fmpKey).catch(() => null),
     fetchFMP(`/historical-price-eod/full?symbol=${symbol}`, fmpKey).catch(() => null),
+    // Street consensus for the expectations panel (each optional — a miss just hides its piece).
+    // limit=10 is the Starter-plan ceiling on this endpoint (12 is rejected outright).
+    fetchFMP(`/analyst-estimates?symbol=${symbol}&period=annual&limit=10`, fmpKey).catch(() => null),
+    fetchFMP(`/price-target-consensus?symbol=${symbol}`, fmpKey).catch(() => null),
+    fetchFMP(`/grades-consensus?symbol=${symbol}`, fmpKey).catch(() => null),
   ]);
   const prof = profile?.[0];
   const quote = Array.isArray(fullQuote) ? fullQuote[0] : fullQuote;
   const price = quote?.price || prof?.price || null;
   const hist = Array.isArray(priceHist) ? [...priceHist].reverse().slice(-90) : (priceHist?.historical ? [...priceHist.historical].reverse().slice(-90) : []);
   const years = (incArr || []).map(r => r.fiscalYear || r.date?.slice(0, 4)).reverse();
-  return { symbol, price, quote, hist, years, inc: [...(incArr || [])].reverse(), bs: [...(bsArr || [])].reverse(), cf: [...(cfArr || [])].reverse(), rat: [...(ratArr || [])].reverse(), km: [...(kmArr || [])].reverse(), prof };
+  return { symbol, price, quote, hist, years, inc: [...(incArr || [])].reverse(), bs: [...(bsArr || [])].reverse(), cf: [...(cfArr || [])].reverse(), rat: [...(ratArr || [])].reverse(), km: [...(kmArr || [])].reverse(), prof,
+    est: Array.isArray(estArr) ? [...estArr].sort((a, b) => (a.date || "").localeCompare(b.date || "")) : [],
+    pt: Array.isArray(ptArr) ? ptArr[0] : null,
+    grades: Array.isArray(gradesArr) ? gradesArr[0] : null };
 }
 
 // ── Reverse DCF helpers ──
@@ -234,6 +243,7 @@ function ReverseDCF({ data }) {
   const [discRate, setDiscRate] = useState(0.10);
   const [termGrowth, setTermGrowth] = useState(0.03);
   const [projYears, setProjYears] = useState(10);
+  const [showProj, setShowProj] = useState(false);
 
   const lastCF = data.cf[data.cf.length - 1];
   const lastInc = data.inc[data.inc.length - 1];
@@ -245,6 +255,7 @@ function ReverseDCF({ data }) {
   const histCAGR = fcfCAGR(data.cf);
 
   const implied = solveImpliedGrowth(mktCap, fcf, discRate, termGrowth, projYears);
+  const street = consensusGrowth(data); // forward consensus relative to the last reported FY
 
   // Color coding
   const impliedColor = implied == null ? "#94a3b8" : histCAGR != null && implied < histCAGR * 0.8 ? "#4ade80" : histCAGR != null && implied > histCAGR * 1.3 ? "#f87171" : "#fbbf24";
@@ -299,7 +310,9 @@ function ReverseDCF({ data }) {
       {histCAGR != null && <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 6 }}>Historical FCF CAGR: {(histCAGR*100).toFixed(1)}% | Implied: {implied != null ? (implied*100).toFixed(1) : "—"}%</div>}
     </div>
 
-    <SH>Sensitivity Analysis</SH>
+    <ExpectationsPanel data={data} implied={implied} fcf={fcf} mktCap={mktCap} shares={shares} price={price} discRate={discRate} termGrowth={termGrowth} projYears={projYears} histCAGR={histCAGR} street={street} />
+
+    <SH>Sensitivity — Implied Growth vs the Street</SH>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
         <thead>
@@ -314,7 +327,9 @@ function ReverseDCF({ data }) {
               <td style={{ padding: "8px 12px", fontSize: 11, color: discRates[ri] === discRate ? "#818cf8" : "var(--text-secondary)", fontFamily: fonts.mono, fontWeight: discRates[ri] === discRate ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>{(discRates[ri]*100).toFixed(1)}%</td>
               {row.map((val, ci) => {
                 const isActive = discRates[ri] === discRate && termRates[ci] === termGrowth;
-                return <td key={ci} style={{ padding: "8px 8px", fontSize: 11, fontFamily: fonts.mono, textAlign: "center", color: val == null ? "#334155" : val < 0 ? "#f87171" : "var(--text-primary)", background: isActive ? "rgba(129,140,248,0.12)" : "transparent", fontWeight: isActive ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", borderRadius: isActive ? 6 : 0 }}>{val != null ? `${(val*100).toFixed(1)}%` : "—"}</td>;
+                const st = street?.revCagr3;
+                const tone = val == null || st == null ? null : val <= st ? "g" : val <= st + 0.03 ? "a" : "r";
+                return <td key={ci} style={{ padding: "8px 8px", fontSize: 11, fontFamily: fonts.mono, textAlign: "center", color: val == null ? "#334155" : tone === "g" ? "#4ade80" : tone === "a" ? "#fbbf24" : tone === "r" ? "#f87171" : val < 0 ? "#f87171" : "var(--text-primary)", background: isActive ? "rgba(129,140,248,0.18)" : tone === "g" ? "rgba(74,222,128,0.07)" : tone === "r" ? "rgba(248,113,113,0.06)" : "transparent", fontWeight: isActive ? 700 : 400, borderBottom: ri < sensData.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", borderRadius: isActive ? 6 : 0 }}>{val != null ? `${(val*100).toFixed(1)}%` : "—"}</td>;
               })}
             </tr>
           ))}
@@ -322,7 +337,14 @@ function ReverseDCF({ data }) {
       </table>
     </div>
 
-    <SH>Projected FCF at Implied Growth</SH>
+    <div style={{ fontSize: 9.5, color: "#475569", fontFamily: fonts.mono, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>
+      Implied FCF growth for each WACC × terminal-growth pair. {street?.revCagr3 != null ? `Green = at or below the Street's ${(street.revCagr3 * 100).toFixed(1)}%/yr consensus revenue growth (analysts already model it); amber = within 3 pts above; red = the price needs more than the Street sees.` : "No forward consensus for this name, so cells are uncolored."}
+    </div>
+
+    <button onClick={() => setShowProj(p => !p)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginBottom: 10, fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.heading }}>
+      <span style={{ color: "#818cf8", marginRight: 8 }}>{showProj ? "▾" : "▸"}</span>Year-by-year FCF at the implied growth rate
+    </button>
+    {showProj && (
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -348,9 +370,10 @@ function ReverseDCF({ data }) {
         </tbody>
       </table>
     </div>
+    )}
 
     <InfoBox color="#818cf8">
-      <strong style={{ color: "var(--text-primary)" }}>How to read this:</strong> The implied growth rate is the annual FCF growth the market is pricing into the current stock price, given your discount rate and terminal assumptions. If it's much higher than historical growth, the market has high expectations baked in. If lower, the stock may be undervalued — or the market sees risk to future cash flows.
+      <strong style={{ color: "var(--text-primary)" }}>How to read this page.</strong> The implied growth rate is the annual FCF growth the market is pricing into today&apos;s price, given your discount rate and terminal assumptions. The scoreboard puts it next to the two yardsticks that matter — what analysts model for the next few years and what the company has actually delivered — and the hurdle chart draws the same comparison as a path. The value ladder shows how far out the bet lives; the Street check shows what the stock is worth if the analysts are simply right. A stock is interesting when the price asks for less than the Street already expects and the value doesn&apos;t depend on year 11.
     </InfoBox>
   </>);
 }
