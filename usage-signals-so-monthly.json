@@ -2,10 +2,6 @@
   "byTag": {
     "openai-api": [
       {
-        "month": "2024-09",
-        "count": 42
-      },
-      {
         "month": "2024-10",
         "count": 26
       },
@@ -95,14 +91,14 @@
       },
       {
         "month": "2026-08",
+        "count": 1
+      },
+      {
+        "month": "2026-09",
         "count": 0
       }
     ],
     "chatgpt-api": [
-      {
-        "month": "2024-09",
-        "count": 6
-      },
       {
         "month": "2024-10",
         "count": 5
@@ -194,13 +190,13 @@
       {
         "month": "2026-08",
         "count": 0
+      },
+      {
+        "month": "2026-09",
+        "count": 0
       }
     ],
     "langchain": [
-      {
-        "month": "2024-09",
-        "count": 39
-      },
       {
         "month": "2024-10",
         "count": 27
@@ -292,13 +288,13 @@
       {
         "month": "2026-08",
         "count": 2
+      },
+      {
+        "month": "2026-09",
+        "count": 1
       }
     ],
     "huggingface-transformers": [
-      {
-        "month": "2024-09",
-        "count": 28
-      },
       {
         "month": "2024-10",
         "count": 28
@@ -390,13 +386,13 @@
       {
         "month": "2026-08",
         "count": 1
+      },
+      {
+        "month": "2026-09",
+        "count": 0
       }
     ],
     "huggingface": [
-      {
-        "month": "2024-09",
-        "count": 7
-      },
       {
         "month": "2024-10",
         "count": 14
@@ -488,13 +484,13 @@
       {
         "month": "2026-08",
         "count": 0
+      },
+      {
+        "month": "2026-09",
+        "count": 0
       }
     ],
     "llama-index": [
-      {
-        "month": "2024-09",
-        "count": 3
-      },
       {
         "month": "2024-10",
         "count": 3
@@ -586,13 +582,13 @@
       {
         "month": "2026-08",
         "count": 0
+      },
+      {
+        "month": "2026-09",
+        "count": 0
       }
     ],
     "ollama": [
-      {
-        "month": "2024-09",
-        "count": 11
-      },
       {
         "month": "2024-10",
         "count": 18
@@ -684,13 +680,13 @@
       {
         "month": "2026-08",
         "count": 0
+      },
+      {
+        "month": "2026-09",
+        "count": 0
       }
     ],
     "google-gemini": [
-      {
-        "month": "2024-09",
-        "count": 12
-      },
       {
         "month": "2024-10",
         "count": 17
@@ -781,14 +777,14 @@
       },
       {
         "month": "2026-08",
-        "count": 0
+        "count": 2
+      },
+      {
+        "month": "2026-09",
+        "count": 1
       }
     ],
     "anthropic": [
-      {
-        "month": "2024-09",
-        "count": 0
-      },
       {
         "month": "2024-10",
         "count": 0
@@ -879,6 +875,10 @@
       },
       {
         "month": "2026-08",
+        "count": 0
+      },
+      {
+        "month": "2026-09",
         "count": 0
       }
     ]
