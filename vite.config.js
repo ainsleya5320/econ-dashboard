@@ -3123,6 +3123,74 @@ async function getMemoryPrices() {
   return data
 }
 
+/* ── Morningstar US Market Fair Value (bottom-up valuation gauge) ─────────
+   morningstar.com/markets/fair-value renders the median price/fair-value of
+   every stock Morningstar's ~1,500 covered names carry, daily. The chart is
+   fed by an open JSON endpoint (no auth — a browser UA + referer suffice):
+     /api/v2/markets/fair-value/_chart?interval=10y
+   Records: { datetime, priceFairValue } where priceFairValue is the median
+   P/FV minus 1 (-0.08 = the market trades 8% BELOW analysts' fair value).
+   This is the BOTTOM-UP complement to the top-down ERP / Damodaran reads.
+   Archived to ms-fair-value.json (merged by date) so the history survives
+   any change to the endpoint; served with a percentile since archive start. */
+const MS_FV_FILE = path.join(__dirname, 'ms-fair-value.json')
+let msFvCache = { data: null, ts: 0 }
+const MS_FV_TTL = 6 * 60 * 60 * 1000 // 6h — the series updates once per trading day
+
+function loadMsFv() {
+  try { if (fs.existsSync(MS_FV_FILE)) return JSON.parse(fs.readFileSync(MS_FV_FILE, 'utf8')) } catch {}
+  return { byDate: {}, updated: 0 }
+}
+function saveMsFv(store) {
+  try { fs.writeFileSync(MS_FV_FILE, JSON.stringify(store)) } catch (e) { console.error('Morningstar FV save:', e.message) }
+}
+
+async function fetchMsFvLive() {
+  try {
+    const resp = await fetch('https://www.morningstar.com/api/v2/markets/fair-value/_chart?interval=10y', {
+      headers: { 'User-Agent': UA, 'Referer': 'https://www.morningstar.com/markets/fair-value', 'Accept': 'application/json' },
+    })
+    if (!resp.ok) return null
+    const arr = await resp.json()
+    if (!Array.isArray(arr)) return null
+    const rows = arr.map(r => ({ d: String(r.datetime || '').slice(0, 10), v: +r.priceFairValue }))
+      .filter(r => r.d.length === 10 && isFinite(r.v))
+    return rows.length >= 200 ? rows : null // complete-batch guard: a stub page never poisons the archive
+  } catch { return null }
+}
+
+async function getMsFairValue() {
+  if (msFvCache.data && Date.now() - msFvCache.ts < MS_FV_TTL) return msFvCache.data
+  const store = loadMsFv()
+  const live = await fetchMsFvLive()
+  let liveOk = false
+  if (live) {
+    for (const r of live) store.byDate[r.d] = r.v
+    store.updated = Date.now(); saveMsFv(store); liveOk = true
+    console.log(`Morningstar fair value: live OK, ${live.length} pts, archive ${Object.keys(store.byDate).length} days`)
+  } else {
+    console.log('Morningstar fair value: live unavailable, serving archive')
+  }
+  const series = Object.entries(store.byDate).map(([d, v]) => ({ d, v })).sort((a, b) => a.d.localeCompare(b.d))
+  if (!series.length) return { available: false, liveOk, reason: 'no_data' }
+  const last = series[series.length - 1]
+  const vals = series.map(p => p.v)
+  // share of history that was RICHER than today — high = today is cheap by this lens
+  const cheaperThan = Math.round((vals.filter(v => v > last.v).length / vals.length) * 100)
+  const min = series.reduce((a, b) => (b.v < a.v ? b : a))
+  const max = series.reduce((a, b) => (b.v > a.v ? b : a))
+  const oneYearAgo = new Date(Date.parse(last.d) - 365 * 86400000).toISOString().slice(0, 10)
+  const data = {
+    available: true, liveOk, source: liveOk ? 'live' : 'archive',
+    asOf: last.d, daysStale: Math.floor((Date.now() - Date.parse(last.d)) / 86400000),
+    latest: last.v, cheaperThan, min, max, start: series[0].d, n: series.length,
+    series1y: series.filter(p => p.d >= oneYearAgo),
+    series10y: series.filter((_, i) => i % 5 === 0 || i === series.length - 1), // ~weekly for the long chart
+  }
+  msFvCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── FutureSearch Markets — live trading track record + valuations ────────
    markets.futuresearch.ai server-renders its ENTIRE dataset into the page as
    Next.js flight data (no API needed): ~180 prediction-market positions on
@@ -3501,6 +3569,20 @@ export default defineConfig({
           try {
             if ((req.url || '').includes('refresh=1')) { memoryCache = { data: null, ts: 0 } }
             const data = await getMemoryPrices()
+            res.end(JSON.stringify(data))
+          } catch (e) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: e.message, available: false }))
+          }
+        })
+
+        // Morningstar US Market Fair Value — bottom-up analyst P/FV, daily, archived
+        server.middlewares.use('/api/ms-fair-value', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { msFvCache = { data: null, ts: 0 } }
+            const data = await getMsFairValue()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

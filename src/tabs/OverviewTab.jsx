@@ -7,6 +7,7 @@ import { fetchOptionsChain, fetchFMP } from "../lib/api.js";
 import DAMODARAN from "../lib/damodaran.json";
 import { EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import { chainModel, chainHeadline } from "./AIEconomyTab.jsx";
+import { ValuationLensesCard } from "../components/MarketFairValue.jsx";
 
 // ============================================================================
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
@@ -617,7 +618,6 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
 
   const { commodities = [], crypto = [], rates = [] } = data;
   const tape = [...commodities.map(c => ({ ...c, kind: "commodity" })), ...crypto.map(c => ({ ...c, kind: "crypto" }))];
-  const erpColor = erp ? (TONE_COLOR[erp.tone] || INDIGO) : "#64748b";
   const firstClause = s => (s || "").split(/ — |\. /)[0];
 
   // Theme pulse rows — only the verdicts the other tabs actually computed
@@ -652,32 +652,9 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
 
         {/* KPI band: what am I paid, and what does money cost */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
-          <div style={{ ...cardStyle, position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: erpColor }} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={cardTitle}>Equity risk premium</span>
-              <button onClick={() => onNavigate?.("stocks")} style={linkStyle}>Stocks →</button>
-            </div>
-            {erp ? (<>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 24, fontWeight: 700, color: erpColor, fontFamily: fonts.heading, letterSpacing: -0.8, lineHeight: 1 }}>{erp.currentErp > 0 ? "+" : ""}{erp.currentErp.toFixed(2)}pp</span>
-                {erp.verdict && <span style={{ fontSize: 9.5, fontWeight: 700, color: erpColor, background: `${erpColor}1e`, padding: "2px 8px", borderRadius: 6, fontFamily: fonts.mono }}>{erp.verdict}</span>}
-              </div>
-              <div style={{ fontSize: 9.5, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 4, lineHeight: 1.4 }}>EY {erp.earningsYield?.toFixed(2)}% − 10Y {erp.tenYear?.toFixed(2)}%{erp.percentile != null ? ` · ${erp.percentile}th pct / 25y` : ""}</div>
-              <div style={{ height: 26, marginTop: 6 }}><HeroSparkArea data={(erp.history || []).map(h => h.v)} color={erpColor} height={26} /></div>
-            </>) : <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 8 }}>Loading…</div>}
-          </div>
-
-          <div style={cardStyle}>
-            <span style={cardTitle}>Damodaran implied ERP</span>
-            {dam ? (<>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-                <span style={{ fontSize: 24, fontWeight: 700, color: dam.color, fontFamily: fonts.heading, letterSpacing: -0.8, lineHeight: 1 }}>{(dam.last.erp * 100).toFixed(2)}%</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: dam.color, fontFamily: fonts.mono }}>{dam.pct}th pct</span>
-              </div>
-              <div style={{ fontSize: 9.5, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 4, lineHeight: 1.4 }}>FCFE, end-{dam.last.y} · vs 10Y {(dam.last.tbond * 100).toFixed(2)}% · since {dam.series[0].y}</div>
-              <div style={{ height: 26, marginTop: 6 }}><HeroSparkArea data={dam.spark} color={dam.color} height={26} /></div>
-            </>) : <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 8 }}>Unavailable.</div>}
+          {/* bottom-up (Morningstar) beside the two top-down reads — spans the row */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <ValuationLensesCard erp={erp} dam={dam} onNavigate={onNavigate} />
           </div>
 
           <div style={cardStyle}>

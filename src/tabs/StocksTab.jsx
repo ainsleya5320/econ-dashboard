@@ -10,6 +10,7 @@ import TickerSearch from "../components/TickerSearch.jsx";
 import { ValuationBands, PeerCompare, DividendSafety, EarningsWeekAhead, PIEPanel, SyntheticRating } from "./stocks/ResearchPanels.jsx";
 import SP500Screener from "./stocks/SP500Screener.jsx";
 import ExpectationsPanel, { consensusGrowth } from "./stocks/ExpectationsPanel.jsx";
+import MarketFairValuePanel from "../components/MarketFairValue.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
@@ -1430,6 +1431,8 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       {viewToggle}
       {yieldTiles}
       {earningsStrip}
+      {/* market-level bottom-up valuation (Morningstar) before the name-level map */}
+      <MarketFairValuePanel />
       <SP500Overview onSelectStock={openDetail} />
     </>);
   }
