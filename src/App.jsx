@@ -460,7 +460,7 @@ export default function Dashboard() {
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} />}
-            {tab === "options" && <OptionsTab />}
+            {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
             {tab === "forecasts" && <ForecastsTab />}
