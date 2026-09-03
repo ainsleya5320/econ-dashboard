@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { fonts } from "../lib/styles.js";
+import { getVerdictContext } from "../lib/assistantContext.js";
 
 /* ── Data-context builders ─────────────────────────────────── */
 function fmtV(v) { return v == null ? "N/A" : typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v); }
 
 function buildContext(tab, p, live) {
-  const lines = [`You are an AI assistant embedded in a personal Economic Dashboard. The user is currently viewing the "${tab}" tab. Answer concisely using the data provided. Use bullet points for lists. Bold key numbers with **value**.`, ""];
+  const lines = [`You are an AI assistant embedded in a personal Economic Dashboard. The user is currently viewing the "${tab}" tab. Answer concisely using the data provided. Use bullet points for lists. Bold key numbers with **value**. The dashboard computes its own verdicts (market regime, valuation lenses, the AI compute chain, profits, credit, housing) — they appear at the end of this context and are the app's current read; use them when the question touches those topics and say when a verdict is a model output rather than a fact.`, ""];
 
   // ═══ ECONOMY ═══
   if (tab === "economy") {
@@ -194,7 +195,7 @@ export default function ChatDrawer({ tab, md, td, gd, cd, csm, hd, aiModels, zil
     if (Object.keys(fetches).length) setLiveData(prev => ({ ...prev, ...fetches }));
   }, [tab]);
 
-  useEffect(() => { if (open) fetchLiveData(); }, [open, tab, fetchLiveData]);
+  useEffect(() => { if (open) { fetchLiveData(); getVerdictContext().catch(() => {}); } }, [open, tab, fetchLiveData]); // warm the verdict block on open
 
   // Auto-scroll on new messages
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -212,7 +213,10 @@ export default function ChatDrawer({ tab, md, td, gd, cd, csm, hd, aiModels, zil
     try {
       // Re-fetch live data if needed before building context
       await fetchLiveData();
-      const context = buildContext(tab, { md, td, gd, cd, csm, hd, aiModels, zillowData }, liveDataRef.current);
+      const verdicts = await getVerdictContext().catch(() => "");
+      const context = buildContext(tab, { md, td, gd, cd, csm, hd, aiModels, zillowData }, liveDataRef.current) + (verdicts ? `
+
+${verdicts}` : "");
       const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

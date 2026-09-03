@@ -74,7 +74,7 @@ function HeroSparkArea({ data, color = "#10b981", height = 40 }) {
 }
 
 // ── Regime: derived from cross-asset moves (equities × VIX × gold × crypto) ──
-function computeRegime(indexes, commodities, crypto) {
+export function computeRegime(indexes, commodities, crypto) {
   const by = s => indexes.find(i => i.symbol === s);
   const spy = by("SPY"), qqq = by("QQQ"), iwm = by("IWM"), dia = by("DIA");
   const vix = indexes.find(i => /VIX/.test(i.symbol || ""));
@@ -273,7 +273,7 @@ function ImpliedMoveLine() {
 
 // ── Damodaran implied ERP (FCFE) — the PROPER risk premium ──────────────────
 // Annual series 1960→ from src/lib/damodaran.json (refresh script, January).
-function damodaranSummary() {
+export function damodaranSummary() {
   const series = (DAMODARAN.erp || []).filter(r => r.erp != null);
   if (series.length < 20) return null;
   const last = series[series.length - 1];
