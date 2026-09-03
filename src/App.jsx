@@ -8,6 +8,7 @@ import TickerSearch from "./components/TickerSearch.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
+import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
 import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
@@ -159,8 +160,9 @@ export default function Dashboard() {
         const batch = states.slice(i, i + BATCH);
         await Promise.all(batch.map(async (st) => {
           try {
-            const obs = await fetchFred(metric.series(st), fredKey, 1);
-            if (obs.length) results[st] = { v: obs[obs.length - 1].v, d: obs[obs.length - 1].d };
+            const obs = await fetchFred(metric.series(st), fredKey, metric.limit || 1);
+            const v = metric.transform ? metric.transform(obs) : (obs.length ? obs[obs.length - 1].v : null);
+            if (v != null && isFinite(v)) results[st] = { v, d: obs[obs.length - 1].d };
           } catch (e) { console.warn(`Choropleth fetch failed for ${st}:`, e.message); }
         }));
         done += batch.length;
@@ -182,8 +184,9 @@ export default function Dashboard() {
     // Fetch national benchmark
     if (metric.national) {
       try {
-        const nObs = await fetchFred(metric.national, fredKey, 1);
-        if (nObs.length) results._national = { v: nObs[nObs.length - 1].v, d: nObs[nObs.length - 1].d };
+        const nObs = await fetchFred(metric.national, fredKey, metric.limit || 1);
+        const nv = metric.transform ? metric.transform(nObs) : (nObs.length ? nObs[nObs.length - 1].v : null);
+        if (nv != null && isFinite(nv)) results._national = { v: nv, d: nObs[nObs.length - 1].d };
       } catch {}
     }
     freshlyFetchedRef.current[metricKey] = true;
@@ -383,7 +386,7 @@ export default function Dashboard() {
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [
     { label: "Today",     items: [{ id: "overview", label: "Cockpit" }] },
-    { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }] },
+    { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "realestate", label: "Real Estate" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
     { label: "Themes",    items: [{ id: "ai", label: "AI Economy" }, { id: "forecasts", label: "Forecasts" }, { id: "history", label: "Historical" }] },
@@ -460,6 +463,7 @@ export default function Dashboard() {
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} />}
+            {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}

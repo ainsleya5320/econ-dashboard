@@ -3195,6 +3195,147 @@ async function getMsFairValue() {
   return data
 }
 
+/* ── Real Estate: commercial fundamentals (FRED) + REIT-implied cap rates (FMP)
+   Commercial has no free price-level or cap-rate API, so the fundamentals
+   are built from what IS public: the BIS commercial property price index
+   (COMREPUSQ159N, quarterly YoY — chained here into a level), CRE loan
+   delinquency and loan growth (Fed H.8), construction spending by segment,
+   Census vacancy, rent CPI, construction-input PPI, and a REIT-implied cap
+   rate per property type (EBITDA ÷ enterprise value of bellwether REITs —
+   a proxy: public REITs own better-than-average assets, so private-market
+   cap rates run higher). Both cached 6h; incomplete batches never cached. */
+// percentile of v within arr (share of history below it)
+const pctileRe = (arr, v) => { const a = arr.filter(x => x != null && isFinite(x)); if (!a.length || v == null) return null; return Math.round((a.filter(x => x < v).length / a.length) * 100) }
+let creCache = { data: null, ts: 0 }
+let reitCache = { data: null, ts: 0 }
+const RE_TTL = 6 * 60 * 60 * 1000
+
+async function fetchCreFundamentals() {
+  if (creCache.data && Date.now() - creCache.ts < RE_TTL) return creCache.data
+  const [creYoy, creDq, creLoans, comCons, offCons, resCons, mfgCons, rentVac, ownVac, rentCpi, ppiInputs, mortDq, sqftUs] = await Promise.all([
+    fetchFredSeries('COMREPUSQ159N', 200), fetchFredSeries('DRCRELEXFACBS', 200), fetchFredSeries('CREACBW027SBOG', 600),
+    fetchFredSeries('TLCOMCONS', 300), fetchFredSeries('TLOFCONS', 300), fetchFredSeries('TLRESCONS', 300), fetchFredSeries('TLMFGCONS', 300),
+    fetchFredSeries('RRVRUSQ156N', 240), fetchFredSeries('RHVRUSQ156N', 240), fetchFredSeries('CUUR0000SEHA', 300), fetchFredSeries('WPUIP2311001', 300),
+    fetchFredSeries('DRSFRMACBS', 200), fetchFredSeries('MEDLISPRIPERSQUFEEUS', 120),
+  ])
+  const last = arr => (arr.length ? arr[arr.length - 1] : null)
+  const yoy = (arr, k) => (arr.length > k && arr[arr.length - 1 - k].v ? ((last(arr).v / arr[arr.length - 1 - k].v) - 1) * 100 : null)
+  // chain the YoY series into a level index: first four quarters = 100
+  const level = creYoy.map((p, i) => ({ d: p.d, v: i < 4 ? 100 : null }))
+  for (let i = 4; i < creYoy.length; i++) level[i].v = +(level[i - 4].v * (1 + creYoy[i].v / 100)).toFixed(2)
+  // commercial price vs construction-input cost (a Tobin's-q style ratio), mean = 100
+  const ppiByMonth = {}
+  for (const p of ppiInputs) ppiByMonth[p.d.slice(0, 7)] = p.v
+  const ratioRaw = level.map(p => { const q = ppiByMonth[p.d.slice(0, 7)]; return q ? { d: p.d, v: p.v / q } : null }).filter(Boolean)
+  const mean = ratioRaw.length ? ratioRaw.reduce((a, b) => a + b.v, 0) / ratioRaw.length : 1
+  const ratio = ratioRaw.map(p => ({ d: p.d, v: +((p.v / mean) * 100).toFixed(1) }))
+  const dqCur = last(creDq)?.v ?? null
+  const dqPct = pctileRe(creDq.map(p => p.v), dqCur)
+  const dq1y = creDq.length > 4 && dqCur != null ? +(dqCur - creDq[creDq.length - 5].v).toFixed(2) : null
+  const priceYoy = last(creYoy)?.v ?? null
+  let cycle
+  if (priceYoy == null) cycle = { label: 'Data unavailable', color: '#64748b', note: '' }
+  else if (priceYoy < -2 && dq1y > 0) cycle = { label: 'Correcting — prices falling, losses rising', color: '#ef4444', note: 'The classic commercial down-leg: values marked down while loan losses climb. Bottoms arrive when delinquencies peak, not when prices stop falling.' }
+  else if (priceYoy < 0) cycle = { label: 'Correcting — prices still falling', color: '#f97316', note: 'Values are still adjusting to the rate regime; watch delinquencies for the turn.' }
+  else if (priceYoy < 3 && dq1y > 0) cycle = { label: 'Bottoming — prices flat, losses still rising', color: '#fbbf24', note: 'Price declines have stalled but credit is still catching up — the late-trough signature.' }
+  else if (priceYoy >= 3 && (dq1y == null || dq1y <= 0)) cycle = { label: 'Recovering — prices up, losses easing', color: '#4ade80', note: 'Values re-rating with credit improving — the early-cycle setup.' }
+  else cycle = { label: 'Stable', color: '#94a3b8', note: 'Modest price moves with credit roughly steady.' }
+  const rc = last(ratio)
+  const data = {
+    cycle,
+    price: { yoy: priceYoy, asOf: last(creYoy)?.d ?? null, series: creYoy.slice(-80), level: level.slice(-80) },
+    replacement: { ratio: ratio.slice(-80), current: rc?.v ?? null, pct: pctileRe(ratio.map(p => p.v), rc?.v), since: ratio[0]?.d?.slice(0, 4) ?? null },
+    delinquency: {
+      cre: { current: dqCur, pct: dqPct, chg1y: dq1y, series: creDq.slice(-120) },
+      mortgage: { current: last(mortDq)?.v ?? null, series: mortDq.slice(-120) },
+    },
+    loans: { yoy: yoy(creLoans, 52), current: last(creLoans)?.v ?? null, series: creLoans.filter((_, i) => i % 4 === 0).slice(-160) },
+    construction: {
+      commercial: comCons.slice(-120), office: offCons.slice(-120), residential: resCons.slice(-120), manufacturing: mfgCons.slice(-120),
+      yoy: { commercial: yoy(comCons, 12), office: yoy(offCons, 12), residential: yoy(resCons, 12), manufacturing: yoy(mfgCons, 12) },
+    },
+    vacancy: {
+      rental: { current: last(rentVac)?.v ?? null, pct: pctileRe(rentVac.map(p => p.v), last(rentVac)?.v), series: rentVac.slice(-120) },
+      owner: { current: last(ownVac)?.v ?? null, pct: pctileRe(ownVac.map(p => p.v), last(ownVac)?.v), series: ownVac.slice(-120) },
+    },
+    rent: { cpiYoy: yoy(rentCpi, 12), asOf: last(rentCpi)?.d ?? null },
+    cost: { ppiYoy: yoy(ppiInputs, 12), sqftUs: last(sqftUs)?.v ?? null, sqftUsYoy: yoy(sqftUs, 12), sqftAsOf: last(sqftUs)?.d ?? null },
+    updated: new Date().toISOString(),
+  }
+  if (creYoy.length > 20 && creDq.length > 20 && comCons.length > 20) creCache = { data, ts: Date.now() } // only cache complete batches
+  return data
+}
+
+// Bellwether REITs by property type (curated — swap freely). Cap-rate proxy:
+// EBITDA ÷ (market cap + debt − cash) — what the public market pays for the
+// NOI of these portfolios. Its spread over the 10-year is the property
+// market's version of the equity risk premium.
+const REIT_BELLWETHERS = [
+  { t: 'BXP', sector: 'Office' }, { t: 'VNO', sector: 'Office' }, { t: 'KRC', sector: 'Office' },
+  { t: 'EQR', sector: 'Apartments' }, { t: 'AVB', sector: 'Apartments' }, { t: 'MAA', sector: 'Apartments' },
+  { t: 'INVH', sector: 'Single-family rental' }, { t: 'AMH', sector: 'Single-family rental' },
+  { t: 'PLD', sector: 'Industrial' }, { t: 'REXR', sector: 'Industrial' },
+  { t: 'SPG', sector: 'Retail' }, { t: 'KIM', sector: 'Retail' }, { t: 'REG', sector: 'Retail' },
+  { t: 'O', sector: 'Net lease' }, { t: 'NNN', sector: 'Net lease' },
+  { t: 'EQIX', sector: 'Data centers' }, { t: 'DLR', sector: 'Data centers' },
+  { t: 'PSA', sector: 'Self storage' }, { t: 'EXR', sector: 'Self storage' },
+  { t: 'HST', sector: 'Hotels' }, { t: 'APLE', sector: 'Hotels' },
+  { t: 'WELL', sector: 'Healthcare' }, { t: 'VTR', sector: 'Healthcare' },
+]
+async function fmpJsonRe(path) {
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/stable${path}${path.includes('?') ? '&' : '?'}apikey=${FMP_KEY}`, { headers: { 'User-Agent': UA } })
+    if (!r.ok) return null
+    return await r.json()
+  } catch { return null }
+}
+async function fetchReitCapRates() {
+  if (reitCache.data && Date.now() - reitCache.ts < RE_TTL) return reitCache.data
+  if (!FMP_KEY) return { available: false, reason: 'FMP key not configured' }
+  const tenY = await fetchFredSeries('DGS10', 5)
+  const y10 = tenY.length ? tenY[tenY.length - 1].v : null
+  const rows = []
+  for (let i = 0; i < REIT_BELLWETHERS.length; i += 4) {
+    const batch = REIT_BELLWETHERS.slice(i, i + 4)
+    const res = await Promise.all(batch.map(async r => {
+      const [q, inc, bs, rat] = await Promise.all([
+        fmpJsonRe(`/quote?symbol=${r.t}`), fmpJsonRe(`/income-statement?symbol=${r.t}&limit=1`),
+        fmpJsonRe(`/balance-sheet-statement?symbol=${r.t}&limit=1`), fmpJsonRe(`/ratios-ttm?symbol=${r.t}`),
+      ])
+      const quote = Array.isArray(q) ? q[0] : null, is = Array.isArray(inc) ? inc[0] : null, b = Array.isArray(bs) ? bs[0] : null, rt = Array.isArray(rat) ? rat[0] : null
+      if (!quote || !is || !b || !quote.marketCap) return { ...r, error: true }
+      const debt = b.totalDebt ?? 0, cash = b.cashAndShortTermInvestments ?? b.cashAndCashEquivalents ?? 0
+      const ev = quote.marketCap + debt - cash
+      const noi = is.ebitda ?? ((is.operatingIncome ?? 0) + (is.depreciationAndAmortization ?? 0))
+      const cap = ev > 0 && noi > 0 ? (noi / ev) * 100 : null
+      return {
+        ...r, price: quote.price, mktCap: quote.marketCap, ev, noi, cap,
+        divYield: rt?.dividendYieldTTM != null ? rt.dividendYieldTTM * 100 : null,
+        fy: is.fiscalYear || String(is.date || '').slice(0, 4), debtToEv: ev > 0 ? (debt / ev) * 100 : null,
+        offHigh: quote.yearHigh ? ((quote.price / quote.yearHigh) - 1) * 100 : null,
+      }
+    }))
+    rows.push(...res)
+  }
+  const ok = rows.filter(r => !r.error && r.cap != null)
+  const sectors = {}
+  for (const r of ok) (sectors[r.sector] = sectors[r.sector] || []).push(r)
+  const bySector = Object.entries(sectors).map(([sector, rs]) => {
+    const cap = rs.reduce((a, b) => a + b.cap, 0) / rs.length
+    return { sector, cap, spread: y10 != null ? cap - y10 : null, n: rs.length, tickers: rs.map(r => r.t) }
+  }).sort((a, b) => b.cap - a.cap)
+  const avgCap = ok.length ? ok.reduce((a, b) => a + b.cap, 0) / ok.length : null
+  const spread = avgCap != null && y10 != null ? avgCap - y10 : null
+  let verdict
+  if (spread == null) verdict = { label: 'Data unavailable', color: '#64748b', note: '' }
+  else if (spread < 1.0) verdict = { label: 'Cap rates rich vs bonds', color: '#f87171', note: 'REIT-implied cap rates barely clear the 10-year — buyers are paying for growth or accepting bond-like yields with equity risk.' }
+  else if (spread < 2.5) verdict = { label: 'Cap-rate spread thin', color: '#fbbf24', note: 'Below the roughly 3-point long-run norm — property is priced for rates to fall or rents to grow.' }
+  else verdict = { label: 'Cap-rate spread healthy', color: '#4ade80', note: 'Property yields a normal premium over Treasuries — the base case for income-driven returns.' }
+  const data = { available: ok.length > 0, rows, bySector, avgCap, tenYear: y10, spread, verdict, asOf: new Date().toISOString().slice(0, 10), coverage: `${ok.length}/${REIT_BELLWETHERS.length}` }
+  if (ok.length >= Math.ceil(REIT_BELLWETHERS.length * 0.6)) reitCache = { data, ts: Date.now() }
+  return data
+}
+
 /* ── FutureSearch Markets — live trading track record + valuations ────────
    markets.futuresearch.ai server-renders its ENTIRE dataset into the page as
    Next.js flight data (no API needed): ~180 prediction-market positions on
@@ -3592,6 +3733,24 @@ export default defineConfig({
             res.statusCode = 500
             res.end(JSON.stringify({ error: e.message, available: false }))
           }
+        })
+
+        // Real Estate — commercial fundamentals (FRED bundle) and REIT-implied cap rates (FMP)
+        server.middlewares.use('/api/cre-fundamentals', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { creCache = { data: null, ts: 0 } }
+            res.end(JSON.stringify(await fetchCreFundamentals()))
+          } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
+        })
+        server.middlewares.use('/api/reit-caprates', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try {
+            if ((req.url || '').includes('refresh=1')) { reitCache = { data: null, ts: 0 } }
+            res.end(JSON.stringify(await fetchReitCapRates()))
+          } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
         })
 
         // AI pricing snapshot endpoint + auto-snapshot timer
