@@ -213,7 +213,7 @@ export default function ChatDrawer({ tab, md, td, gd, cd, csm, hd, aiModels, zil
       // Re-fetch live data if needed before building context
       await fetchLiveData();
       const context = buildContext(tab, { md, td, gd, cd, csm, hd, aiModels, zillowData }, liveDataRef.current);
-      const resp = await fetch("/api/gemini-chat", {
+      const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: nextMessages, context }),
@@ -276,7 +276,7 @@ export default function ChatDrawer({ tab, md, td, gd, cd, csm, hd, aiModels, zil
           background: "linear-gradient(135deg, #6366F1, #8B5CF6)",
         }} />
         <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)", flex: 1 }}>AI Assistant</span>
-        <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono }}>Gemini 2.5 Flash</span>
+        <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono }}>Claude Opus 5</span>
         {messages.length > 0 && (
           <button
             onClick={() => setMessages([])}

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import Anthropic from '@anthropic-ai/sdk'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const TICKERS_FILE = path.join(__dirname, 'tickers.json')
@@ -12,7 +13,10 @@ const FMP_KEY = env.VITE_FMP_KEY || ''
 const FRED_KEY = env.VITE_FRED_KEY || ''
 const BLS_KEY = env.BLS_KEY || ''
 const BEA_KEY = env.BEA_KEY || ''
-const GEMINI_KEY = env.GEMINI_API_KEY || ''
+// In-app assistant: Claude Opus 5 via the official SDK. Key stays server-side
+// (ANTHROPIC_API_KEY in .env — loadEnv, not process.env, like the other keys).
+const ANTHROPIC_KEY = env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || ''
+const CHAT_MODEL = 'claude-opus-5'
 
 /* ── BEA PCE Price Index (monthly index levels, compute YoY) ── */
 let beaPceCache = { data: null, ts: 0 }
@@ -3951,8 +3955,8 @@ export default defineConfig({
             res.end(JSON.stringify({ error: e.message }))
           }
         })
-        // Gemini chat endpoint (keeps API key server-side)
-        server.middlewares.use('/api/gemini-chat', async (req, res) => {
+        // Chat endpoint — Claude Opus 5 (API key stays server-side)
+        server.middlewares.use('/api/chat', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')
           if (req.method !== 'POST') { res.statusCode = 405; res.end('{"error":"POST only"}'); return }
@@ -3961,31 +3965,42 @@ export default defineConfig({
           req.on('end', async () => {
             try {
               const { messages, context } = JSON.parse(body)
-              if (!GEMINI_KEY) {
+              if (!ANTHROPIC_KEY) {
                 res.statusCode = 503
-                res.end(JSON.stringify({ error: 'GEMINI_API_KEY is not configured.' }))
+                res.end(JSON.stringify({ error: 'ANTHROPIC_API_KEY is not configured — add it to .env and restart the dev server.' }))
                 return
               }
-              const contents = messages.map(m => ({
-                role: m.role === 'assistant' ? 'model' : 'user',
-                parts: [{ text: m.content }],
-              }))
-              const payload = {
-                contents,
-                systemInstruction: { parts: [{ text: context }] },
-                generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+              // Claude wants strictly alternating turns starting with the user
+              const turns = (messages || [])
+                .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content)
+                .map(m => ({ role: m.role, content: String(m.content) }))
+              while (turns.length && turns[0].role !== 'user') turns.shift()
+              if (!turns.length) { res.statusCode = 400; res.end(JSON.stringify({ error: 'No user message.' })); return }
+
+              const client = new Anthropic({ apiKey: ANTHROPIC_KEY })
+              // Stream server-side (no HTTP timeout on long answers) and hand the
+              // drawer the finished message as JSON, so the client stays simple.
+              // Thinking is adaptive by default on Claude Opus 5 (nothing to set);
+              // fallbacks: "default" re-runs a safety decline on Anthropic's
+              // recommended fallback model instead of returning a refusal.
+              const stream = client.beta.messages.stream({
+                model: CHAT_MODEL,
+                max_tokens: 4096,
+                system: context || 'You are the analyst assistant inside a personal economic dashboard.',
+                messages: turns,
+                betas: ['server-side-fallback-2026-07-01'],
+                fallbacks: 'default',
+              })
+              const msg = await stream.finalMessage()
+              if (msg.stop_reason === 'refusal') {
+                res.end(JSON.stringify({ reply: `I can't help with that one (${msg.stop_details?.category || 'policy'}).`, model: msg.model, refused: true }))
+                return
               }
-              const apiResp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
-              )
-              const json = await apiResp.json()
-              if (json.error) { res.statusCode = 400; res.end(JSON.stringify({ error: json.error.message })); return }
-              const reply = json.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.'
-              res.end(JSON.stringify({ reply }))
+              const reply = msg.content.filter(b => b.type === 'text').map(b => b.text).join('') || 'No response generated.'
+              res.end(JSON.stringify({ reply, model: msg.model }))
             } catch (e) {
-              res.statusCode = 500
-              res.end(JSON.stringify({ error: e.message }))
+              res.statusCode = e?.status && e.status >= 400 && e.status < 600 ? e.status : 500
+              res.end(JSON.stringify({ error: e?.message || String(e) }))
             }
           })
         })
