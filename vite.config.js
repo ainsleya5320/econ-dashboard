@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createRealEstateFeeds } from './server/realEstateFeeds.js'
+import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -1901,6 +1903,23 @@ async function fetchHousingHealth() {
   const lastAfford = affordSeries[affordSeries.length - 1] || null
   // income a buyer needs at the classic 28% front-end DTI
   const incomeNeeded = lastAfford ? Math.round(lastAfford.pay * 12 / 0.28) : null
+  // ── What would have to change: the price move (at today's rate) or the mortgage rate (at
+  // today's price) that brings the payment share back to its long-run median, and to the
+  // classic 28% front-end limit. Payment is linear in price, so the price answer is a ratio;
+  // the rate answer is solved by bisection on the annuity formula.
+  const sortedAfford = [...affordVals].sort((a, b) => a - b)
+  const affordMedian = sortedAfford.length ? sortedAfford[Math.floor(sortedAfford.length / 2)] : null
+  const lastRate = mort.length ? mort[mort.length - 1].v : null
+  const lastIncome = incomeLast?.v ?? null
+  const lastPrice = msp.length ? msp[msp.length - 1].v : null
+  const payAt = (price, rate) => { const P = price * 0.8, r = rate / 1200; return P * r / (1 - Math.pow(1 + r, -360)) }
+  const solveRate = (price, targetPay) => { let lo = 0.25, hi = 20; for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (payAt(price, mid) > targetPay) hi = mid; else lo = mid } return +((lo + hi) / 2).toFixed(2) }
+  const whatIfTo = target => {
+    if (!(target > 0) || !(lastIncome > 0) || !(lastPrice > 0) || !(lastRate > 0) || !(affordCur > 0)) return null
+    const targetPay = (target / 100) * lastIncome / 12
+    return { target, priceChg: +(((target / affordCur) - 1) * 100).toFixed(1), rate: solveRate(lastPrice, targetPay), payment: Math.round(targetPay) }
+  }
+  const whatIf = { toMedian: whatIfTo(affordMedian), to28: whatIfTo(28) }
 
   // ── Supply: months' supply with full-history percentile ──
   const msVals = msacsr.map(o => o.v)
@@ -1933,7 +1952,7 @@ async function fetchHousingHealth() {
     verdict,
     afford: {
       series: affordSeries, current: affordCur, pct: affordPct, light: affordLight,
-      payment: lastAfford?.pay ?? null, incomeNeeded,
+      payment: lastAfford?.pay ?? null, incomeNeeded, median: affordMedian, income: lastIncome, whatIf,
       medianPrice: msp.length ? msp[msp.length - 1].v : null,
       rate: mort.length ? mort[mort.length - 1].v : null,
       incomeAsOf: incomeLast?.d?.slice(0, 4) ?? null,
@@ -3610,6 +3629,10 @@ async function fetchVercelAi() {
   return data
 }
 
+// Real Estate feeds (server/realEstateFeeds.js): Redfin, supply pipeline + FHFA lock-in,
+// SLOOS + Kastle, metro layer, state build cost, Zillow rents, fair-value composite.
+const reFeeds = createRealEstateFeeds({ fetchFredSeries, UA, dir: __dirname, stateFips: STATE_FIPS, fetchHousingHealth, fetchReplacementCost, fetchCreFundamentals, fetchReitCapRates })
+
 export default defineConfig({
   plugins: [
     react(),
@@ -3744,6 +3767,21 @@ export default defineConfig({
             res.end(JSON.stringify(await fetchCreFundamentals()))
           } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
         })
+        // Real Estate feeds module — see server/realEstateFeeds.js
+        const reRoute = (route, fn) => server.middlewares.use(route, async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try { res.end(JSON.stringify(await fn(req))) } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
+        })
+        reRoute('/api/redfin', () => reFeeds.redfin())
+        reRoute('/api/re-pipeline', () => reFeeds.pipeline())
+        reRoute('/api/cre-credit', () => reFeeds.creCredit())
+        reRoute('/api/re-buildcost', () => reFeeds.buildCost())
+        reRoute('/api/re-rents', () => reFeeds.rents())
+        reRoute('/api/re-composite', () => reFeeds.composite())
+        reRoute('/api/re-metro', req => { const code = new URL(req.url || '/', 'http://x').searchParams.get('code'); return code ? reFeeds.metro(code) : { metros: reFeeds.METROS } })
+        // warm the slow ones (51 throttled FRED calls; a 9 MB download) after the startup burst
+        setTimeout(() => { reFeeds.buildCost().catch(() => {}); reFeeds.redfin().catch(() => {}); reFeeds.rents().catch(() => {}) }, 90 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

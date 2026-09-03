@@ -23,6 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit",
 };
 
 let cache = { text: "", ts: 0 };
@@ -87,6 +88,27 @@ export function buildVerdictText(d) {
   if (d.debt?.verdict) L.push(`Debt & credit: ${d.debt.verdict.label}${fin(d.debt.verdict.hy) ? ` — HY spread ${d.debt.verdict.hy.toFixed(2)}%${fin(d.debt.verdict.hyPct) ? ` (${ord(d.debt.verdict.hyPct)} pct, 3y)` : ""}` : ""}.`);
   if (d.bank?.verdict) L.push(`Bank credit (Fed H.8): ${d.bank.verdict.label} — ${firstClause(d.bank.verdict.note)}.`);
   if (d.housing?.verdict) L.push(`Housing health: ${d.housing.verdict.label} — ${firstClause(d.housing.verdict.note)}.`);
+
+  // Real Estate tab — fair-value scores, lock-in, supply pipeline, the Redfin tape, CRE credit and office occupancy
+  if (d.reComp) {
+    const r = d.reComp.residential, c = d.reComp.commercial;
+    const anch = s => s.anchors.filter(a => fin(a.pct)).map(a => `${a.label.toLowerCase()} ${fin(a.value) ? a.value : "n/a"}${a.unit ? ` ${a.unit}` : ""} (p${a.pct})`).join(", ");
+    if (fin(r?.score)) L.push(`Real estate (Real Estate tab) — residential fair-value score ${r.score}/100 (${r.tone.label}; 0 = cheapest vs each anchor's own history, 100 = richest): ${anch(r)}.`);
+    if (fin(c?.score)) L.push(`Real estate — commercial fair-value score ${c.score}/100 (${c.tone.label}): ${anch(c)}.`);
+    const sr = d.reComp.support?.residential, sc = d.reComp.support?.commercial;
+    if (sr) L.push(`  Residential support (not scored): ${num(sr.supplyMonths, 1)} months' supply (p${sr.supplyPct}), mortgage delinquency ${num(sr.mortgageDq)}%; housing regime "${sr.verdict}".`);
+    if (sc) L.push(`  Commercial support: CRE loan delinquency ${num(sc.dq)}% (p${sc.dqPct}, ${pct(sc.dqChg1y)} over 1y), BIS prices ${pct(sc.priceYoy, 1)} YoY as of ${sc.priceAsOf} (lagged ~1y), rental vacancy ${num(sc.rentalVacancy, 1)}%; cycle "${sc.cycle}".`);
+  }
+  const lk = d.rePipe?.lockin;
+  if (lk && fin(lk.avgRate)) L.push(`  Mortgage lock-in (FHFA NMDB ${lk.asOf}): average rate on outstanding mortgages ${num(lk.avgRate, 1)}% vs ${num(d.rePipe.mortgageNow)}% market; ${num(lk.below4, 0)}% of mortgages are below 4%, ${num(lk.ge6, 0)}% at 6%+.`);
+  const cn = d.rePipe?.construction, wi = d.housing?.afford?.whatIf;
+  if (wi?.toMedian) L.push(`  Affordability what-if: prices ${pct(wi.toMedian.priceChg, 0)} at today's rate, or a ${num(wi.toMedian.rate)}% mortgage at today's prices, returns the payment share to its long-run median (${num(wi.toMedian.target, 1)}% of income; now ${num(d.housing.afford.current, 1)}%).`);
+  if (cn && fin(cn.multi)) L.push(`  Supply pipeline: ${Math.round(cn.multi)}K apartments under construction (${pct(cn.multiYoy, 0)} YoY, p${cn.multiPct} of history), ${Math.round(cn.single)}K single-family; multifamily permits ${pct(d.rePipe.starts?.permitsMultiYoy, 0)} YoY.`);
+  const rf = d.redfin?.national?.latest, rp = d.redfin?.national?.pct;
+  if (rf) L.push(`  Redfin national tape (${d.redfin.asOf}): median sale price $${Math.round(rf.price / 1000)}K, sale-to-list ${num(rf.saleToList * 100, 1)}% (p${rp?.saleToList} since 2012), ${num(rf.priceDrops * 100, 0)}% of listings with price drops (p${rp?.priceDrops}), ${num(rf.months, 1)} months of supply, ${Math.round(rf.dom)} days on market.`);
+  const sl = d.creCredit?.sloos, ks = d.creCredit?.kastle;
+  if (sl?.verdict) L.push(`  CRE lending standards (Fed SLOOS ${sl.asOf}): ${sl.verdict.label} — net ${pct(sl.avg, 1)} of banks tightening (construction & land ${pct(sl.cld, 1)}, non-residential ${pct(sl.nonres, 1)}, multifamily ${pct(sl.multi, 1)}).`);
+  if (ks && fin(ks.avg)) L.push(`  Office occupancy (Kastle 10-city, week of ${ks.d}): ${num(ks.avg, 1)}% of the Feb-2020 baseline${ks.cities ? `; ${Object.entries(ks.cities).sort((a, b) => b[1].v - a[1].v).map(([n, v]) => `${n} ${v.v}%`).join(", ")}` : ""}.`);
 
   return L.length > 1 ? L.join("\n") : "";
 }

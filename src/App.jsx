@@ -149,7 +149,7 @@ export default function Dashboard() {
     const metric = CHOROPLETH_METRICS.find(m => m.key === metricKey);
     if (!metric) return;
     // Zillow-sourced metrics are populated via CSV fetch, not FRED API
-    if (metric.source === "zillow") return;
+    if (metric.source) return; // zillow- and server-sourced metrics are filled by their owners, not FRED
     if (!background) { setChoroplethLoading(true); setChoroplethProgress("Loading 0/" + ALL_STATES.length); }
     const results = {};
     let done = 0;

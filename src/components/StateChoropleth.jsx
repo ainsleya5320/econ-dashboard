@@ -57,14 +57,17 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
   return (<>
     {title && <SH>{title}</SH>}
 
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-      {metrics.map(m => (
+    {(metrics.some(m => m.cat) ? [...new Set(metrics.map(m => m.cat || ""))] : [""]).map(cat => (
+    <div key={cat || "all"} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8, alignItems: "center" }}>
+      {cat && <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.6, width: 64, flexShrink: 0 }}>{cat}</span>}
+      {metrics.filter(m => (m.cat || "") === cat).map(m => (
         <button key={m.key} onClick={() => setMetric(m.key)}
           style={{ padding: "7px 14px", borderRadius: 8, border: activeKey === m.key ? "1px solid #818cf8" : "1px solid rgba(255,255,255,0.08)", background: activeKey === m.key ? "rgba(129,140,248,0.15)" : "rgba(255,255,255,0.03)", color: activeKey === m.key ? "#c7d2fe" : "#94a3b8", fontSize: 11, fontFamily: fonts.mono, cursor: "pointer", fontWeight: activeKey === m.key ? 600 : 400, transition: "all 0.15s ease" }}>
           {m.label}
         </button>
       ))}
     </div>
+    ))}
     {note && <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 10, lineHeight: 1.5 }}>{note}</div>}
 
     {/* National benchmark card */}
@@ -75,6 +78,7 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
           {nationalData ? metricCfg.fmt(nationalData.v) : loading ? "..." : "—"}
         </div>
         {nationalData?.d && <div style={{ fontSize: 9, color: "#4ade80", fontFamily: fonts.mono, marginTop: 2 }}>{fmtDate(nationalData.d)}</div>}
+        {(metricCfg.src || metricCfg.cadence) && <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, marginTop: 2 }}>{[metricCfg.src, metricCfg.cadence].filter(Boolean).join(" · ")}</div>}
       </div>
       {values.length > 0 && (<>
         <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: 20 }}>

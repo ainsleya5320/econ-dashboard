@@ -3,7 +3,7 @@ import { XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, LineChart,
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
 
-function HousingSubTab({ hd, md, zillow }) {
+function HousingSubTab({ hd, md, zillow, hideHealth = false }) {
   const [metroSort, setMetroSort] = useState("zhvi");
   const [metroSortAsc, setMetroSortAsc] = useState(false);
   const [metroView, setMetroView] = useState("table"); // table | chart
@@ -107,7 +107,7 @@ function HousingSubTab({ hd, md, zillow }) {
 
   return (<>
     {/* Synthesis layer — derived gauges, verdict, breadth */}
-    <HousingHealthPanel zn={zn} metros={metros} />
+    {!hideHealth && <HousingHealthPanel zn={zn} metros={metros} />}
 
     {/* National Overview Cards */}
     <SH>National Housing Overview</SH>
@@ -512,4 +512,5 @@ function ReplacementCostPanel() {
   </>);
 }
 
+export { HousingHealthPanel };
 export default HousingSubTab;
