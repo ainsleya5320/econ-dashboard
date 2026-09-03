@@ -81,14 +81,18 @@ function Stat({ title, value, sub, color = "var(--text-primary)", chip }) {
   );
 }
 
-export default function IncomeView({ symbol, fmpKey }) {
-  const [chain, setChain] = useState(null);
-  const [closes, setCloses] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function IncomeView({ symbol, fmpKey, chain: sharedChain, closes: sharedCloses }) {
+  const [ownChain, setChain] = useState(null);
+  const [ownCloses, setCloses] = useState(null);
+  const [loading, setLoading] = useState(!sharedChain);
+  const chain = sharedChain || ownChain;
+  // closes arrive as [{date, close}] when shared; as a bare close array when self-fetched
+  const closes = sharedCloses ? sharedCloses.map(r => r.close) : ownCloses;
   const [err, setErr] = useState(null);
   const [target, setTarget] = useState(45);
 
   useEffect(() => {
+    if (sharedChain) { setLoading(false); return; }
     let alive = true;
     setLoading(true); setErr(null); setChain(null);
     fetchOptionsChain(symbol)
@@ -96,10 +100,10 @@ export default function IncomeView({ symbol, fmpKey }) {
       .catch(e => { if (alive) setErr(e?.message || "chain unavailable"); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [symbol]);
+  }, [symbol, sharedChain]);
 
   useEffect(() => {
-    if (!fmpKey) return;
+    if (!fmpKey || sharedCloses) return;
     let alive = true;
     setCloses(null);
     fetchFMP(`/historical-price-eod/full?symbol=${symbol}`, fmpKey)

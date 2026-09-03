@@ -1,44 +1,72 @@
 import React, { useEffect, useState } from "react";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { InfoBox } from "../components/shared.jsx";
+import { fetchOptionsChain, fetchFMP } from "../lib/api.js";
 import CSPScreener from "./stocks/CSPScreener.jsx";
 import { VolSurface } from "./StocksTab.jsx";
+import ExpectationsView from "./options/ExpectationsView.jsx";
 import IncomeView from "./options/IncomeView.jsx";
+import WatchlistLadder from "./options/WatchlistLadder.jsx";
 
 // ============================================================================
-// OPTIONS TAB (2026-09 revamp) — income first, quant tools behind a door
-//   Income          the default: premium regime + income ladder + candidate
-//                   puts/calls for one symbol (src/tabs/options/IncomeView.jsx)
-//   Watchlist scan  the existing cash-secured-put screener across the shared
-//                   watchlist (ATM put yields at 5 maturities per name)
-//   Vol surface     the original quant view — heatmap / 3D surface / smile /
-//                   Greeks / open-interest & max pain — unchanged, just moved
+// OPTIONS TAB (2026-09 revamp) — what the market predicts, then how to get paid
+//   Market Expectations  the default: the implied price cone by expiry, the
+//                        implied distribution at one horizon, the odds table,
+//                        and the analyst target vs the market's own odds
+//                        (src/tabs/options/ExpectationsView.jsx)
+//   Income               premium regime + income ladder + candidate puts/calls
+//                        for the same symbol (options/IncomeView.jsx)
+//   Watchlist ladder     best 15–30Δ put and call per watchlist name at ~45d
+//                        (options/WatchlistLadder.jsx); the old ATM-yield grid
+//                        (CSPScreener) is kept behind a toggle
+//   Vol surface          the original quant view, unchanged
+// The chain and daily closes are fetched ONCE per symbol here and shared by
+// the first two views, so switching between them is instant.
 // ============================================================================
 
 const DEFAULT_SYMBOL = "SPY";
 const QUICK_SYMBOLS = ["SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "GOOGL"];
-const VIEWS = [["income", "Income"], ["watchlist", "Watchlist Scan"], ["surface", "Vol Surface & Greeks"]];
+const VIEWS = [["expect", "Market Expectations"], ["income", "Income"], ["watchlist", "Watchlist Ladder"], ["surface", "Vol Surface & Greeks"]];
 
 function OptionsTab({ fmpKey }) {
-  const [view, setView] = useState("income");
+  const [view, setView] = useState("expect");
 
-  // the symbol shared by the Income and Vol Surface views (persisted)
+  // the symbol shared by the single-name views (persisted)
   const [symbol, setSymbol] = useState(() => {
     try { return localStorage.getItem("opt-vol-symbol") || DEFAULT_SYMBOL; } catch { return DEFAULT_SYMBOL; }
   });
   const [symInput, setSymInput] = useState("");
   useEffect(() => { try { localStorage.setItem("opt-vol-symbol", symbol); } catch {} }, [symbol]);
 
-  // the screener shares the watchlist with Stocks (via /api/tickers, mirrored to localStorage)
+  // one chain + one price history + one consensus target per symbol, shared
+  const [chain, setChain] = useState(null);
+  const [chainErr, setChainErr] = useState(null);
+  const [closes, setCloses] = useState(null);
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setChain(null); setChainErr(null); setCloses(null); setTarget(null);
+    fetchOptionsChain(symbol).then(d => { if (alive) setChain(d); }).catch(e => { if (alive) setChainErr(e?.message || "chain unavailable"); });
+    if (fmpKey) {
+      fetchFMP(`/historical-price-eod/full?symbol=${symbol}`, fmpKey).then(d => {
+        const rows = Array.isArray(d) ? d : (d?.historical || []);
+        const chron = [...rows].filter(r => r.close != null).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+        if (alive) setCloses(chron.slice(-130).map(r => ({ date: r.date, close: r.close })));
+      }).catch(() => { if (alive) setCloses([]); });
+      fetchFMP(`/price-target-consensus?symbol=${symbol}`, fmpKey).then(d => { if (alive && Array.isArray(d) && d.length) setTarget(d[0]); }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [symbol, fmpKey]);
+
+  // the screener/ladder share the watchlist with Stocks (via /api/tickers, mirrored to localStorage)
   const [tickers, setTickers] = useState([]);
   const [tickerInput, setTickerInput] = useState("");
+  const [showGrid, setShowGrid] = useState(false);
   useEffect(() => {
     fetch("/api/tickers")
       .then(r => r.json())
       .then(saved => { if (Array.isArray(saved) && saved.length) setTickers(saved); })
-      .catch(() => {
-        try { const saved = localStorage.getItem("econ-dash-tickers"); if (saved) setTickers(JSON.parse(saved)); } catch {}
-      });
+      .catch(() => { try { const saved = localStorage.getItem("econ-dash-tickers"); if (saved) setTickers(JSON.parse(saved)); } catch {} });
   }, []);
   useEffect(() => {
     if (!tickers.length) return;
@@ -67,9 +95,12 @@ function OptionsTab({ fmpKey }) {
           }}>{s}</button>
         ))}
       </div>
-      <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono, marginLeft: "auto" }}>CBOE delayed chain · bid prices</span>
+      <span style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono, marginLeft: "auto" }}>{chain ? `${chain.options.length.toLocaleString()} contracts · CBOE delayed` : chainErr ? "chain unavailable" : "loading chain…"}</span>
     </div>
   );
+  const chainState = chainErr
+    ? <InfoBox color="#F97316"><strong style={{ color: "#cbd5e1" }}>No chain for {symbol}.</strong> {chainErr} — try another symbol.</InfoBox>
+    : !chain ? <div style={{ padding: 40, textAlign: "center", color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading {symbol} options chain (CBOE)…</div> : null;
 
   return (<>
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 14, background: "rgba(255,255,255,0.03)", padding: 3 }}>
@@ -83,9 +114,14 @@ function OptionsTab({ fmpKey }) {
       ))}
     </div>
 
+    {view === "expect" && (<>
+      {symbolPicker}
+      {chainState || <ExpectationsView symbol={symbol} chain={chain} closes={closes} target={target} />}
+    </>)}
+
     {view === "income" && (<>
       {symbolPicker}
-      <IncomeView symbol={symbol} fmpKey={fmpKey} />
+      {chainState || <IncomeView symbol={symbol} fmpKey={fmpKey} chain={chain} closes={closes} />}
     </>)}
 
     {view === "watchlist" && (<>
@@ -102,17 +138,21 @@ function OptionsTab({ fmpKey }) {
               {t}<span onClick={() => removeTicker(t)} style={{ cursor: "pointer", color: "#f87171", fontWeight: 700, fontSize: 13 }}>×</span>
             </span>
           ))}
-          {tickers.length === 0 && <span style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>No tickers yet — add one above to scan for cash-secured put yields.</span>}
+          {tickers.length === 0 && <span style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>No tickers yet — add one above to build the ladder.</span>}
         </div>
       </div>
-      <CSPScreener tickers={tickers} />
+      <WatchlistLadder tickers={tickers} />
+      <button onClick={() => setShowGrid(s => !s)} style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, margin: "4px 0 10px", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.heading }}>
+        <span style={{ color: "#818cf8", marginRight: 8 }}>{showGrid ? "▾" : "▸"}</span>ATM put yields by maturity (the original scan)
+      </button>
+      {showGrid && <CSPScreener tickers={tickers} />}
     </>)}
 
     {view === "surface" && (<>
       {symbolPicker}
       <VolSurface symbol={symbol} spot={null} />
       <InfoBox color="#818cf8">
-        <strong style={{ color: "var(--text-primary)" }}>The quant view.</strong> The IV heatmap and 3D surface show where volatility is priced across strikes and expiries, the smile shows the skew at one expiry, the Greeks show how a position&apos;s value responds to price, time and vol, and the open-interest profile marks the max-pain strike where option holders lose the most at expiration. Useful for structuring a specific trade; the Income view is the place to decide whether to make one.
+        <strong style={{ color: "var(--text-primary)" }}>The quant view.</strong> The IV heatmap and 3D surface show where volatility is priced across strikes and expiries, the smile shows the skew at one expiry, the Greeks show how a position&apos;s value responds to price, time and vol, and the open-interest profile marks the max-pain strike. Market Expectations reads the same surface out as prices and probabilities; this is the raw material.
       </InfoBox>
     </>)}
   </>);
