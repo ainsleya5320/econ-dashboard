@@ -593,9 +593,13 @@ const COMMODITY_SYMBOLS = [
 ]
 
 // Fetch a single Yahoo quote using the chart API (most reliable, no crumb needed for 1d)
+// Yahoo's `chartPreviousClose` is the close BEFORE THE REQUESTED RANGE, not
+// yesterday's close — with range=2d it returned the close from two sessions
+// ago and the Cockpit showed SPY +0.65% on a −0.40% day. range=1d makes the
+// field mean "previous session close", which is what a day-change needs.
 async function fetchYahooQuote(symbol) {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2d&interval=1d`
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`
     const resp = await fetch(url, { headers: { 'User-Agent': UA } })
     if (!resp.ok) return null
     const json = await resp.json()
