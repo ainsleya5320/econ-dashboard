@@ -258,7 +258,7 @@ function ImpliedMoveLine() {
         <div style={{ fontSize: 10, color: AMBER, fontFamily: fonts.mono }}>Implied-move data unavailable for {sel} right now (options feed may be rate-limited).</div>
       ) : (
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
-          {moves.map(im => (
+          {moves.filter(im => [im.iv, im.expectedMove, im.pctMove, im.lower, im.upper].every(v => v != null && isFinite(v))).map(im => (
             <div key={im.label} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
               <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>{im.label} · {im.iv.toFixed(0)}% IV</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading }}>±${im.expectedMove.toFixed(2)}</span>
@@ -334,7 +334,7 @@ function ErpHero({ erp }) {
         <div style={{ flex: "1 1 240px", minWidth: 0 }}>
           <div style={{ ...cardTitle, letterSpacing: 0.6 }}>Equity Risk Premium · S&amp;P 500 vs 10Y</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 32, fontWeight: 700, color, fontFamily: fonts.heading, letterSpacing: -1, lineHeight: 1 }}>{erp.currentErp > 0 ? "+" : ""}{erp.currentErp.toFixed(2)}pp</span>
+            <span style={{ fontSize: 32, fontWeight: 700, color, fontFamily: fonts.heading, letterSpacing: -1, lineHeight: 1 }}>{erp.currentErp != null ? `${erp.currentErp > 0 ? "+" : ""}${erp.currentErp.toFixed(2)}pp` : "—"}</span>
             {erp.verdict && <span style={{ fontSize: 11, fontWeight: 600, color, background: `${color}1e`, padding: "3px 9px", borderRadius: 6, fontFamily: fonts.mono }}>{erp.verdict}</span>}
           </div>
           <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 6, lineHeight: 1.5 }}>
@@ -393,7 +393,7 @@ function YieldCurve({ rates }) {
           <g key={p.label}>
             <circle cx={x(i)} cy={y(p.val)} r="2.6" fill={INDIGO} />
             <text x={x(i)} y={H - 6} fontSize="8" fill="#64748b" textAnchor="middle" fontFamily="monospace">{p.label}</text>
-            <text x={x(i)} y={y(p.val) - 6} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="monospace">{p.val.toFixed(2)}</text>
+            <text x={x(i)} y={y(p.val) - 6} fontSize="8" fill="#94a3b8" textAnchor="middle" fontFamily="monospace">{p.val != null ? p.val.toFixed(2) : ""}</text>
           </g>
         ))}
       </svg>
@@ -702,7 +702,7 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
 
         {/* The full charts, folded */}
         <Evidence title="Full charts — ERP 25-yr history, Damodaran, Fear & Greed gauge" open={showCharts} onToggle={() => setShowCharts(o => !o)}
-          summary={erp ? `${erp.currentErp > 0 ? "+" : ""}${erp.currentErp.toFixed(2)}pp${dam ? ` · ${(dam.last.erp * 100).toFixed(2)}%` : ""}${fg?.composite != null ? ` · F&G ${Math.round(fg.composite)}` : ""}` : "—"}>
+          summary={erp && erp.currentErp != null ? `${erp.currentErp > 0 ? "+" : ""}${erp.currentErp.toFixed(2)}pp${dam ? ` · ${(dam.last.erp * 100).toFixed(2)}%` : ""}${fg?.composite != null ? ` · F&G ${Math.round(fg.composite)}` : ""}` : "—"}>
           {erp && <ErpHero erp={erp} />}
           <FearGreedGauge />
         </Evidence>

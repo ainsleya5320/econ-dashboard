@@ -19,6 +19,25 @@ import ChatDrawer from "./components/ChatDrawer.jsx";
 import DataHealthPanel from "./components/DataHealthPanel.jsx";
 import { collectLatestDate, sourceStatus } from "./lib/dataHealth.js";
 
+// A crash inside one tab (a feed handing a null to a formatter mid-reload, a
+// chart edge case) used to blank the whole app. Contain it to the tab and
+// offer a retry; the key={tab} in the mount below resets it on navigation.
+class TabErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("Tab crashed:", error, info?.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 14, padding: "16px 20px", fontFamily: "monospace", fontSize: 12, color: "#fca5a5" }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>This view hit an error and was contained.</div>
+        <div style={{ color: "#94a3b8", fontSize: 11, marginBottom: 10 }}>{String(this.state.error?.message || this.state.error)}</div>
+        <button onClick={() => this.setState({ error: null })} style={{ background: "rgba(129,140,248,0.15)", border: "1px solid rgba(129,140,248,0.4)", color: "#c7d2fe", borderRadius: 8, padding: "6px 14px", fontSize: 11, cursor: "pointer" }}>Retry view</button>
+      </div>
+    );
+  }
+}
+
 export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem("econ-dash-theme") !== "light"; } catch { return true; }
@@ -459,6 +478,7 @@ export default function Dashboard() {
           <NewsTicker items={newsItems} loading={newsLoading} />
 
           <div style={{ marginTop: 4 }}>
+          <TabErrorBoundary key={tab}>
             {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
@@ -469,6 +489,7 @@ export default function Dashboard() {
             {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
             {tab === "forecasts" && <ForecastsTab />}
             {tab === "history" && <HistoricalReturnsTab />}
+          </TabErrorBoundary>
           </div>
 
           {/* Footer */}
