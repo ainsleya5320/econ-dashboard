@@ -80,6 +80,11 @@ export default function NewsTicker({ items, loading }) {
                   cursor: "pointer", transition: "color 0.15s", userSelect: "none",
                 }}
               >
+                {item.site && (
+                  <span style={{ color: "#818cf8", marginRight: 8, fontSize: 9, fontFamily: fonts.mono, fontWeight: 700, letterSpacing: 0.3 }}>
+                    {item.site}{item.paywalled ? " 🔒" : ""}
+                  </span>
+                )}
                 {item.tickers && (
                   <span style={{ color: "#3b82f6", marginRight: 8, fontSize: 9, fontFamily: fonts.mono, fontWeight: 600 }}>
                     {item.tickers.split(",")[0].replace("NASDAQ:", "").replace("NYSE:", "")}
@@ -105,7 +110,8 @@ export default function NewsTicker({ items, loading }) {
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {selected.site}{selected.publishedDate ? ` · ${fmtAge(selected.publishedDate)}` : ""}
+                <span style={{ color: "#818cf8", fontWeight: 700 }}>{selected.site}{selected.paywalled ? " 🔒" : ""}</span>
+                {selected.publishedDate ? ` · ${fmtAge(selected.publishedDate)}` : ""}
                 {selected.tickers ? ` · ${selected.tickers}` : ""}
               </div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", fontFamily: fonts.heading, marginBottom: 8, lineHeight: 1.45 }}>
@@ -117,8 +123,11 @@ export default function NewsTicker({ items, loading }) {
                 </div>
               )}
               <a href={selected.url} target="_blank" rel="noreferrer noopener" style={{ fontSize: 11, color: "#3b82f6", fontFamily: fonts.mono, textDecoration: "none" }}>
-                Read full story →
+                Read full story at {selected.site} →
               </a>
+              {selected.paywalled && (
+                <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, marginLeft: 10 }}>🔒 may require a subscription</span>
+              )}
             </div>
           </div>
         </div>
@@ -155,7 +164,8 @@ export default function NewsTicker({ items, loading }) {
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      {fmtAge(item.publishedDate)}
+                      {item.site && <span style={{ color: "#818cf8", fontWeight: 700 }}>{item.site}{item.paywalled ? " 🔒" : ""}</span>}
+                      {item.site ? " · " : ""}{fmtAge(item.publishedDate)}
                       {item.tickers ? ` · ${item.tickers.split(",").slice(0,3).map(t => t.replace("NASDAQ:","").replace("NYSE:","")).join(", ")}` : ""}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", fontFamily: fonts.heading, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>

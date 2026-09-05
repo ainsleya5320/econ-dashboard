@@ -1,0 +1,65 @@
+[
+  {
+    "date": "2026-01",
+    "entity": "Anthropic",
+    "arr_billions": null,
+    "deployed_gw": 2.0,
+    "rev_per_mw_millions": null,
+    "source": "SemiAnalysis / Dylan Patel (Aug 2026): '<2 GW' entering 2026 — recorded at the upper bound",
+    "confidence": "estimate"
+  },
+  {
+    "date": "2026-01",
+    "entity": "OpenAI",
+    "arr_billions": null,
+    "deployed_gw": 2.0,
+    "rev_per_mw_millions": null,
+    "source": "SemiAnalysis / Dylan Patel (Aug 2026): ~2 GW entering 2026",
+    "confidence": "estimate"
+  },
+  {
+    "date": "2026-05",
+    "entity": "Anthropic",
+    "arr_billions": null,
+    "deployed_gw": null,
+    "rev_per_mw_millions": null,
+    "source": "WSJ (May 2026): Anthropic leasing $1.25B/month of SpaceX 'emergency megawatt' capacity (~$15B/yr) — evidence a frontier lab pays the premium-rent floor; no ARR or GW disclosed",
+    "confidence": "reported"
+  },
+  {
+    "date": "2026-08",
+    "entity": "Anthropic",
+    "arr_billions": null,
+    "deployed_gw": null,
+    "rev_per_mw_millions": 50,
+    "source": "Dwarkesh / Dylan Patel podcast 2026-08-25: Anthropic monetizing 'as high as $50M per MW'",
+    "confidence": "estimate"
+  },
+  {
+    "date": "2026-08",
+    "entity": "benchmark",
+    "arr_billions": null,
+    "deployed_gw": null,
+    "rev_per_mw_millions": 100,
+    "source": "SemiAnalysis (Aug 2026): ~$100M/MW ceiling on GB300-class API inference",
+    "confidence": "estimate"
+  },
+  {
+    "date": "2026-12",
+    "entity": "Anthropic",
+    "arr_billions": null,
+    "deployed_gw": 5.0,
+    "rev_per_mw_millions": null,
+    "source": "SemiAnalysis / Dylan Patel (Aug 2026): '>5 GW' projected by end of 2026 — recorded at the lower bound; PROJECTION, not deployment",
+    "confidence": "estimate"
+  },
+  {
+    "date": "2026-12",
+    "entity": "OpenAI",
+    "arr_billions": null,
+    "deployed_gw": 5.0,
+    "rev_per_mw_millions": null,
+    "source": "SemiAnalysis / Dylan Patel (Aug 2026): '>5 GW' projected by end of 2026 — recorded at the lower bound; PROJECTION, not deployment",
+    "confidence": "estimate"
+  }
+]

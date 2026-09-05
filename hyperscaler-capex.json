@@ -1,0 +1,741 @@
+{
+  "companies": {
+    "MSFT": {
+      "symbol": "MSFT",
+      "name": "Microsoft",
+      "color": "#00A4EF",
+      "quarters": [
+        {
+          "date": "2021-09-30",
+          "fiscalYear": "2022",
+          "period": "Q1",
+          "capex": 5810000000,
+          "operatingCashFlow": 24540000000
+        },
+        {
+          "date": "2021-12-31",
+          "fiscalYear": "2022",
+          "period": "Q2",
+          "capex": 5865000000,
+          "operatingCashFlow": 14480000000
+        },
+        {
+          "date": "2022-03-31",
+          "fiscalYear": "2022",
+          "period": "Q3",
+          "capex": 5340000000,
+          "operatingCashFlow": 25386000000
+        },
+        {
+          "date": "2022-06-30",
+          "fiscalYear": "2022",
+          "period": "Q4",
+          "capex": 6871000000,
+          "operatingCashFlow": 24629000000
+        },
+        {
+          "date": "2022-09-30",
+          "fiscalYear": "2023",
+          "period": "Q1",
+          "capex": 6283000000,
+          "operatingCashFlow": 23198000000
+        },
+        {
+          "date": "2022-12-31",
+          "fiscalYear": "2023",
+          "period": "Q2",
+          "capex": 6274000000,
+          "operatingCashFlow": 11173000000
+        },
+        {
+          "date": "2023-03-31",
+          "fiscalYear": "2023",
+          "period": "Q3",
+          "capex": 6607000000,
+          "operatingCashFlow": 24441000000
+        },
+        {
+          "date": "2023-06-30",
+          "fiscalYear": "2023",
+          "period": "Q4",
+          "capex": 8943000000,
+          "operatingCashFlow": 28770000000
+        },
+        {
+          "date": "2023-09-30",
+          "fiscalYear": "2024",
+          "period": "Q1",
+          "capex": 9917000000,
+          "operatingCashFlow": 30583000000
+        },
+        {
+          "date": "2023-12-31",
+          "fiscalYear": "2024",
+          "period": "Q2",
+          "capex": 9735000000,
+          "operatingCashFlow": 18853000000
+        },
+        {
+          "date": "2024-03-31",
+          "fiscalYear": "2024",
+          "period": "Q3",
+          "capex": 10952000000,
+          "operatingCashFlow": 31917000000
+        },
+        {
+          "date": "2024-06-30",
+          "fiscalYear": "2024",
+          "period": "Q4",
+          "capex": 13873000000,
+          "operatingCashFlow": 37195000000
+        },
+        {
+          "date": "2024-09-30",
+          "fiscalYear": "2025",
+          "period": "Q1",
+          "capex": 14923000000,
+          "operatingCashFlow": 34180000000
+        },
+        {
+          "date": "2024-12-31",
+          "fiscalYear": "2025",
+          "period": "Q2",
+          "capex": 15804000000,
+          "operatingCashFlow": 22291000000
+        },
+        {
+          "date": "2025-03-31",
+          "fiscalYear": "2025",
+          "period": "Q3",
+          "capex": 16745000000,
+          "operatingCashFlow": 37044000000
+        },
+        {
+          "date": "2025-06-30",
+          "fiscalYear": "2025",
+          "period": "Q4",
+          "capex": 17079000000,
+          "operatingCashFlow": 42647000000
+        },
+        {
+          "date": "2025-09-30",
+          "fiscalYear": "2026",
+          "period": "Q1",
+          "capex": 19394000000,
+          "operatingCashFlow": 45057000000
+        },
+        {
+          "date": "2025-12-31",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 29876000000,
+          "operatingCashFlow": 35758000000
+        },
+        {
+          "date": "2026-03-31",
+          "fiscalYear": "2026",
+          "period": "Q3",
+          "capex": 30876000000,
+          "operatingCashFlow": 46679000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q4",
+          "capex": 35802000000,
+          "operatingCashFlow": 55441000000
+        }
+      ]
+    },
+    "GOOGL": {
+      "symbol": "GOOGL",
+      "name": "Alphabet",
+      "color": "#4285F4",
+      "quarters": [
+        {
+          "date": "2021-09-30",
+          "fiscalYear": "2021",
+          "period": "Q3",
+          "capex": 6819000000,
+          "operatingCashFlow": 25539000000
+        },
+        {
+          "date": "2021-12-31",
+          "fiscalYear": "2021",
+          "period": "Q4",
+          "capex": 6383000000,
+          "operatingCashFlow": 24934000000
+        },
+        {
+          "date": "2022-03-31",
+          "fiscalYear": "2022",
+          "period": "Q1",
+          "capex": 9786000000,
+          "operatingCashFlow": 25106000000
+        },
+        {
+          "date": "2022-06-30",
+          "fiscalYear": "2022",
+          "period": "Q2",
+          "capex": 6828000000,
+          "operatingCashFlow": 19422000000
+        },
+        {
+          "date": "2022-09-30",
+          "fiscalYear": "2022",
+          "period": "Q3",
+          "capex": 7276000000,
+          "operatingCashFlow": 23353000000
+        },
+        {
+          "date": "2022-12-31",
+          "fiscalYear": "2022",
+          "period": "Q4",
+          "capex": 7595000000,
+          "operatingCashFlow": 23614000000
+        },
+        {
+          "date": "2023-03-31",
+          "fiscalYear": "2023",
+          "period": "Q1",
+          "capex": 6289000000,
+          "operatingCashFlow": 23509000000
+        },
+        {
+          "date": "2023-06-30",
+          "fiscalYear": "2023",
+          "period": "Q2",
+          "capex": 6888000000,
+          "operatingCashFlow": 28666000000
+        },
+        {
+          "date": "2023-09-30",
+          "fiscalYear": "2023",
+          "period": "Q3",
+          "capex": 8055000000,
+          "operatingCashFlow": 30656000000
+        },
+        {
+          "date": "2023-12-31",
+          "fiscalYear": "2023",
+          "period": "Q4",
+          "capex": 11019000000,
+          "operatingCashFlow": 18915000000
+        },
+        {
+          "date": "2024-03-31",
+          "fiscalYear": "2024",
+          "period": "Q1",
+          "capex": 12012000000,
+          "operatingCashFlow": 28848000000
+        },
+        {
+          "date": "2024-06-30",
+          "fiscalYear": "2024",
+          "period": "Q2",
+          "capex": 13186000000,
+          "operatingCashFlow": 26640000000
+        },
+        {
+          "date": "2024-09-30",
+          "fiscalYear": "2024",
+          "period": "Q3",
+          "capex": 13061000000,
+          "operatingCashFlow": 30698000000
+        },
+        {
+          "date": "2024-12-31",
+          "fiscalYear": "2024",
+          "period": "Q4",
+          "capex": 14276000000,
+          "operatingCashFlow": 39113000000
+        },
+        {
+          "date": "2025-03-31",
+          "fiscalYear": "2025",
+          "period": "Q1",
+          "capex": 17197000000,
+          "operatingCashFlow": 36150000000
+        },
+        {
+          "date": "2025-06-30",
+          "fiscalYear": "2025",
+          "period": "Q2",
+          "capex": 22446000000,
+          "operatingCashFlow": 27747000000
+        },
+        {
+          "date": "2025-09-30",
+          "fiscalYear": "2025",
+          "period": "Q3",
+          "capex": 23953000000,
+          "operatingCashFlow": 48414000000
+        },
+        {
+          "date": "2025-12-31",
+          "fiscalYear": "2025",
+          "period": "Q4",
+          "capex": 27851000000,
+          "operatingCashFlow": 52402000000
+        },
+        {
+          "date": "2026-03-31",
+          "fiscalYear": "2026",
+          "period": "Q1",
+          "capex": 35674000000,
+          "operatingCashFlow": 45790000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 44924000000,
+          "operatingCashFlow": 39069000000
+        }
+      ]
+    },
+    "META": {
+      "symbol": "META",
+      "name": "Meta",
+      "color": "#1877F2",
+      "quarters": [
+        {
+          "date": "2021-09-30",
+          "fiscalYear": "2021",
+          "period": "Q3",
+          "capex": 4313000000,
+          "operatingCashFlow": 14091000000
+        },
+        {
+          "date": "2021-12-31",
+          "fiscalYear": "2021",
+          "period": "Q4",
+          "capex": 5370000000,
+          "operatingCashFlow": 18104000000
+        },
+        {
+          "date": "2022-03-31",
+          "fiscalYear": "2022",
+          "period": "Q1",
+          "capex": 5441000000,
+          "operatingCashFlow": 14076000000
+        },
+        {
+          "date": "2022-06-30",
+          "fiscalYear": "2022",
+          "period": "Q2",
+          "capex": 7572000000,
+          "operatingCashFlow": 12197000000
+        },
+        {
+          "date": "2022-09-30",
+          "fiscalYear": "2022",
+          "period": "Q3",
+          "capex": 9375000000,
+          "operatingCashFlow": 9691000000
+        },
+        {
+          "date": "2022-12-31",
+          "fiscalYear": "2022",
+          "period": "Q4",
+          "capex": 9043000000,
+          "operatingCashFlow": 14511000000
+        },
+        {
+          "date": "2023-03-31",
+          "fiscalYear": "2023",
+          "period": "Q1",
+          "capex": 6842000000,
+          "operatingCashFlow": 13998000000
+        },
+        {
+          "date": "2023-06-30",
+          "fiscalYear": "2023",
+          "period": "Q2",
+          "capex": 6216000000,
+          "operatingCashFlow": 17309000000
+        },
+        {
+          "date": "2023-09-30",
+          "fiscalYear": "2023",
+          "period": "Q3",
+          "capex": 6543000000,
+          "operatingCashFlow": 20402000000
+        },
+        {
+          "date": "2023-12-31",
+          "fiscalYear": "2023",
+          "period": "Q4",
+          "capex": 7665000000,
+          "operatingCashFlow": 19404000000
+        },
+        {
+          "date": "2024-03-31",
+          "fiscalYear": "2024",
+          "period": "Q1",
+          "capex": 6400000000,
+          "operatingCashFlow": 19246000000
+        },
+        {
+          "date": "2024-06-30",
+          "fiscalYear": "2024",
+          "period": "Q2",
+          "capex": 8173000000,
+          "operatingCashFlow": 19370000000
+        },
+        {
+          "date": "2024-09-30",
+          "fiscalYear": "2024",
+          "period": "Q3",
+          "capex": 8258000000,
+          "operatingCashFlow": 24724000000
+        },
+        {
+          "date": "2024-12-31",
+          "fiscalYear": "2024",
+          "period": "Q4",
+          "capex": 14425000000,
+          "operatingCashFlow": 27988000000
+        },
+        {
+          "date": "2025-03-31",
+          "fiscalYear": "2025",
+          "period": "Q1",
+          "capex": 12941000000,
+          "operatingCashFlow": 24026000000
+        },
+        {
+          "date": "2025-06-30",
+          "fiscalYear": "2025",
+          "period": "Q2",
+          "capex": 16538000000,
+          "operatingCashFlow": 25561000000
+        },
+        {
+          "date": "2025-09-30",
+          "fiscalYear": "2025",
+          "period": "Q3",
+          "capex": 18829000000,
+          "operatingCashFlow": 29999000000
+        },
+        {
+          "date": "2025-12-31",
+          "fiscalYear": "2025",
+          "period": "Q4",
+          "capex": 21383000000,
+          "operatingCashFlow": 36214000000
+        },
+        {
+          "date": "2026-03-31",
+          "fiscalYear": "2026",
+          "period": "Q1",
+          "capex": 18997000000,
+          "operatingCashFlow": 32226000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 30116000000,
+          "operatingCashFlow": 31862000000
+        }
+      ]
+    },
+    "AMZN": {
+      "symbol": "AMZN",
+      "name": "Amazon",
+      "color": "#FF9900",
+      "quarters": [
+        {
+          "date": "2021-09-30",
+          "fiscalYear": "2021",
+          "period": "Q3",
+          "capex": 15748000000,
+          "operatingCashFlow": 7313000000
+        },
+        {
+          "date": "2021-12-31",
+          "fiscalYear": "2021",
+          "period": "Q4",
+          "capex": 18935000000,
+          "operatingCashFlow": 22086000000
+        },
+        {
+          "date": "2022-03-31",
+          "fiscalYear": "2022",
+          "period": "Q1",
+          "capex": 14951000000,
+          "operatingCashFlow": -2790000000
+        },
+        {
+          "date": "2022-06-30",
+          "fiscalYear": "2022",
+          "period": "Q2",
+          "capex": 15724000000,
+          "operatingCashFlow": 8965000000
+        },
+        {
+          "date": "2022-09-30",
+          "fiscalYear": "2022",
+          "period": "Q3",
+          "capex": 16378000000,
+          "operatingCashFlow": 11404000000
+        },
+        {
+          "date": "2022-12-31",
+          "fiscalYear": "2022",
+          "period": "Q4",
+          "capex": 16592000000,
+          "operatingCashFlow": 29173000000
+        },
+        {
+          "date": "2023-03-31",
+          "fiscalYear": "2023",
+          "period": "Q1",
+          "capex": 14207000000,
+          "operatingCashFlow": 4788000000
+        },
+        {
+          "date": "2023-06-30",
+          "fiscalYear": "2023",
+          "period": "Q2",
+          "capex": 11455000000,
+          "operatingCashFlow": 16476000000
+        },
+        {
+          "date": "2023-09-30",
+          "fiscalYear": "2023",
+          "period": "Q3",
+          "capex": 12479000000,
+          "operatingCashFlow": 21217000000
+        },
+        {
+          "date": "2023-12-31",
+          "fiscalYear": "2023",
+          "period": "Q4",
+          "capex": 14588000000,
+          "operatingCashFlow": 42465000000
+        },
+        {
+          "date": "2024-03-31",
+          "fiscalYear": "2024",
+          "period": "Q1",
+          "capex": 14925000000,
+          "operatingCashFlow": 18989000000
+        },
+        {
+          "date": "2024-06-30",
+          "fiscalYear": "2024",
+          "period": "Q2",
+          "capex": 17620000000,
+          "operatingCashFlow": 25281000000
+        },
+        {
+          "date": "2024-09-30",
+          "fiscalYear": "2024",
+          "period": "Q3",
+          "capex": 22620000000,
+          "operatingCashFlow": 25971000000
+        },
+        {
+          "date": "2024-12-31",
+          "fiscalYear": "2024",
+          "period": "Q4",
+          "capex": 27834000000,
+          "operatingCashFlow": 45636000000
+        },
+        {
+          "date": "2025-03-31",
+          "fiscalYear": "2025",
+          "period": "Q1",
+          "capex": 25019000000,
+          "operatingCashFlow": 17015000000
+        },
+        {
+          "date": "2025-06-30",
+          "fiscalYear": "2025",
+          "period": "Q2",
+          "capex": 32183000000,
+          "operatingCashFlow": 32515000000
+        },
+        {
+          "date": "2025-09-30",
+          "fiscalYear": "2025",
+          "period": "Q3",
+          "capex": 35095000000,
+          "operatingCashFlow": 35525000000
+        },
+        {
+          "date": "2025-12-31",
+          "fiscalYear": "2025",
+          "period": "Q4",
+          "capex": 39522000000,
+          "operatingCashFlow": 54459000000
+        },
+        {
+          "date": "2026-03-31",
+          "fiscalYear": "2026",
+          "period": "Q1",
+          "capex": 44203000000,
+          "operatingCashFlow": 26032000000
+        },
+        {
+          "date": "2026-06-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 54208000000,
+          "operatingCashFlow": 45387000000
+        }
+      ]
+    },
+    "ORCL": {
+      "symbol": "ORCL",
+      "name": "Oracle",
+      "color": "#F80000",
+      "quarters": [
+        {
+          "date": "2021-08-31",
+          "fiscalYear": "2022",
+          "period": "Q1",
+          "capex": 1062000000,
+          "operatingCashFlow": 5391000000
+        },
+        {
+          "date": "2021-11-30",
+          "fiscalYear": "2022",
+          "period": "Q2",
+          "capex": 925000000,
+          "operatingCashFlow": -3682000000
+        },
+        {
+          "date": "2022-02-28",
+          "fiscalYear": "2022",
+          "period": "Q3",
+          "capex": 1101000000,
+          "operatingCashFlow": 3845000000
+        },
+        {
+          "date": "2022-05-31",
+          "fiscalYear": "2022",
+          "period": "Q4",
+          "capex": 1423000000,
+          "operatingCashFlow": 3985000000
+        },
+        {
+          "date": "2022-08-31",
+          "fiscalYear": "2023",
+          "period": "Q1",
+          "capex": 1719000000,
+          "operatingCashFlow": 6394000000
+        },
+        {
+          "date": "2022-11-30",
+          "fiscalYear": "2023",
+          "period": "Q2",
+          "capex": 2435000000,
+          "operatingCashFlow": 849000000
+        },
+        {
+          "date": "2023-02-28",
+          "fiscalYear": "2023",
+          "period": "Q3",
+          "capex": 2628000000,
+          "operatingCashFlow": 4275000000
+        },
+        {
+          "date": "2023-05-31",
+          "fiscalYear": "2023",
+          "period": "Q4",
+          "capex": 1913000000,
+          "operatingCashFlow": 5647000000
+        },
+        {
+          "date": "2023-08-31",
+          "fiscalYear": "2024",
+          "period": "Q1",
+          "capex": 1314000000,
+          "operatingCashFlow": 6974000000
+        },
+        {
+          "date": "2023-11-30",
+          "fiscalYear": "2024",
+          "period": "Q2",
+          "capex": 1080000000,
+          "operatingCashFlow": 143000000
+        },
+        {
+          "date": "2024-02-29",
+          "fiscalYear": "2024",
+          "period": "Q3",
+          "capex": 1674000000,
+          "operatingCashFlow": 5475000000
+        },
+        {
+          "date": "2024-05-31",
+          "fiscalYear": "2024",
+          "period": "Q4",
+          "capex": 2798000000,
+          "operatingCashFlow": 6081000000
+        },
+        {
+          "date": "2024-08-31",
+          "fiscalYear": "2025",
+          "period": "Q1",
+          "capex": 2303000000,
+          "operatingCashFlow": 7427000000
+        },
+        {
+          "date": "2024-11-30",
+          "fiscalYear": "2025",
+          "period": "Q2",
+          "capex": 3970000000,
+          "operatingCashFlow": 1304000000
+        },
+        {
+          "date": "2025-02-28",
+          "fiscalYear": "2025",
+          "period": "Q3",
+          "capex": 5862000000,
+          "operatingCashFlow": 5933000000
+        },
+        {
+          "date": "2025-05-31",
+          "fiscalYear": "2025",
+          "period": "Q4",
+          "capex": 9080000000,
+          "operatingCashFlow": 6157000000
+        },
+        {
+          "date": "2025-08-31",
+          "fiscalYear": "2026",
+          "period": "Q1",
+          "capex": 8502000000,
+          "operatingCashFlow": 8140000000
+        },
+        {
+          "date": "2025-11-30",
+          "fiscalYear": "2026",
+          "period": "Q2",
+          "capex": 12033000000,
+          "operatingCashFlow": 2066000000
+        },
+        {
+          "date": "2026-02-28",
+          "fiscalYear": "2026",
+          "period": "Q3",
+          "capex": 18635000000,
+          "operatingCashFlow": 7151000000
+        },
+        {
+          "date": "2026-05-31",
+          "fiscalYear": "2026",
+          "period": "Q4",
+          "capex": 16493000000,
+          "operatingCashFlow": 14620000000
+        }
+      ]
+    }
+  },
+  "source": "live",
+  "updated": 1788448572808
+}

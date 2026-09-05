@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, LineChart, Line, CartesianGrid, ReferenceLine } from "recharts";
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, LineChart, Line, CartesianGrid, ReferenceLine, BarChart, Bar, Cell, LabelList } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { GLOBAL_RATE_SERIES } from "../lib/constants.js";
-import { fetchFMP } from "../lib/api.js";
+import { fetchFMP, fetchFred } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
+import WorldBankSubTab from "./intl/WorldBankSubTab.jsx";
+import LiquiditySubTab from "./intl/LiquiditySubTab.jsx";
+import IntlPulseTab from "./intl/IntlPulseTab.jsx";
 
 const INTL_ETFS = [
-  { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "🌍", color: "#818cf8" },
+  { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "INTL", color: "#818cf8" },
   { symbol: "VWO",  label: "Emerging Markets",       flag: "🌏", color: "#f97316" },
   { symbol: "EWJ",  label: "Japan",                  flag: "🇯🇵", color: "#ec4899" },
   { symbol: "EWG",  label: "Germany",                flag: "🇩🇪", color: "#fbbf24" },
@@ -36,12 +39,40 @@ const FX_PAIRS = [
 ];
 
 const INTL_SUB_TABS = [
-  { id: "markets", label: "Market Overview" },
-  { id: "forex", label: "Forex" },
+  { id: "pulse",     label: "Pulse" },
+  { id: "markets",   label: "Market Overview" },
+  { id: "rates",     label: "Central Banks" },
+  { id: "forex",     label: "Forex" },
+  { id: "liquidity", label: "Liquidity & Debt" },
+  { id: "gdp",       label: "GDP" },
+  { id: "debt",      label: "Debt" },
+  { id: "infl",      label: "Inflation" },
+  { id: "demo",      label: "Demographics" },
 ];
 
-function InternationalTab({ fmpKey }) {
-  const [intlSub, setIntlSub] = useState("markets");
+// Central bank metadata — ids are 2-letter country codes matching /api/cb-rates
+const CENTRAL_BANKS = [
+  { id: "US", flag: "🇺🇸", country: "United States",  bank: "Federal Reserve",  color: "#E8553A" },
+  { id: "EU", flag: "🇪🇺", country: "Euro Area",       bank: "ECB",              color: "#3B82F6" },
+  { id: "GB", flag: "🇬🇧", country: "United Kingdom",  bank: "Bank of England",  color: "#8B5CF6" },
+  { id: "JP", flag: "🇯🇵", country: "Japan",           bank: "Bank of Japan",    color: "#EC4899" },
+  { id: "CA", flag: "🇨🇦", country: "Canada",          bank: "Bank of Canada",   color: "#F59E0B" },
+  { id: "CH", flag: "🇨🇭", country: "Switzerland",     bank: "SNB",              color: "#10B981" },
+  { id: "AU", flag: "🇦🇺", country: "Australia",       bank: "RBA",              color: "#6366F1" },
+  { id: "KR", flag: "🇰🇷", country: "South Korea",     bank: "Bank of Korea",    color: "#14B8A6" },
+  { id: "MX", flag: "🇲🇽", country: "Mexico",          bank: "Banxico",          color: "#D946EF" },
+  { id: "BR", flag: "🇧🇷", country: "Brazil",          bank: "BCB",              color: "#F97316" },
+];
+
+/* ── Trade-Weighted Dollar Index series (FRED) ─────────────── */
+const TWI_SERIES = [
+  { id: "DTWEXBGS",   label: "Broad (26 currencies)", color: "#E8553A", shortLabel: "Broad" },
+  { id: "DTWEXAFEGS", label: "Advanced Economies",    color: "#3B82F6", shortLabel: "Advanced" },
+  { id: "DTWEXEMEGS", label: "Emerging Markets",       color: "#10B981", shortLabel: "Emerging" },
+];
+
+function InternationalTab({ fmpKey, fredKey, gd }) {
+  const [intlSub, setIntlSub] = useState("pulse");
   const [quotes, setQuotes] = useState(null);
   const [history, setHistory] = useState(null);
   const [sortCol, setSortCol] = useState("ytd");
@@ -50,6 +81,24 @@ function InternationalTab({ fmpKey }) {
   const [fxHistory, setFxHistory] = useState(null);
   const [fxSortCol, setFxSortCol] = useState("dayChg");
   const [fxSortAsc, setFxSortAsc] = useState(false);
+  const [twiData, setTwiData] = useState(null);
+  const [twiRange, setTwiRange] = useState("1y"); // "ytd" | "1y" | "5y" | "max"
+  const [twiError, setTwiError] = useState(false);
+  const [twiLoading, setTwiLoading] = useState(false);
+  const [cbRates, setCbRates] = useState(null);
+  const [cbRatesLoading, setCbRatesLoading] = useState(false);
+  const [cbRatesError, setCbRatesError] = useState(false);
+
+  // Fetch central bank rates from /api/cb-rates (live data, replaces stale FRED OECD series)
+  useEffect(() => {
+    if (intlSub !== 'rates' || cbRates !== null || cbRatesLoading) return;
+    setCbRatesLoading(true);
+    setCbRatesError(false);
+    fetch('/api/cb-rates')
+      .then(r => r.json())
+      .then(data => { setCbRates(data); setCbRatesLoading(false); })
+      .catch(() => { setCbRatesLoading(false); setCbRatesError(true); });
+  }, [intlSub, cbRates, cbRatesLoading]);
 
   // Fetch ETF quotes on mount
   useEffect(() => {
@@ -116,6 +165,89 @@ function InternationalTab({ fmpKey }) {
       setFxHistory(map);
     });
   }, [intlSub, fxHistory, fmpKey]);
+
+  // Fetch Trade-Weighted Dollar Index when forex tab selected
+  const fetchTwi = useCallback(async () => {
+    if (!fredKey) return;
+    setTwiLoading(true);
+    setTwiError(false);
+    try {
+      // Stagger requests to avoid FRED rate limits (wait 500ms between each)
+      const map = {};
+      for (const s of TWI_SERIES) {
+        try {
+          const obs = await fetchFred(s.id, fredKey, 5200);
+          map[s.id] = obs;
+        } catch (e) {
+          console.warn(`TWI fetch failed for ${s.id}:`, e.message);
+          map[s.id] = [];
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      const hasData = TWI_SERIES.some(s => map[s.id].length > 0);
+      if (hasData) {
+        setTwiData(map);
+      } else {
+        setTwiError(true);
+      }
+    } catch {
+      setTwiError(true);
+    } finally {
+      setTwiLoading(false);
+    }
+  }, [fredKey]);
+
+  useEffect(() => {
+    if (intlSub !== "forex" || twiData || !fredKey) return;
+    fetchTwi();
+  }, [intlSub, twiData, fredKey, fetchTwi]);
+
+  // Build TWI chart data (merged by date, filtered by range)
+  const twiChartData = useMemo(() => {
+    if (!twiData) return [];
+    const dateMap = {};
+    TWI_SERIES.forEach(s => {
+      (twiData[s.id] || []).forEach(pt => {
+        if (!dateMap[pt.d]) dateMap[pt.d] = { date: pt.d };
+        dateMap[pt.d][s.id] = pt.v;
+      });
+    });
+    let all = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+    // Apply range filter
+    const now = new Date();
+    if (twiRange === "ytd") {
+      const ytdStart = `${now.getFullYear()}-01-01`;
+      all = all.filter(d => d.date >= ytdStart);
+    } else if (twiRange === "1y") {
+      const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+      all = all.filter(d => d.date >= oneYearAgo);
+    } else if (twiRange === "5y") {
+      const fiveYearAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+      all = all.filter(d => d.date >= fiveYearAgo);
+    }
+    return all;
+  }, [twiData, twiRange]);
+
+  // TWI snapshot values (latest, YTD change, 1Y change)
+  const twiSnapshot = useMemo(() => {
+    if (!twiData) return [];
+    const ytdStart = `${new Date().getFullYear()}-01-01`;
+    const oneYearAgo = new Date(new Date().getFullYear() - 1, new Date().getMonth(), new Date().getDate()).toISOString().slice(0, 10);
+    return TWI_SERIES.map(s => {
+      const obs = twiData[s.id] || [];
+      if (!obs.length) return { ...s, latest: null, ytdChg: null, yrChg: null };
+      const latest = obs[obs.length - 1];
+      const ytdStart_ = obs.find(o => o.d >= ytdStart);
+      const yrStart_ = obs.find(o => o.d >= oneYearAgo);
+      return {
+        ...s,
+        latest: latest.v,
+        latestDate: latest.d,
+        ytdChg: ytdStart_ ? ((latest.v - ytdStart_.v) / ytdStart_.v) * 100 : null,
+        yrChg: yrStart_ ? ((latest.v - yrStart_.v) / yrStart_.v) * 100 : null,
+      };
+    });
+  }, [twiData]);
 
   // ETF YTD %
   const ytdPct = useMemo(() => {
@@ -248,12 +380,12 @@ function InternationalTab({ fmpKey }) {
 
   return (<>
     {/* Sub-tab bar */}
-    <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+    <div style={{ display: "flex", gap: 4, background: "var(--bg-subtle)", borderRadius: 10, padding: 3, marginBottom: 18, flexWrap: "wrap" }}>
       {INTL_SUB_TABS.map(t => (
         <button key={t.id} onClick={() => setIntlSub(t.id)} style={{
-          flex: 1, padding: "8px 10px", border: "none", borderRadius: 8,
-          background: intlSub === t.id ? "linear-gradient(135deg, rgba(129,140,248,0.2), rgba(99,102,241,0.1))" : "transparent",
-          color: intlSub === t.id ? "#c7d2fe" : "#64748b", fontSize: 12, fontWeight: intlSub === t.id ? 600 : 400,
+          flex: "1 1 auto", minWidth: 90, padding: "8px 10px", border: "none", borderRadius: 8,
+          background: intlSub === t.id ? "var(--tab-active-bg)" : "transparent",
+          color: intlSub === t.id ? "var(--tab-active-color)" : "var(--tab-inactive-color)", fontSize: 12, fontWeight: intlSub === t.id ? 600 : 400,
           fontFamily: fonts.heading, cursor: "pointer", transition: "all 0.15s",
           borderBottom: intlSub === t.id ? "2px solid #818cf8" : "2px solid transparent",
         }}>{t.label}</button>
@@ -261,6 +393,8 @@ function InternationalTab({ fmpKey }) {
     </div>
 
     {/* ===== MARKETS SUB-TAB ===== */}
+    {intlSub === "pulse" && <IntlPulseTab go={setIntlSub} />}
+
     {intlSub === "markets" && (<>
       {!quotes ? <div style={{ textAlign: "center", padding: 40, color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading international market data...</div> : (<>
         <SH>International Market Overview</SH>
@@ -277,7 +411,7 @@ function InternationalTab({ fmpKey }) {
                     <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>{e.symbol}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading, marginBottom: 4 }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, marginBottom: 4 }}>
                   {q?.price != null ? `$${q.price.toFixed(2)}` : "—"}
                 </div>
                 <div style={{ display: "flex", gap: 12 }}>
@@ -327,11 +461,11 @@ function InternationalTab({ fmpKey }) {
                 <tr key={r.symbol} style={{ borderBottom: i < tableRows.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
                   <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 500 }}><span style={{ marginRight: 8 }}>{r.flag}</span>{r.label}</td>
                   <td style={{ padding: "10px 12px", fontSize: 10, fontFamily: fonts.mono, color: "#64748b", textAlign: "center" }}>{r.symbol}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#f1f5f9", textAlign: "right", fontWeight: 600 }}>{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "var(--text-primary)", textAlign: "right", fontWeight: 600 }}>{r.price != null ? `$${r.price.toFixed(2)}` : "—"}</td>
                   <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: chgColor(r.dayChg), textAlign: "right" }}>{r.dayChg != null ? `${r.dayChg > 0 ? "+" : ""}${r.dayChg.toFixed(2)}%` : "—"}</td>
                   <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: chgColor(r.ytd), textAlign: "right", fontWeight: 600 }}>{r.ytd != null ? `${r.ytd > 0 ? "+" : ""}${r.ytd.toFixed(1)}%` : "—"}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{r.yearHigh != null ? `$${r.yearHigh.toFixed(2)}` : "—"}</td>
-                  <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{r.yearLow != null ? `$${r.yearLow.toFixed(2)}` : "—"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-secondary)", textAlign: "right" }}>{r.yearHigh != null ? `$${r.yearHigh.toFixed(2)}` : "—"}</td>
+                  <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-secondary)", textAlign: "right" }}>{r.yearLow != null ? `$${r.yearLow.toFixed(2)}` : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -340,8 +474,222 @@ function InternationalTab({ fmpKey }) {
       </>)}
     </>)}
 
+    {/* ===== CENTRAL BANKS SUB-TAB ===== */}
+    {intlSub === "rates" && (() => {
+      const rows = CENTRAL_BANKS.map(cb => ({
+        ...cb,
+        rate: cbRates?.[cb.id]?.rate ?? null,
+        date: cbRates?.[cb.id]?.date ?? null,
+        source: cbRates?.[cb.id]?.source ?? null,
+      })).sort((a, b) => (b.rate ?? -Infinity) - (a.rate ?? -Infinity));
+      const maxRate = Math.max(...rows.map(r => r.rate ?? 0));
+      const usRate = rows.find(r => r.id === "US")?.rate;
+
+      return (<>
+        <SH>Global Central Bank Policy Rates</SH>
+        <InfoBox color="#3B82F6">
+          <strong style={{ color: "var(--text-primary)" }}>Policy rates set by major central banks.</strong>{" "}
+          US/EU/UK/KR/BR from FRED (daily/weekly). All others from FMP economic calendar (most recent decision).
+          UK shows SONIA overnight rate (tracks BoE base rate closely).
+        </InfoBox>
+
+        {/* Loading / error states */}
+        {cbRatesLoading && (
+          <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)", fontFamily: fonts.mono, fontSize: 12 }}>
+            Fetching live central bank rate data…
+          </div>
+        )}
+        {cbRatesError && (
+          <div style={{ textAlign: "center", padding: 30 }}>
+            <div style={{ color: "#f87171", fontFamily: fonts.mono, fontSize: 11, marginBottom: 10 }}>Failed to load central bank rates.</div>
+            <button onClick={() => { setCbRates(null); setCbRatesError(false); }} style={{
+              background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)",
+              borderRadius: 8, padding: "6px 18px", fontSize: 11, fontFamily: fonts.mono, color: "#3B82F6", cursor: "pointer",
+            }}>Retry</button>
+          </div>
+        )}
+
+        {/* Rate cards grid */}
+        {!cbRatesLoading && !cbRatesError && rows.some(r => r.rate != null) && (<>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 20 }}>
+            {rows.map(cb => {
+              if (cb.rate == null) return null;
+              const spread = usRate != null ? cb.rate - usRate : null;
+              return (
+                <div key={cb.id} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", borderTop: `3px solid ${cb.color}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 20 }}>{cb.flag}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontFamily: fonts.heading }}>{cb.country}</div>
+                      <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono }}>{cb.bank}</div>
+                    </div>
+                    {cb.source && (
+                      <span style={{ fontSize: 8, fontFamily: fonts.mono, color: cb.source === "FRED" ? "#4ade80" : "#818cf8",
+                        background: cb.source === "FRED" ? "rgba(74,222,128,0.1)" : "rgba(129,140,248,0.1)",
+                        border: `1px solid ${cb.source === "FRED" ? "rgba(74,222,128,0.2)" : "rgba(129,140,248,0.2)"}`,
+                        borderRadius: 4, padding: "1px 5px" }}>
+                        {cb.source}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.5 }}>
+                    {cb.rate.toFixed(2)}<span style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 400 }}>%</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                    <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono }}>as of {cb.date}</span>
+                    {spread != null && cb.id !== "US" && (
+                      <span style={{ fontSize: 9, fontFamily: fonts.mono, color: spread > 0 ? "#4ade80" : spread < 0 ? "#f87171" : "var(--text-muted)" }}>
+                        vs US: {spread > 0 ? "+" : ""}{spread.toFixed(2)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bar chart comparison */}
+          <SH>Rate Comparison</SH>
+          <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "20px 10px 10px", marginBottom: 16 }}>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={rows.filter(r => r.rate != null).map(r => ({ name: r.country.split(" ")[0], rate: r.rate, color: r.color, flag: r.flag }))}
+                margin={{ top: 24, right: 20, left: -10, bottom: 40 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 10, fontFamily: fonts.heading }} angle={-35} textAnchor="end" interval={0} />
+                <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} tickFormatter={v => `${v}%`} domain={[0, Math.ceil(maxRate) + 1]} />
+                <Tooltip
+                  contentStyle={{ background: "var(--tooltip-bg, #1e293b)", border: "1px solid var(--border-subtle)", borderRadius: 10, fontSize: 11, fontFamily: fonts.mono }}
+                  formatter={(v, _, props) => [`${v.toFixed(2)}%`, props.payload?.flag ? `${props.payload.flag} ${props.payload.name}` : props.payload.name]}
+                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                />
+                <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                  {rows.filter(r => r.rate != null).map((r, i) => <Cell key={i} fill={r.color} fillOpacity={0.85} />)}
+                  <LabelList dataKey="rate" position="top" formatter={v => `${v.toFixed(1)}%`} style={{ fontSize: 9, fontFamily: fonts.mono, fill: "var(--text-secondary)" }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Table */}
+          <SH>Policy Rate Details</SH>
+          <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "rgba(59,130,246,0.08)" }}>
+                  <th style={{ ...thStyle, textAlign: "left", cursor: "default" }}>Country</th>
+                  <th style={{ ...thStyle, textAlign: "left", cursor: "default" }}>Central Bank</th>
+                  <th style={{ ...thStyle, textAlign: "right", cursor: "default" }}>Rate</th>
+                  <th style={{ ...thStyle, textAlign: "right", cursor: "default" }}>vs US</th>
+                  <th style={{ ...thStyle, textAlign: "right", cursor: "default" }}>Last Updated</th>
+                  <th style={{ ...thStyle, textAlign: "center", cursor: "default" }}>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const spread = usRate != null && r.id !== "US" ? r.rate - usRate : null;
+                  return (
+                    <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border-subtle)" : "none", background: r.id === "US" ? "rgba(232,85,58,0.04)" : "transparent" }}>
+                      <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: "var(--text-primary)", fontWeight: r.id === "US" ? 600 : 400 }}>
+                        <span style={{ marginRight: 8 }}>{r.flag}</span>{r.country}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-muted)" }}>{r.bank}</td>
+                      <td style={{ padding: "10px 12px", fontSize: 14, fontFamily: fonts.mono, color: r.rate != null ? r.color : "var(--text-muted)", textAlign: "right", fontWeight: 700 }}>
+                        {r.rate != null ? `${r.rate.toFixed(2)}%` : "—"}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, textAlign: "right", color: spread == null ? "var(--text-muted)" : spread > 0 ? "#4ade80" : spread < 0 ? "#f87171" : "var(--text-muted)" }}>
+                        {spread != null ? `${spread > 0 ? "+" : ""}${spread.toFixed(2)}%` : r.id === "US" ? "—" : "N/A"}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 10, fontFamily: fonts.mono, color: "var(--text-muted)", textAlign: "right" }}>{r.date || "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        {r.source && (
+                          <span style={{ fontSize: 8, fontFamily: fonts.mono,
+                            color: r.source === "FRED" ? "#4ade80" : "#818cf8",
+                            background: r.source === "FRED" ? "rgba(74,222,128,0.1)" : "rgba(129,140,248,0.1)",
+                            border: `1px solid ${r.source === "FRED" ? "rgba(74,222,128,0.2)" : "rgba(129,140,248,0.2)"}`,
+                            borderRadius: 4, padding: "2px 6px",
+                          }}>{r.source}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>)}
+      </>);
+    })()}
+
     {/* ===== FOREX SUB-TAB ===== */}
+    {/* ===== WORLD BANK SUB-TABS ===== */}
+    {["gdp", "debt", "infl", "demo"].includes(intlSub) && <WorldBankSubTab view={intlSub} />}
+
+    {/* ===== LIQUIDITY & DEBT SUB-TAB ===== */}
+    {intlSub === "liquidity" && <LiquiditySubTab />}
+
     {intlSub === "forex" && (<>
+      {/* ── Trade-Weighted Dollar Index ───────────────────────── */}
+      <SH>Trade-Weighted U.S. Dollar Index</SH>
+      <InfoBox color="#E8553A">
+        <strong style={{ color: "var(--text-primary)" }}>Federal Reserve Broad Dollar Index.</strong> Measures the USD against 26 trading partner currencies weighted by goods trade. Base = 100 (Jan 2006). Higher = stronger dollar.
+      </InfoBox>
+
+      {twiSnapshot.length > 0 && twiSnapshot[0].latest != null && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+          {twiSnapshot.map(s => (
+            <div key={s.id} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px", borderTop: `3px solid ${s.color}` }}>
+              <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>{s.label}</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.5 }}>{s.latest.toFixed(2)}</div>
+              <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+                {s.ytdChg != null && <span style={{ fontSize: 10, fontFamily: fonts.mono, color: s.ytdChg > 0 ? "#4ade80" : s.ytdChg < 0 ? "#f87171" : "var(--text-muted)" }}>YTD {s.ytdChg > 0 ? "+" : ""}{s.ytdChg.toFixed(2)}%</span>}
+                {s.yrChg != null && <span style={{ fontSize: 10, fontFamily: fonts.mono, color: s.yrChg > 0 ? "#4ade80" : s.yrChg < 0 ? "#f87171" : "var(--text-muted)" }}>1Y {s.yrChg > 0 ? "+" : ""}{s.yrChg.toFixed(2)}%</span>}
+              </div>
+              <div style={{ fontSize: 8, color: "var(--text-muted)", fontFamily: fonts.mono, marginTop: 3 }}>as of {s.latestDate}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {twiChartData.length > 1 && (
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 10px 8px", marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, marginBottom: 8, paddingRight: 10 }}>
+            {["ytd", "1y", "5y", "max"].map(r => (
+              <button key={r} onClick={() => setTwiRange(r)} style={{
+                background: twiRange === r ? "rgba(232,85,58,0.18)" : "transparent",
+                border: twiRange === r ? "1px solid rgba(232,85,58,0.4)" : "1px solid var(--border-subtle)",
+                borderRadius: 6, padding: "3px 10px", fontSize: 10, fontFamily: fonts.mono,
+                color: twiRange === r ? "#E8553A" : "var(--text-muted)", cursor: "pointer", fontWeight: twiRange === r ? 700 : 400,
+              }}>{r.toUpperCase()}</button>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={twiChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <XAxis dataKey="date" tick={{ fill: "#64748b", fontSize: 9, fontFamily: fonts.mono }} tickFormatter={d => d.slice(0, 7)} interval="preserveStartEnd" minTickGap={50} />
+              <YAxis tick={{ fill: "#64748b", fontSize: 9, fontFamily: fonts.mono }} domain={["auto", "auto"]} />
+              <Tooltip contentStyle={{ background: "var(--tooltip-bg, #1e293b)", border: "1px solid var(--border-subtle)", borderRadius: 10, fontSize: 11, fontFamily: fonts.mono }}
+                formatter={(v, name) => { const s = TWI_SERIES.find(t => t.id === name); return [v.toFixed(2), s?.label || name]; }}
+                labelFormatter={l => fmtDate(l)}
+              />
+              <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 4 }} iconType="circle" iconSize={7}
+                formatter={(val) => { const s = TWI_SERIES.find(t => t.id === val); return s?.shortLabel || val; }} />
+              {TWI_SERIES.map(s => <Line key={s.id} type="monotone" dataKey={s.id} stroke={s.color} dot={false} strokeWidth={2} connectNulls />)}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {twiLoading && <div style={{ textAlign: "center", padding: 20, color: "var(--text-muted)", fontFamily: fonts.mono, fontSize: 11 }}>Loading trade-weighted dollar index...</div>}
+      {twiError && (
+        <div style={{ textAlign: "center", padding: 20 }}>
+          <div style={{ color: "#f87171", fontFamily: fonts.mono, fontSize: 11, marginBottom: 8 }}>Failed to load dollar index data (FRED rate limit likely).</div>
+          <button onClick={() => { setTwiError(false); fetchTwi(); }} style={{ background: "rgba(232,85,58,0.15)", border: "1px solid rgba(232,85,58,0.3)", borderRadius: 8, padding: "6px 18px", fontSize: 11, fontFamily: fonts.mono, color: "#E8553A", cursor: "pointer" }}>Retry</button>
+        </div>
+      )}
+      {!fredKey && <div style={{ textAlign: "center", padding: 20, color: "var(--text-muted)", fontFamily: fonts.mono, fontSize: 11 }}>FRED API key needed for dollar index data.</div>}
+
       {!fxQuotes ? <div style={{ textAlign: "center", padding: 40, color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading forex data...</div> : (<>
         <SH>Major Currency Pairs</SH>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10, marginBottom: 16 }}>
@@ -358,7 +706,7 @@ function InternationalTab({ fmpKey }) {
                     <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.heading }}>{p.base}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.mono, marginBottom: 4 }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.mono, marginBottom: 4 }}>
                   {q?.price != null ? q.price.toFixed(decimals) : "—"}
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -414,11 +762,11 @@ function InternationalTab({ fmpKey }) {
                       <span style={{ marginRight: 8 }}>{r.flag}</span><span style={{ fontFamily: fonts.mono, fontWeight: 700 }}>{r.label}</span>
                       <span style={{ fontSize: 9, color: "#64748b", marginLeft: 8 }}>{r.base}</span>
                     </td>
-                    <td style={{ padding: "10px 12px", fontSize: 13, fontFamily: fonts.mono, color: "#f1f5f9", textAlign: "right", fontWeight: 700 }}>{r.price != null ? r.price.toFixed(dec) : "—"}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 13, fontFamily: fonts.mono, color: "var(--text-primary)", textAlign: "right", fontWeight: 700 }}>{r.price != null ? r.price.toFixed(dec) : "—"}</td>
                     <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: chgColor(r.dayChg), textAlign: "right" }}>{r.dayChg != null ? `${r.dayChg > 0 ? "+" : ""}${r.dayChg.toFixed(3)}%` : "—"}</td>
                     <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: chgColor(r.ytd), textAlign: "right", fontWeight: 600 }}>{r.ytd != null ? `${r.ytd > 0 ? "+" : ""}${r.ytd.toFixed(1)}%` : "—"}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{r.yearHigh != null ? r.yearHigh.toFixed(dec) : "—"}</td>
-                    <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{r.yearLow != null ? r.yearLow.toFixed(dec) : "—"}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-secondary)", textAlign: "right" }}>{r.yearHigh != null ? r.yearHigh.toFixed(dec) : "—"}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-secondary)", textAlign: "right" }}>{r.yearLow != null ? r.yearLow.toFixed(dec) : "—"}</td>
                   </tr>
                 );
               })}
