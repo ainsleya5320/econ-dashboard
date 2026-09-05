@@ -18,6 +18,7 @@ const TICKERS_FILE = path.join(__dirname, 'tickers.json')
 const env = loadEnv('', __dirname, '')
 
 const FMP_KEY = env.VITE_FMP_KEY || ''
+const EIA_KEY = env.EIA_API_KEY || process.env.EIA_API_KEY || '' // free key from eia.gov/opendata; weekly petroleum + gas inventories
 const FRED_KEY = env.VITE_FRED_KEY || ''
 const BLS_KEY = env.BLS_KEY || ''
 const BEA_KEY = env.BEA_KEY || ''
@@ -3655,7 +3656,7 @@ const machine = createMachine({ fetchFredSeries, fetchYahooSparkline, dir: __dir
 // Damodaran's monthly implied ERP (server/damodaranErp.js)
 const damodaranErp = createDamodaranErp({ UA, dir: __dirname })
 // Commodities Pulse (server/commodityPulse.js): the tape, real-price value, positioning, macro drivers
-const commodityPulse = createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir: __dirname })
+const commodityPulse = createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir: __dirname, EIA_KEY })
 
 export default defineConfig({
   plugins: [

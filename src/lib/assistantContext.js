@@ -110,6 +110,8 @@ export function buildVerdictText(d) {
     L.push(`Commodities Pulse (Commodities tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): momentum ${sc.momentum.score} (${sc.momentum.label}), real-price value ${sc.value.score} (${sc.value.label}), macro ${sc.macro.score} (${sc.macro.label}). ${sc.macro.why.split('. A weaker')[0]}.`);
     const rp = [...p.rows].filter(r => r.real).sort((a, b) => b.real.pct - a.real.pct);
     L.push(`  Real-price percentiles (each vs its own history since 1992): ${rp.map(r => `${r.name} p${r.real.pct} (${pct(r.r1y, 0)} 1y)`).join(', ')}. ${sc.positioning.why}`);
+    const inv = p.inventories;
+    if (inv?.available) L.push(`  EIA inventories (${inv.asOf}): ${inv.items.filter(i => !i.error).map(i => `${i.label} ${i.unit === 'MBBL' ? `${(i.value / 1000).toFixed(1)}M bbl` : i.unit === 'BCF' ? `${Math.round(i.value)} bcf` : i.unit === 'MBBL/D' ? `${(i.value / 1000).toFixed(2)}M b/d` : `${i.value}%`}${i.tone ? ` (${pct(i.vs5y, 0)} vs 5-yr avg)` : ''}`).join('; ')}.`);
   }
 
   // International → Pulse: dollar / risk / growth scores, the board's USD-return ranking, Big Mac summary

@@ -69,6 +69,28 @@ const chartBox = (title, children, foot) => (
   </div>
 );
 
+const invFmt = (v, unit) => (!fin(v) ? "—" : unit === "MBBL" ? `${(v / 1000).toFixed(1)}M bbl` : unit === "BCF" ? `${Math.round(v).toLocaleString()} bcf` : unit === "MBBL/D" ? `${(v / 1000).toFixed(2)}M b/d` : `${v.toFixed(1)}%`);
+const invWow = (v, unit) => (!fin(v) ? "—" : unit === "MBBL" ? `${sgn(v)}${(Math.abs(v) / 1000).toFixed(1)}M` : unit === "BCF" ? `${sgn(v)}${Math.abs(Math.round(v))} bcf` : unit === "MBBL/D" ? `${sgn(v)}${Math.abs(Math.round(v))}K b/d` : `${sgn(v)}${Math.abs(v).toFixed(1)}pp`);
+const invTone = (v, tone) => (!tone || !fin(v) ? SLATE : v < -12 ? RED : v < -5 ? AMBER : v > 8 ? CYAN : SLATE);
+function Inventories({ inv }) {
+  if (!inv) return null;
+  if (!inv.available) return <div style={{ ...card, marginBottom: 14, fontSize: 10.5, color: "#64748b", fontFamily: fonts.mono }}>Inventories unavailable: {inv.reason}</div>;
+  const items = inv.items.filter(i => !i.error);
+  const tightest = items.filter(i => i.tone && fin(i.vs5y)).sort((a, b) => a.vs5y - b.vs5y)[0];
+  return (<>
+    <SH>Inventories — What Is Actually in the Tanks (EIA, weekly)</SH>
+    <div style={{ ...note, marginTop: -8, marginBottom: 8 }}>Level, week-on-week change, and the gap to the five-year average for the same week of the year — the seasonal yardstick the energy market prices off. Amber = tighter than normal, red = much tighter, cyan = ample.{tightest ? ` Tightest: ${tightest.label.toLowerCase()} ${pc(tightest.vs5y, 0)} vs its five-year average.` : ""}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 14 }}>
+      {items.map(i => { const c = invTone(i.vs5y, i.tone); return (
+        <div key={i.key} title={`${i.note} · ${i.date} · a year ago ${pc(i.yoyPct)} · five-year average ${invFmt(i.avg5y, i.unit)} (${i.yearsIn5y} yrs)`} style={{ ...card, padding: "10px 12px", borderLeft: `3px solid ${c}` }}>
+          <div style={label}>{i.label}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, marginTop: 3 }}><span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.4 }}>{invFmt(i.value, i.unit)}</span><span style={{ fontSize: 10, fontFamily: fonts.mono, color: !fin(i.wow) || i.wow === 0 ? DIM : i.wow > 0 ? CYAN : AMBER }}>{invWow(i.wow, i.unit)} w/w</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 4 }}><span style={{ fontSize: 10, fontFamily: fonts.mono, fontWeight: 700, color: c }}>{i.tone ? `${pc(i.vs5y, 0)} vs 5-yr avg` : `${pc(i.yoyPct)} y/y`}</span><Spark values={i.spark} color={c} w={64} h={16} /></div>
+        </div>); })}
+    </div>
+  </>);
+}
+
 const COLS = [
   { key: "name", label: "Contract", align: "left" }, { key: "price", label: "Price" }, { key: "day", label: "Day" }, { key: "ytd", label: "YTD" }, { key: "r1y", label: "1 yr" }, { key: "vs200", label: "vs 200-d" },
   { key: "pos52", label: "52-wk range", align: "center" }, { key: "realPct", label: "Real price vs history", align: "center" }, { key: "cot", label: "Spec. net % OI" }, { key: "spark", label: "1 yr", align: "center" },
@@ -126,6 +148,8 @@ function CommodityPulseTab() {
         </tbody>
       </table>
     </div>
+
+    <Inventories inv={d.inventories} />
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12, marginBottom: 14 }}>
       {chartBox("Real commodity prices since 1992 — IMF indexes in today's dollars (average = 100)",

@@ -33,7 +33,19 @@ const INDEXES = { all: 'PALLFNFINDEXM', nonfuel: 'PNFUELINDEXM', food: 'PFOODIND
 // CFTC contract codes (verified against the disaggregated report, 2026-09); Brent trades on ICE Europe and has no CFTC report
 const COT = { 'CL=F': '067651', 'NG=F': '03565B', 'GC=F': '088691', 'SI=F': '084691', 'HG=F': '085692', 'PL=F': '076651', 'PA=F': '075651', 'ZC=F': '002602', 'ZW=F': '001602', 'ZS=F': '005602', 'CT=F': '033661', 'KC=F': '083731', 'CC=F': '073732', 'SB=F': '080732' }
 
-export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir }) {
+// EIA weekly petroleum and natural-gas balances (needs EIA_API_KEY in .env — free at eia.gov/opendata)
+const EIA = [
+  { key: 'crude', label: 'Crude stocks ex-SPR', route: 'petroleum/stoc/wstk', series: 'WCESTUS1', unit: 'MBBL', tone: true, note: 'commercial crude in tanks; the weekly number the oil market trades on' },
+  { key: 'spr', label: 'Strategic Petroleum Reserve', route: 'petroleum/stoc/wstk', series: 'WCSSTUS1', unit: 'MBBL', tone: false, note: 'the government stockpile; draws are policy, not demand' },
+  { key: 'gasoline', label: 'Gasoline stocks', route: 'petroleum/stoc/wstk', series: 'WGTSTUS1', unit: 'MBBL', tone: true, note: 'total motor gasoline' },
+  { key: 'distillate', label: 'Distillate stocks', route: 'petroleum/stoc/wstk', series: 'WDISTUS1', unit: 'MBBL', tone: true, note: 'diesel and heating oil — the industrial-demand tell' },
+  { key: 'natgas', label: 'Natural gas in storage', route: 'natural-gas/stor/wkly', series: 'NW2_EPG0_SWO_R48_BCF', unit: 'BCF', tone: true, note: 'Lower-48 working gas; the whole gas trade is this number vs its five-year average' },
+  { key: 'production', label: 'U.S. crude production', route: 'petroleum/sum/sndw', series: 'WCRFPUS2', unit: 'MBBL/D', tone: false, note: 'weekly estimate' },
+  { key: 'refinery', label: 'Refinery utilization', route: 'petroleum/pnp/wiup', series: 'WPULEUS3', unit: '%', tone: false, note: 'share of capacity running' },
+]
+const weekOfYear = d => { const t = new Date(d + 'T00:00:00Z'); const start = Date.UTC(t.getUTCFullYear(), 0, 1); return Math.floor((t.getTime() - start) / (7 * 864e5)) }
+
+export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir, EIA_KEY }) {
   const FILE = path.join(dir, 'commodity-pulse.json')
   let mem = null, inflight = null
   const load = () => { try { if (fs.existsSync(FILE)) return JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch {} return null }
@@ -56,6 +68,27 @@ export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fet
     }
     return by
   }
+  async function fetchInventories() {
+    if (!EIA_KEY) return { available: false, reason: 'EIA_API_KEY not configured (free at eia.gov/opendata)' }
+    const one = async spec => {
+      const q = new URLSearchParams({ api_key: EIA_KEY, frequency: 'weekly', 'data[0]': 'value', 'facets[series][]': spec.series, 'sort[0][column]': 'period', 'sort[0][direction]': 'desc', length: '330' })
+      const r = await fetch(`https://api.eia.gov/v2/${spec.route}/data/?${q}`, { headers: { 'User-Agent': UA } })
+      if (!r.ok) throw new Error(`EIA ${spec.series}: HTTP ${r.status}`)
+      const rows = ((await r.json()).response?.data || []).map(x => ({ d: x.period, v: +x.value })).filter(x => fin(x.v)).sort((a, b) => a.d.localeCompare(b.d))
+      if (rows.length < 60) throw new Error(`EIA ${spec.series}: ${rows.length} rows`)
+      const cur = last(rows), prev = rows[rows.length - 2], yr = rows.length > 52 ? rows[rows.length - 53] : null
+      // five-year average for the same week of the year (±1 week), the seasonal yardstick the market uses
+      const w = weekOfYear(cur.d), y = +cur.d.slice(0, 4)
+      const same = rows.filter(p => { const py = +p.d.slice(0, 4); return py >= y - 5 && py <= y - 1 && Math.abs(weekOfYear(p.d) - w) <= 1 })
+      const byYear = {}
+      for (const p of same) (byYear[p.d.slice(0, 4)] = byYear[p.d.slice(0, 4)] || []).push(p.v)
+      const avg5 = mean(Object.values(byYear).map(v => mean(v)))
+      return { ...spec, value: cur.v, date: cur.d, wow: r1(cur.v - prev.v), wowPct: r1(chg(cur.v, prev.v)), yoyPct: r1(yr ? chg(cur.v, yr.v) : null), avg5y: r1(avg5), vs5y: r1(chg(cur.v, avg5)), yearsIn5y: Object.keys(byYear).length, spark: rows.slice(-52).map(p => p.v) }
+    }
+    const out = await Promise.all(EIA.map(s => one(s).catch(e => { console.warn(e.message); return { ...s, error: e.message } })))
+    const ok = out.filter(o => !o.error)
+    return { available: ok.length > 0, asOf: ok[0]?.date || null, items: out.map(({ route, series, ...rest }) => rest), source: 'EIA weekly petroleum status report and natural gas storage report' }
+  }
   // price series in today's dollars
   const deflate = (m, cpi) => { const now = last(cpi)?.v; return now ? m.map(p => { const c = at(cpi, p.d); return c ? { d: p.d, v: p.v * (now / c) } : null }).filter(Boolean) : [] }
 
@@ -70,6 +103,7 @@ export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fet
     const metalsM = await batched(YAHOO_MONTHLY, s => fetchYahooSparkline(s, 'max', '1mo'))
     const [goldW, copperW] = await Promise.all([fetchYahooSparkline('GC=F', '10y', '1wk').catch(() => []), fetchYahooSparkline('HG=F', '10y', '1wk').catch(() => [])])
     const cot = await fetchCot().catch(e => { console.warn('CFTC:', e.message); return {} })
+    const inventories = await fetchInventories().catch(e => ({ available: false, reason: e.message }))
     const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
 
     const rows = spots.map((s, i) => {
@@ -144,7 +178,7 @@ export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fet
     const overall = { tone: overallTone, label: overallTone === 'green' ? 'Commodities in favor' : overallTone === 'amber' ? 'Selective, not a super-cycle' : 'Commodities out of favor', sentence: `${scores.momentum.label}; ${scores.value.label.toLowerCase()}; ${scores.macro.label.toLowerCase()}.` }
     const groups = [...new Set(rows.map(r => r.group))].map(g => { const rs = rows.filter(r => r.group === g); return { group: g, n: rs.length, ytd: r1(mean(rs.map(r => r.ytd))), r1y: r1(mean(rs.map(r => r.r1y))), realPct: Math.round(mean(rs.map(r => r.real?.pct)) ?? 0) } })
 
-    return { rows, groups, scores, overall, indexNow, charts: { realIndex: indexChart, goldReal: goldReal.slice(-520), copperGold: copperGold.slice(-520) }, cotAsOf: last(Object.values(cot)[0] || [])?.d || null, updated: new Date().toISOString() }
+    return { rows, groups, scores, overall, indexNow, inventories, charts: { realIndex: indexChart, goldReal: goldReal.slice(-520), copperGold: copperGold.slice(-520) }, cotAsOf: last(Object.values(cot)[0] || [])?.d || null, updated: new Date().toISOString() }
   }
 
   async function get() {
