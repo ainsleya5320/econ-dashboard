@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMe
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import { US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
-import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchOpenRouterModels, fetchOpenRouterRankings, fetchFMPPremiumNews, fetchZillowData } from "./lib/api.js";
+import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchFMPPremiumNews, fetchZillowData } from "./lib/api.js";
 import NewsTicker from "./components/NewsTicker.jsx";
 import TickerSearch from "./components/TickerSearch.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
@@ -117,8 +117,6 @@ export default function Dashboard() {
   const [md, setMd] = useState(FB.mortgage); const [gd, setGd] = useState(FB.global);
   const [td, setTd] = useState(FB.treasury); const [cd, setCd] = useState(FB.cpi); const [hd, setHd] = useState(FB.housing);
   const [csm, setCsm] = useState(FB.consumer);
-  const [aiModels, setAiModels] = useState([]); const [aiLoading, setAiLoading] = useState(false);
-  const [rankingsData, setRankingsData] = useState([]); const [rankingsLoading, setRankingsLoading] = useState(false);
   const [newsItems, setNewsItems] = useState([]); const [newsLoading, setNewsLoading] = useState(false);
   const [zillowData, setZillowData] = useState(null);
   const [choroplethMetric, setChoroplethMetric] = useState("unemployment");
@@ -219,13 +217,6 @@ export default function Dashboard() {
     setChoroplethProgress("");
   }, [fredKey]);
 
-  // Auto-fetch OpenRouter models + rankings on mount
-  useEffect(() => {
-    setAiLoading(true);
-    fetchOpenRouterModels().then(setAiModels).catch(e => console.error("OpenRouter fetch error:", e)).finally(() => setAiLoading(false));
-    setRankingsLoading(true);
-    fetchOpenRouterRankings().then(setRankingsData).catch(e => console.error("OpenRouter rankings error:", e)).finally(() => setRankingsLoading(false));
-  }, []);
 
   // Fetch premium news (WSJ/CNBC/Reuters/… via FMP) on mount, refresh every 30 min
   useEffect(() => {
@@ -398,9 +389,8 @@ export default function Dashboard() {
     sourceStatus({ label: "FRED macro", date: collectLatestDate({ md, gd, td, cd, hd, csm }), loading: fredStatus === "loading", error: fredStatus === "error", live: isLive, staleDays: 60 }),
     sourceStatus({ label: "FMP market data", date: collectLatestDate({ md, gd, td, cd }), live: !!fmpKey, staleDays: 14 }),
     sourceStatus({ label: "Zillow housing", date: collectLatestDate(zillowData), loading: !zillowData, live: !!zillowData, staleDays: 90 }),
-    sourceStatus({ label: "OpenRouter (pricing) + HF (rankings)", date: rankingsData?.[rankingsData.length - 1]?.date, loading: aiLoading || rankingsLoading, live: aiModels.length > 0 || rankingsData.length > 0, staleDays: 14 }),
     sourceStatus({ label: "News", date: newsItems?.[0]?.publishedDate, loading: newsLoading, live: newsItems.length > 0, staleDays: 3 }),
-  ], [md, gd, td, cd, hd, csm, fredStatus, isLive, fmpKey, zillowData, rankingsData, aiLoading, rankingsLoading, aiModels.length, newsItems, newsLoading]);
+  ], [md, gd, td, cd, hd, csm, fredStatus, isLive, fmpKey, zillowData, newsItems, newsLoading]);
 
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [
@@ -486,7 +476,7 @@ export default function Dashboard() {
             {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
-            {tab === "ai" && <AIEconomyTab models={aiModels} loading={aiLoading} rankings={rankingsData} rankingsLoading={rankingsLoading} />}
+            {tab === "ai" && <AIEconomyTab />}
             {tab === "forecasts" && <ForecastsTab />}
             {tab === "history" && <HistoricalReturnsTab />}
           </TabErrorBoundary>
@@ -499,7 +489,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <ChatDrawer tab={tab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} aiModels={aiModels} zillowData={zillowData} />
+      <ChatDrawer tab={tab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} />
     </div>
   );
 }

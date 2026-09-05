@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse",
 };
 
 let cache = { text: "", ts: 0 };
@@ -105,6 +105,17 @@ export function buildVerdictText(d) {
   }
 
   // Commodities → Pulse: momentum / real-price value / macro scores, the richest and cheapest on real price, crowded positioning
+  if (d.ai?.scores) {
+    const a = d.ai, t = a.tokens, sc = a.scores;
+    L.push(`AI ECONOMY PULSE (OpenRouter token archive, Artificial Analysis, GPU marketplaces):`);
+    L.push(`  Scores 0-100: token demand ${sc.demand.score} (${sc.demand.label}); price efficiency ${sc.efficiency.score} (${sc.efficiency.label}); compute cost ${sc.compute.score} (${sc.compute.label}).`);
+    L.push(`  Tokens: ${(t.week.total / 1e12).toFixed(1)}T in the week of ${t.week.d} (complete weeks), 1-wk ${pct(t.growth.w1, 0)}, 4-wk ${pct(t.growth.w4, 0)}, 13-wk ${pct(t.growth.w13, 0)}, 52-wk ${pct(t.growth.w52, 0)}; open-weight labs ${t.shares.open}% of flow; top-5 models ${t.shares.top5Models}% of the rankings snapshot (${t.snapshot.d}).`);
+    L.push(`  Labs by share: ${t.labs.slice(0, 8).map(l => `${l.lab} ${l.share}% (4-wk ${pct(l.chg4w, 0)})`).join(', ')}.`);
+    if (t.movers.span) L.push(`  Movers (${t.movers.span} days): up ${t.movers.up.slice(0, 3).map(m => m.name).join(', ')}; down ${t.movers.down.slice(0, 3).map(m => m.name).join(', ')}.`);
+    if (a.aa) L.push(`  Artificial Analysis: best ${a.aa.best.name} (index ${a.aa.best.idx}, $${a.aa.best.price}/M); cheapest within 5 pts ${a.aa.frontier?.name} at $${a.aa.frontier?.price}/M; top-10 median $${a.aa.top10MedianPrice}/M; ${a.aa.releases90d} releases in 90 days; ${a.aa.pareto.length} models on the price/intelligence frontier.`);
+    const g = a.gpu;
+    L.push(`  GPU rentals: ${g.vast.filter(v => v.median != null).map(v => `${v.gpu} $${v.median}/hr`).join(', ')} (Vast.ai medians); Ornn H100 ${g.ornn.latest?.h100?.current != null ? `$${g.ornn.latest.h100.current.toFixed(2)} (30d ${pct(g.ornn.latest.h100.chg30, 0)})` : 'n/a'}; SemiAnalysis 1-yr contract ${g.semi.h100Contract != null ? `$${g.semi.h100Contract}` : 'n/a'}. Bridge: $${g.bridge.costPerM1000}/M tokens at 1,000 tok/s vs realized ~$${g.bridge.otpiAvg}/M; break-even ≈ ${g.bridge.breakevenTps} tok/s per H100.`);
+  }
   if (d.commod?.scores) {
     const p = d.commod, sc = p.scores;
     L.push(`Commodities Pulse (Commodities tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): momentum ${sc.momentum.score} (${sc.momentum.label}), real-price value ${sc.value.score} (${sc.value.label}), macro ${sc.macro.score} (${sc.macro.label}). ${sc.macro.why.split('. A weaker')[0]}.`);

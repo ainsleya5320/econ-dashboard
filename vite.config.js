@@ -10,6 +10,7 @@ import { createIntlPulse } from './server/intlPulse.js'
 import { createMachine } from './server/machine.js'
 import { createDamodaranErp } from './server/damodaranErp.js'
 import { createCommodityPulse } from './server/commodityPulse.js'
+import { createAiPulse } from './server/aiPulse.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3658,6 +3659,8 @@ const machine = createMachine({ fetchFredSeries, fetchYahooSparkline, dir: __dir
 const damodaranErp = createDamodaranErp({ UA, dir: __dirname })
 // Commodities Pulse (server/commodityPulse.js): the tape, real-price value, positioning, macro drivers
 const commodityPulse = createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir: __dirname, EIA_KEY })
+// AI Pulse (server/aiPulse.js): the token tracker (OpenRouter archive), Artificial Analysis frontier, GPU rental rates
+const aiPulse = createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, AA_KEY, UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3804,6 +3807,7 @@ export default defineConfig({
         reRoute('/api/machine', () => machine.get())
         reRoute('/api/damodaran-erp', () => damodaranErp.get())
         reRoute('/api/commodity-pulse', () => commodityPulse.get())
+        reRoute('/api/ai-pulse', () => aiPulse.get())
         // Artificial Analysis key check — reports whether the key in .env works, never the key itself
         reRoute('/api/aa-check', async () => {
           if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }
@@ -3825,6 +3829,7 @@ export default defineConfig({
         setTimeout(() => { intlPulse.get().catch(() => {}) }, 240 * 1000)
         setTimeout(() => { machine.get().catch(() => {}) }, 300 * 1000)
         setTimeout(() => { commodityPulse.get().catch(() => {}) }, 360 * 1000)
+        setTimeout(() => { aiPulse.get().catch(() => {}) }, 420 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')
