@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRealEstateFeeds } from './server/realEstateFeeds.js'
+import { createPeopleScreener } from './server/peopleScreener.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3637,6 +3638,9 @@ async function fetchVercelAi() {
 // SLOOS + Kastle, metro layer, state build cost, Zillow rents, fair-value composite.
 const reFeeds = createRealEstateFeeds({ fetchFredSeries, UA, dir: __dirname, stateFips: STATE_FIPS, fetchHousingHealth, fetchReplacementCost, fetchCreFundamentals, fetchReitCapRates })
 
+// People screener (server/peopleScreener.js): revenue per employee across the S&P 500, monthly, two FMP calls per company
+const peopleScreener = createPeopleScreener({ FMP_KEY, UA, dir: __dirname, tickers: SP500_TICKERS, sp500File: SP500_DATA_FILE })
+
 export default defineConfig({
   plugins: [
     react(),
@@ -3996,6 +4000,11 @@ export default defineConfig({
         })
 
         // S&P 500 Screener endpoint
+        server.middlewares.use('/api/people-screener', async (_req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try { res.end(JSON.stringify(peopleScreener.get())) } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
+        })
         server.middlewares.use('/api/sp500-screener', async (_req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

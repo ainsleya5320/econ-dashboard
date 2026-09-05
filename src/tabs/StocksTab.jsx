@@ -12,6 +12,7 @@ import SP500Screener from "./stocks/SP500Screener.jsx";
 import ExpectationsPanel, { consensusGrowth } from "./stocks/ExpectationsPanel.jsx";
 import MarketFairValuePanel from "../components/MarketFairValue.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
+import PeopleScreener from "./stocks/PeopleScreener.jsx";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -1359,7 +1360,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   // View toggle
   const viewToggle = (
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
-      {[["overview", "🗺️ S&P Overview"], ["sp500", "STK️ S&P 500"], ["screener", "📊 Watchlist"]].map(([id, label]) => (
+      {[["overview", "🗺️ S&P Overview"], ["sp500", "STK️ S&P 500"], ["people", "👥 Per Employee"], ["screener", "📊 Watchlist"]].map(([id, label]) => (
         <button key={id} onClick={() => setStockView(id)} style={{
           flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
           background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
@@ -1434,6 +1435,13 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       {/* market-level bottom-up valuation (Morningstar) before the name-level map */}
       <MarketFairValuePanel />
       <SP500Overview onSelectStock={openDetail} />
+    </>);
+  }
+
+  if (stockView === "people") {
+    return (<>
+      {viewToggle}
+      <PeopleScreener onSelectStock={openDetail} />
     </>);
   }
 
