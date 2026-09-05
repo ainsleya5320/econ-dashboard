@@ -64,7 +64,7 @@ function csvSplit(line) {
 // Minimal ZIP reader (deflate/stored entries). FHFA ships the NMDB tables
 // zipped and Node has no built-in unzip; walking the central directory keeps
 // data-descriptor entries (sizes written after the data) working.
-function unzipEntries(buf) {
+export function unzipEntries(buf) {
   let eocd = -1
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66000); i--) if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break }
   if (eocd < 0) throw new Error('zip: no end-of-central-directory record')

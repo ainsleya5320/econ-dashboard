@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp",
 };
 
 let cache = { text: "", ts: 0 };
@@ -49,7 +49,8 @@ export function buildVerdictText(d) {
   const lens = [];
   if (d.erp && fin(d.erp.currentErp)) lens.push(`simple ERP ${d.erp.currentErp >= 0 ? "+" : ""}${num(d.erp.currentErp)}pp ("${d.erp.verdict}", ${ord(d.erp.percentile)} pct of 25y; earnings yield ${num(d.erp.earningsYield)}% vs 10Y ${num(d.erp.tenYear)}%)`);
   const dam = damodaranSummary();
-  if (dam) lens.push(`Damodaran implied ERP ${(dam.last.erp * 100).toFixed(2)}% (${ord(dam.pct)} pct since ${dam.series[0].y}, end-${dam.last.y})`);
+  if (d.dam && fin(d.dam.erp) && dam) { const p = Math.round((dam.series.filter(r => r.erp < d.dam.erp).length / dam.series.length) * 100); lens.push(`Damodaran implied ERP ${(d.dam.erp * 100).toFixed(2)}% as of ${d.dam.asOf} (his monthly update; ${ord(p)} pct of the annual series since ${dam.series[0].y}; vs 10Y ${fin(d.dam.tbond) ? `${(d.dam.tbond * 100).toFixed(2)}%` : 'n/a'}; end-${dam.last.y} annual print ${(dam.last.erp * 100).toFixed(2)}%)`); }
+  else if (dam) lens.push(`Damodaran implied ERP ${(dam.last.erp * 100).toFixed(2)}% (${ord(dam.pct)} pct since ${dam.series[0].y}, end-${dam.last.y})`);
   if (d.ms?.available) lens.push(`Morningstar bottom-up fair value: market ${Math.abs(d.ms.latest * 100).toFixed(1)}% ${d.ms.latest < 0 ? "undervalued" : "overvalued"} (median price/fair value across ~1,500 covered stocks; cheaper than ${d.ms.cheaperThan}% of days since ${String(d.ms.start).slice(0, 4)}; tone ${fvTone(d.ms.cheaperThan).label}; as of ${d.ms.asOf})`);
   if (lens.length) L.push(`Valuation lenses: ${lens.join("; ")}.`);
 

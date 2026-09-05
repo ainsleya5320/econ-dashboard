@@ -21,6 +21,18 @@ const fmtDate = d => (d ? `${d.slice(0, 4)}-${d.slice(5, 7)}` : "");
 const label = { fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" };
 const note = { fontSize: 9.5, color: "#475569", fontFamily: fonts.mono, lineHeight: 1.5 };
 
+// Damodaran's monthly implied ERP (/api/damodaran-erp); null until loaded or if unavailable
+export function useDamodaranMonthly() {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetch("/api/damodaran-erp").then(r => r.json()).then(x => { if (x && !x.error && fin(x.erp)) setD(x); }).catch(() => {}); }, []);
+  return d;
+}
+// percentile of a value within the annual series (the long-run yardstick)
+export const damPct = (dam, v) => (dam && fin(v) ? Math.round((dam.series.filter(r => r.erp < v).length / dam.series.length) * 100) : null);
+export const ord = n => (!fin(n) ? "n/a" : `${n}${[11, 12, 13].includes(n % 100) ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`);
+export const damColor = p => (p == null ? SLATE : p >= 70 ? GREEN : p >= 30 ? AMBER : RED);
+const monthLabel = d => (d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleString("en-US", { month: "short", year: "numeric" }) : "");
+
 export function useMsFairValue() {
   const [d, setD] = useState(null);
   useEffect(() => {
@@ -86,6 +98,8 @@ export function FairValueChart({ series, height = 160, extremes, compact = false
 const TONE_COLOR = { success: "#10b981", neutral: INDIGO, warning: "#f59e0b", danger: "#ef4444" };
 export function ValuationLensesCard({ erp, dam, onNavigate }) {
   const ms = useMsFairValue();
+  const dm = useDamodaranMonthly();
+  const damNow = dm ? { erp: dm.erp, tbond: dm.tbond, pct: damPct(dam, dm.erp), when: `${monthLabel(dm.asOf)} (monthly)` } : dam ? { erp: dam.last.erp, tbond: dam.last.tbond, pct: dam.pct, when: `end-${dam.last.y} (annual)` } : null;
   const tone = fvTone(ms?.cheaperThan);
   const msColor = !ms ? SLATE : ms.latest < 0 ? GREEN : RED;
   const erpColor = erp ? (TONE_COLOR[erp.tone] || INDIGO) : SLATE;
@@ -132,17 +146,17 @@ export function ValuationLensesCard({ erp, dam, onNavigate }) {
                 <span style={{ fontSize: 20, fontWeight: 700, color: erpColor, fontFamily: fonts.heading, letterSpacing: -0.6, lineHeight: 1 }}>{erp.currentErp > 0 ? "+" : ""}{erp.currentErp.toFixed(2)}pp</span>
                 {erp.verdict && <span style={{ fontSize: 9, fontWeight: 700, color: erpColor, background: `${erpColor}1e`, padding: "2px 7px", borderRadius: 6, fontFamily: fonts.mono }}>{erp.verdict}</span>}
               </div>
-              <div style={{ fontSize: 9.5, color: SLATE, fontFamily: fonts.mono, marginTop: 3 }}>EY {erp.earningsYield?.toFixed(2)}% − 10Y {erp.tenYear?.toFixed(2)}%{fin(erp.percentile) ? ` · ${erp.percentile}th pct / 25y` : ""}</div>
+              <div style={{ fontSize: 9.5, color: SLATE, fontFamily: fonts.mono, marginTop: 3 }}>EY {erp.earningsYield?.toFixed(2)}% − 10Y {erp.tenYear?.toFixed(2)}%{fin(erp.percentile) ? ` · ${ord(erp.percentile)} pct / 25y` : ""}</div>
             </>) : <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 4 }}>Loading…</div>}
           </div>
           <div>
             <div style={{ ...label, fontSize: 9, color: "#475569" }}>Top-down · Damodaran implied ERP</div>
-            {dam ? (<>
+            {damNow ? (<>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 3 }}>
-                <span style={{ fontSize: 20, fontWeight: 700, color: dam.color, fontFamily: fonts.heading, letterSpacing: -0.6, lineHeight: 1 }}>{(dam.last.erp * 100).toFixed(2)}%</span>
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: dam.color, fontFamily: fonts.mono }}>{dam.pct}th pct</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: damColor(damNow.pct), fontFamily: fonts.heading, letterSpacing: -0.6, lineHeight: 1 }}>{(damNow.erp * 100).toFixed(2)}%</span>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: damColor(damNow.pct), fontFamily: fonts.mono }}>{ord(damNow.pct)} pct</span>
               </div>
-              <div style={{ fontSize: 9.5, color: SLATE, fontFamily: fonts.mono, marginTop: 3 }}>FCFE, end-{dam.last.y} · vs 10Y {(dam.last.tbond * 100).toFixed(2)}%</div>
+              <div style={{ fontSize: 9.5, color: SLATE, fontFamily: fonts.mono, marginTop: 3 }}>FCFE, {damNow.when} · vs 10Y {fin(damNow.tbond) ? `${(damNow.tbond * 100).toFixed(2)}%` : "—"}{dm && dam ? ` · end-${dam.last.y} ${(dam.last.erp * 100).toFixed(2)}%` : ""}</div>
             </>) : <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginTop: 4 }}>Unavailable.</div>}
           </div>
         </div>

@@ -8,6 +8,7 @@ import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
 import { createMachine } from './server/machine.js'
+import { createDamodaranErp } from './server/damodaranErp.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3650,6 +3651,8 @@ const usPulse = createUsPulse({ fetchFredSeries, dir: __dirname })
 const intlPulse = createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, fetchCbRates, UA, dir: __dirname })
 // The Economic Machine (server/machine.js): Dalio's three forces and three rules as a live tracker
 const machine = createMachine({ fetchFredSeries, fetchYahooSparkline, dir: __dirname })
+// Damodaran's monthly implied ERP (server/damodaranErp.js)
+const damodaranErp = createDamodaranErp({ UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3794,6 +3797,7 @@ export default defineConfig({
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())
         reRoute('/api/machine', () => machine.get())
+        reRoute('/api/damodaran-erp', () => damodaranErp.get())
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())

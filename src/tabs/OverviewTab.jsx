@@ -7,7 +7,7 @@ import { fetchOptionsChain, fetchFMP } from "../lib/api.js";
 import DAMODARAN from "../lib/damodaran.json";
 import { EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import { chainModel, chainHeadline } from "./AIEconomyTab.jsx";
-import { ValuationLensesCard } from "../components/MarketFairValue.jsx";
+import { ValuationLensesCard, useDamodaranMonthly, damPct, damColor } from "../components/MarketFairValue.jsx";
 
 // ============================================================================
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
@@ -285,14 +285,18 @@ export function damodaranSummary() {
 
 function DamodaranErpStrip() {
   const d = damodaranSummary();
+  const dm = useDamodaranMonthly();
   if (!d) return null;
-  const { series, last, pct, color: dColor } = d;
+  const { series } = d;
+  const last = dm ? { erp: dm.erp, tbond: dm.tbond ?? d.last.tbond, y: `${new Date(dm.asOf.slice(0, 10) + "T00:00:00").toLocaleString("en-US", { month: "short", year: "numeric" })} (monthly update)` } : { ...d.last, y: `end-${d.last.y}` };
+  const pct = dm ? damPct(d, dm.erp) : d.pct;
+  const dColor = dm ? damColor(pct) : d.color;
   const spark = series.map(r => ({ i: r.y, v: +(r.erp * 100).toFixed(2) }));
   const ys = spark.map(p => p.v);
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
       <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-        <div style={{ ...cardTitle, letterSpacing: 0.6 }}>Damodaran Implied ERP (FCFE) · end-{last.y}</div>
+        <div style={{ ...cardTitle, letterSpacing: 0.6 }}>Damodaran Implied ERP (FCFE) · {last.y}</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 3, flexWrap: "wrap" }}>
           <span style={{ fontSize: 22, fontWeight: 700, color: dColor, fontFamily: fonts.heading, lineHeight: 1 }}>{(last.erp * 100).toFixed(2)}%</span>
           <span style={{ fontSize: 10.5, color: "#94a3b8", fontFamily: fonts.mono }}>{pct}th pctile since {series[0].y} · vs 10Y {(last.tbond * 100).toFixed(2)}%</span>
