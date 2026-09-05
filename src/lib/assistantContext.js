@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse",
 };
 
 let cache = { text: "", ts: 0 };
@@ -88,6 +88,13 @@ export function buildVerdictText(d) {
   if (d.debt?.verdict) L.push(`Debt & credit: ${d.debt.verdict.label}${fin(d.debt.verdict.hy) ? ` — HY spread ${d.debt.verdict.hy.toFixed(2)}%${fin(d.debt.verdict.hyPct) ? ` (${ord(d.debt.verdict.hyPct)} pct, 3y)` : ""}` : ""}.`);
   if (d.bank?.verdict) L.push(`Bank credit (Fed H.8): ${d.bank.verdict.label} — ${firstClause(d.bank.verdict.note)}.`);
   if (d.housing?.verdict) L.push(`Housing health: ${d.housing.verdict.label} — ${firstClause(d.housing.verdict.note)}.`);
+
+  // U.S. Economy → Pulse: three 0–100 health scores and the red indicators behind them
+  if (d.pulse?.scores) {
+    const p = d.pulse, red = g => p.rows.filter(r => r.group === g && r.tone === "red").map(r => `${r.label} ${r.unit === "%yoy" ? `${r.value >= 0 ? "+" : ""}${r.value}%` : r.value}`).join(", ") || "none";
+    L.push(`U.S. Pulse (U.S. Economy tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): leading ${p.scores.lead.score} (${p.scores.lead.label}), consumer ${p.scores.consumer.score} (${p.scores.consumer.label}), debt ${p.scores.debt.score} (${p.scores.debt.label}; burden ${p.scores.debt.burden}, stress ${p.scores.debt.stress}).`);
+    L.push(`  Red indicators — leading: ${red("lead")}; consumer: ${red("consumer")}; debt: ${red("debt")}.`);
+  }
 
   // Real Estate tab — fair-value scores, lock-in, supply pipeline, the Redfin tape, CRE credit and office occupancy
   if (d.reComp) {

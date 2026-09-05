@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRealEstateFeeds } from './server/realEstateFeeds.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
+import { createUsPulse } from './server/usPulse.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3641,6 +3642,9 @@ const reFeeds = createRealEstateFeeds({ fetchFredSeries, UA, dir: __dirname, sta
 // People screener (server/peopleScreener.js): revenue per employee across the S&P 500, monthly, two FMP calls per company
 const peopleScreener = createPeopleScreener({ FMP_KEY, UA, dir: __dirname, tickers: SP500_TICKERS, sp500File: SP500_DATA_FILE })
 
+// U.S. Pulse (server/usPulse.js): the U.S. Economy landing — leading indicators, consumer health, debt picture
+const usPulse = createUsPulse({ fetchFredSeries, dir: __dirname })
+
 export default defineConfig({
   plugins: [
     react(),
@@ -3781,6 +3785,7 @@ export default defineConfig({
           res.setHeader('Access-Control-Allow-Origin', '*')
           try { res.end(JSON.stringify(await fn(req))) } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
         })
+        reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())
@@ -3790,6 +3795,7 @@ export default defineConfig({
         reRoute('/api/re-metro', req => { const code = new URL(req.url || '/', 'http://x').searchParams.get('code'); return code ? reFeeds.metro(code) : { metros: reFeeds.METROS } })
         // warm the slow ones (51 throttled FRED calls; a 9 MB download) after the startup burst
         setTimeout(() => { reFeeds.buildCost().catch(() => {}); reFeeds.redfin().catch(() => {}); reFeeds.rents().catch(() => {}) }, 90 * 1000)
+        setTimeout(() => { usPulse.get().catch(() => {}) }, 150 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

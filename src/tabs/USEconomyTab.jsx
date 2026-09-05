@@ -11,7 +11,7 @@ import GdpSubTab from "./GdpSubTab.jsx";
 import BudgetSubTab from "./BudgetSubTab.jsx";
 import LaborSubTab from "./LaborSubTab.jsx";
 import FedSubTab from "./FedSubTab.jsx";
-import MacroDashboardSubTab from "./MacroDashboardSubTab.jsx";
+import UsPulseTab from "./UsPulseTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
 import BankCreditTab from "./BankCreditTab.jsx";
 import ProfitsEngineTab from "./ProfitsEngineTab.jsx";
@@ -46,7 +46,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
   }, [econSubTab, gdpData, fmpKey]);
 
   const ECON_SUB_TABS = [
-    { id: "dashboard",  label: "Dashboard"           },
+    { id: "dashboard",  label: "Pulse"               },
     { id: "rates",      label: "Rates"               },
     { id: "debt",       label: "Debt & Credit"       },
     { id: "banks",      label: "Bank Credit"         },
@@ -78,8 +78,8 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
       ))}
     </div>
 
-    {/* Dashboard landing — the macro cockpit; tiles drill into the subtabs */}
-    {econSubTab === "dashboard" && <MacroDashboardSubTab go={setEconSubTab} />}
+    {/* Pulse landing — leading indicators, consumer health, debt picture; rows drill into the subtabs */}
+    {econSubTab === "dashboard" && <UsPulseTab go={setEconSubTab} />}
 
     {/* Rates sub-tab */}
     {econSubTab === "rates" && <RatesTab md={md} td={td} fmpKey={fmpKey} />}
