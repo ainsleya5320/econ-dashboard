@@ -19,6 +19,7 @@ const env = loadEnv('', __dirname, '')
 
 const FMP_KEY = env.VITE_FMP_KEY || ''
 const EIA_KEY = env.EIA_API_KEY || process.env.EIA_API_KEY || '' // free key from eia.gov/opendata; weekly petroleum + gas inventories
+const AA_KEY = env.ARTIFICIAL_ANALYSIS_KEY || process.env.ARTIFICIAL_ANALYSIS_KEY || '' // free key from the Artificial Analysis Insights Platform; server-side only, 1,000 req/day
 const FRED_KEY = env.VITE_FRED_KEY || ''
 const BLS_KEY = env.BLS_KEY || ''
 const BEA_KEY = env.BEA_KEY || ''
@@ -3803,6 +3804,14 @@ export default defineConfig({
         reRoute('/api/machine', () => machine.get())
         reRoute('/api/damodaran-erp', () => damodaranErp.get())
         reRoute('/api/commodity-pulse', () => commodityPulse.get())
+        // Artificial Analysis key check — reports whether the key in .env works, never the key itself
+        reRoute('/api/aa-check', async () => {
+          if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }
+          const r = await fetch('https://artificialanalysis.ai/api/v2/data/llms/models', { headers: { 'x-api-key': AA_KEY, 'User-Agent': UA } })
+          if (!r.ok) return { configured: true, ok: false, status: r.status, keyLength: AA_KEY.length }
+          const j = await r.json()
+          return { configured: true, ok: true, models: (j.data || []).length, sample: (j.data || []).slice(0, 3).map(m => m.name), remaining: r.headers.get('x-ratelimit-remaining') }
+        })
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())
