@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse",
 };
 
 let cache = { text: "", ts: 0 };
@@ -102,6 +102,14 @@ export function buildVerdictText(d) {
     const m = d.machine, st = m.shortCycle.stages.find(s => s.key === m.shortCycle.stage);
     L.push(`Economic Machine (Dalio tracker, U.S. Economy tab): productivity — ${m.productivity.label} (${m.productivity.why}) Short-term debt cycle — ${m.shortCycle.name}, ${st ? `${st.met}/${st.known} conditions met` : ''}: ${m.shortCycle.why} Long-term debt cycle — ${m.longCycle.stage}, ${m.longCycle.beautiful.label}: ${m.longCycle.why}`);
     L.push(`  Rules of thumb: ${m.rules.map(r => `${r.text} — ${r.status.toUpperCase()} (${r.detail})`).join('; ')}. Levers: ${m.longCycle.levers.map(l => `${l.name} ${l.setting}`).join(', ')}. Gold $${m.longCycle.monetization.goldNow} (${pct(m.longCycle.monetization.goldR1y, 0)} 1y).`);
+  }
+
+  // Commodities → Pulse: momentum / real-price value / macro scores, the richest and cheapest on real price, crowded positioning
+  if (d.commod?.scores) {
+    const p = d.commod, sc = p.scores;
+    L.push(`Commodities Pulse (Commodities tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): momentum ${sc.momentum.score} (${sc.momentum.label}), real-price value ${sc.value.score} (${sc.value.label}), macro ${sc.macro.score} (${sc.macro.label}). ${sc.macro.why.split('. A weaker')[0]}.`);
+    const rp = [...p.rows].filter(r => r.real).sort((a, b) => b.real.pct - a.real.pct);
+    L.push(`  Real-price percentiles (each vs its own history since 1992): ${rp.map(r => `${r.name} p${r.real.pct} (${pct(r.r1y, 0)} 1y)`).join(', ')}. ${sc.positioning.why}`);
   }
 
   // International → Pulse: dollar / risk / growth scores, the board's USD-return ranking, Big Mac summary

@@ -9,6 +9,7 @@ import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
 import { createMachine } from './server/machine.js'
 import { createDamodaranErp } from './server/damodaranErp.js'
+import { createCommodityPulse } from './server/commodityPulse.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3653,6 +3654,8 @@ const intlPulse = createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahoo
 const machine = createMachine({ fetchFredSeries, fetchYahooSparkline, dir: __dirname })
 // Damodaran's monthly implied ERP (server/damodaranErp.js)
 const damodaranErp = createDamodaranErp({ UA, dir: __dirname })
+// Commodities Pulse (server/commodityPulse.js): the tape, real-price value, positioning, macro drivers
+const commodityPulse = createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3798,6 +3801,7 @@ export default defineConfig({
         reRoute('/api/intl-pulse', () => intlPulse.get())
         reRoute('/api/machine', () => machine.get())
         reRoute('/api/damodaran-erp', () => damodaranErp.get())
+        reRoute('/api/commodity-pulse', () => commodityPulse.get())
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())
@@ -3810,6 +3814,7 @@ export default defineConfig({
         setTimeout(() => { usPulse.get().catch(() => {}) }, 150 * 1000)
         setTimeout(() => { intlPulse.get().catch(() => {}) }, 240 * 1000)
         setTimeout(() => { machine.get().catch(() => {}) }, 300 * 1000)
+        setTimeout(() => { commodityPulse.get().catch(() => {}) }, 360 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

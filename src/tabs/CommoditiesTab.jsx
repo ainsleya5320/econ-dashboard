@@ -3,8 +3,10 @@ import { XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, Ba
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fmtDate, SH, InfoBox } from "../components/shared.jsx";
 import CftcSubTab from "./CftcSubTab.jsx";
+import CommodityPulseTab from "./CommodityPulseTab.jsx";
 
 const COMM_SUB_TABS = [
+  { id: "pulse",  label: "Pulse" },
   { id: "prices", label: "Prices" },
   { id: "cftc",   label: "CFTC Positioning" },
 ];
@@ -309,7 +311,7 @@ function GroupCompareChart({ group, spots, histories, range }) {
 
 /* ────────────────────────────────────────────────────────────── */
 export default function CommoditiesTab() {
-  const [commSubTab, setCommSubTab] = useState("prices");
+  const [commSubTab, setCommSubTab] = useState("pulse");
   const [spots, setSpots] = useState([]);
   const [histories, setHistories] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -370,6 +372,7 @@ export default function CommoditiesTab() {
         ))}
       </div>
 
+      {commSubTab === "pulse" && <CommodityPulseTab />}
       {commSubTab === "cftc" && <CftcSubTab />}
 
       {commSubTab === "prices" && <>
