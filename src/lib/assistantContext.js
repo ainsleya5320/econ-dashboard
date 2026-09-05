@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse",
 };
 
 let cache = { text: "", ts: 0 };
@@ -94,6 +94,16 @@ export function buildVerdictText(d) {
     const p = d.pulse, red = g => p.rows.filter(r => r.group === g && r.tone === "red").map(r => `${r.label} ${r.unit === "%yoy" ? `${r.value >= 0 ? "+" : ""}${r.value}%` : r.value}`).join(", ") || "none";
     L.push(`U.S. Pulse (U.S. Economy tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): leading ${p.scores.lead.score} (${p.scores.lead.label}), consumer ${p.scores.consumer.score} (${p.scores.consumer.label}), debt ${p.scores.debt.score} (${p.scores.debt.label}; burden ${p.scores.debt.burden}, stress ${p.scores.debt.stress}).`);
     L.push(`  Red indicators — leading: ${red("lead")}; consumer: ${red("consumer")}; debt: ${red("debt")}.`);
+  }
+
+  // International → Pulse: dollar / risk / growth scores, the board's USD-return ranking, Big Mac summary
+  if (d.intl?.scores) {
+    const p = d.intl, sc = p.scores;
+    L.push(`International Pulse (International tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): dollar ${sc.dollar.score} (${sc.dollar.label}), risk appetite ${sc.risk.score} (${sc.risk.label}), growth breadth ${sc.growth.score} (${sc.growth.label}).`);
+    const rk = [...p.rows].filter(r => fin(r.eq?.usd1y)).sort((a, b) => b.eq.usd1y - a.eq.usd1y);
+    if (rk.length) L.push(`  1-year equity returns in USD: ${rk.map(r => `${r.name} ${pct(r.eq.usd1y, 0)}`).join(', ')}.`);
+    const bm = p.bigmacSummary;
+    if (bm) L.push(`  Big Mac index (${bm.asOf} print re-marked at today's FX): ${bm.underRaw} of ${bm.n} currencies undervalued vs the dollar (raw), ${bm.underAdj} GDP-adjusted; cheapest ${bm.cheapest.map(x => `${x.name} ${pct(x.rawNow, 0)}`).join(', ')}; priciest ${bm.priciest.map(x => `${x.name} ${pct(x.rawNow, 0)}`).join(', ')}.`);
   }
 
   // Real Estate tab — fair-value scores, lock-in, supply pipeline, the Redfin tape, CRE credit and office occupancy

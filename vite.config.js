@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { createRealEstateFeeds } from './server/realEstateFeeds.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
+import { createIntlPulse } from './server/intlPulse.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3644,6 +3645,8 @@ const peopleScreener = createPeopleScreener({ FMP_KEY, UA, dir: __dirname, ticke
 
 // U.S. Pulse (server/usPulse.js): the U.S. Economy landing — leading indicators, consumer health, debt picture
 const usPulse = createUsPulse({ fetchFredSeries, dir: __dirname })
+// International Pulse (server/intlPulse.js): 13-economy board, dollar/risk/growth scores, Big Mac index re-marked at live FX
+const intlPulse = createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, fetchCbRates, UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3786,6 +3789,7 @@ export default defineConfig({
           try { res.end(JSON.stringify(await fn(req))) } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })) }
         })
         reRoute('/api/us-pulse', () => usPulse.get())
+        reRoute('/api/intl-pulse', () => intlPulse.get())
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())
@@ -3796,6 +3800,7 @@ export default defineConfig({
         // warm the slow ones (51 throttled FRED calls; a 9 MB download) after the startup burst
         setTimeout(() => { reFeeds.buildCost().catch(() => {}); reFeeds.redfin().catch(() => {}); reFeeds.rents().catch(() => {}) }, 90 * 1000)
         setTimeout(() => { usPulse.get().catch(() => {}) }, 150 * 1000)
+        setTimeout(() => { intlPulse.get().catch(() => {}) }, 240 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

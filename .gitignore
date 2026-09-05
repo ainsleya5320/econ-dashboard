@@ -19,3 +19,8 @@ cre-credit.json
 kastle-page.json
 nmdb.json
 re-composite-live.json
+
+# Pulse feed caches (re-derivable)
+us-pulse.json
+intl-pulse.json
+bigmac.json

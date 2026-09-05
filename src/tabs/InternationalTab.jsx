@@ -6,6 +6,7 @@ import { fetchFMP, fetchFred } from "../lib/api.js";
 import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
 import WorldBankSubTab from "./intl/WorldBankSubTab.jsx";
 import LiquiditySubTab from "./intl/LiquiditySubTab.jsx";
+import IntlPulseTab from "./intl/IntlPulseTab.jsx";
 
 const INTL_ETFS = [
   { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "INTL", color: "#818cf8" },
@@ -38,6 +39,7 @@ const FX_PAIRS = [
 ];
 
 const INTL_SUB_TABS = [
+  { id: "pulse",     label: "Pulse" },
   { id: "markets",   label: "Market Overview" },
   { id: "rates",     label: "Central Banks" },
   { id: "forex",     label: "Forex" },
@@ -70,7 +72,7 @@ const TWI_SERIES = [
 ];
 
 function InternationalTab({ fmpKey, fredKey, gd }) {
-  const [intlSub, setIntlSub] = useState("markets");
+  const [intlSub, setIntlSub] = useState("pulse");
   const [quotes, setQuotes] = useState(null);
   const [history, setHistory] = useState(null);
   const [sortCol, setSortCol] = useState("ytd");
@@ -391,6 +393,8 @@ function InternationalTab({ fmpKey, fredKey, gd }) {
     </div>
 
     {/* ===== MARKETS SUB-TAB ===== */}
+    {intlSub === "pulse" && <IntlPulseTab go={setIntlSub} />}
+
     {intlSub === "markets" && (<>
       {!quotes ? <div style={{ textAlign: "center", padding: 40, color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading international market data...</div> : (<>
         <SH>International Market Overview</SH>
