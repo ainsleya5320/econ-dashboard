@@ -110,6 +110,8 @@ export function buildVerdictText(d) {
     L.push(`Commodities Pulse (Commodities tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): momentum ${sc.momentum.score} (${sc.momentum.label}), real-price value ${sc.value.score} (${sc.value.label}), macro ${sc.macro.score} (${sc.macro.label}). ${sc.macro.why.split('. A weaker')[0]}.`);
     const rp = [...p.rows].filter(r => r.real).sort((a, b) => b.real.pct - a.real.pct);
     L.push(`  Real-price percentiles (each vs its own history since 1992): ${rp.map(r => `${r.name} p${r.real.pct} (${pct(r.r1y, 0)} 1y)`).join(', ')}. ${sc.positioning.why}`);
+    const sg = p.spxGoldStats;
+    if (sg) L.push(`  S&P 500 priced in gold: ${sg.now} oz per index point (p${sg.pct} since ${sg.since}; ${sg.windows.map(w => `${w.label} ${pct(w.ratio, 0)}`).join(', ')}) — S&P in dollars ${sg.windows.map(w => `${w.label} ${pct(w.spx, 0)}`).join(', ')}; gold ${sg.windows.map(w => `${w.label} ${pct(w.gold, 0)}`).join(', ')}.`);
     const inv = p.inventories;
     if (inv?.available) L.push(`  EIA inventories (${inv.asOf}): ${inv.items.filter(i => !i.error).map(i => `${i.label} ${i.unit === 'MBBL' ? `${(i.value / 1000).toFixed(1)}M bbl` : i.unit === 'BCF' ? `${Math.round(i.value)} bcf` : i.unit === 'MBBL/D' ? `${(i.value / 1000).toFixed(2)}M b/d` : `${i.value}%`}${i.tone ? ` (${pct(i.vs5y, 0)} vs 5-yr avg)` : ''}`).join('; ')}.`);
   }

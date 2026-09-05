@@ -103,6 +103,22 @@ export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fet
     const metalsM = await batched(YAHOO_MONTHLY, s => fetchYahooSparkline(s, 'max', '1mo'))
     const [goldW, copperW] = await Promise.all([fetchYahooSparkline('GC=F', '10y', '1wk').catch(() => []), fetchYahooSparkline('HG=F', '10y', '1wk').catch(() => [])])
     const cot = await fetchCot().catch(e => { console.warn('CFTC:', e.message); return {} })
+    // S&P 500 priced in gold — the paper-vs-hard-assets ratio, monthly since gold futures history begins (2000)
+    // Yahoo's monthly index history is sparse before ~2010 for ^GSPC, so take whichever of the index or SPY (×10 ≈ index level) has full coverage since 2000
+    const [gspcRaw, spyRaw] = await Promise.all([fetchYahooSparkline('^GSPC', 'max', '1mo').catch(() => []), fetchYahooSparkline('SPY', 'max', '1mo').catch(() => [])])
+    const gspcM = monthly(gspcRaw.map(p => ({ d: iso(p.ts), v: p.v }))).filter(p => p.d >= '2000-09'), spyM = monthly(spyRaw.map(p => ({ d: iso(p.ts), v: p.v * 10 }))).filter(p => p.d >= '2000-09')
+    const spxM = gspcM.length >= spyM.length * 0.95 ? gspcM : spyM
+    const goldM = monthly((metalsM[0] || []).map(p => ({ d: iso(p.ts), v: p.v })))
+    const goldBy = Object.fromEntries(goldM.map(p => [p.d, p.v]))
+    const spxGold = spxM.filter(p => goldBy[p.d] > 0).map(p => ({ d: p.d, ratio: r2(p.v / goldBy[p.d]), spx: r1(p.v), gold: r1(goldBy[p.d]) }))
+    const sgRet = (key, n) => (spxGold.length > n ? chg(last(spxGold)[key], spxGold[spxGold.length - 1 - n][key]) : null)
+    const ratios = spxGold.map(p => p.ratio)
+    const sgPeak = spxGold.reduce((b, p) => (p.ratio > b.ratio ? p : b), spxGold[0] || { ratio: 0 }), sgTrough = spxGold.reduce((b, p) => (p.ratio < b.ratio ? p : b), spxGold[0] || { ratio: Infinity })
+    const spxGoldStats = spxGold.length ? {
+      now: last(spxGold).ratio, asOf: last(spxGold).d, since: spxGold[0].d.slice(0, 4), pct: pctile(ratios, last(spxGold).ratio),
+      peak: { d: sgPeak.d, v: sgPeak.ratio }, trough: { d: sgTrough.d, v: sgTrough.ratio },
+      windows: [['1 yr', 12], ['3 yr', 36], ['5 yr', 60], ['10 yr', 120], [`since ${spxGold[0].d.slice(0, 4)}`, spxGold.length - 1]].map(([label, n]) => ({ label, ratio: r1(sgRet('ratio', n)), spx: r1(sgRet('spx', n)), gold: r1(sgRet('gold', n)) })),
+    } : null
     const inventories = await fetchInventories().catch(e => ({ available: false, reason: e.message }))
     const yearStart = Date.UTC(new Date().getUTCFullYear(), 0, 1)
 
@@ -178,7 +194,7 @@ export function createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fet
     const overall = { tone: overallTone, label: overallTone === 'green' ? 'Commodities in favor' : overallTone === 'amber' ? 'Selective, not a super-cycle' : 'Commodities out of favor', sentence: `${scores.momentum.label}; ${scores.value.label.toLowerCase()}; ${scores.macro.label.toLowerCase()}.` }
     const groups = [...new Set(rows.map(r => r.group))].map(g => { const rs = rows.filter(r => r.group === g); return { group: g, n: rs.length, ytd: r1(mean(rs.map(r => r.ytd))), r1y: r1(mean(rs.map(r => r.r1y))), realPct: Math.round(mean(rs.map(r => r.real?.pct)) ?? 0) } })
 
-    return { rows, groups, scores, overall, indexNow, inventories, charts: { realIndex: indexChart, goldReal: goldReal.slice(-520), copperGold: copperGold.slice(-520) }, cotAsOf: last(Object.values(cot)[0] || [])?.d || null, updated: new Date().toISOString() }
+    return { rows, groups, scores, overall, indexNow, inventories, spxGoldStats, charts: { realIndex: indexChart, goldReal: goldReal.slice(-520), copperGold: copperGold.slice(-520), spxGold }, cotAsOf: last(Object.values(cot)[0] || [])?.d || null, updated: new Date().toISOString() }
   }
 
   async function get() {

@@ -175,6 +175,19 @@ function CommodityPulseTab() {
           <Line yAxisId="l" type="monotone" dataKey="ratio" name="Copper/gold (×1000)" stroke={"#f97316"} strokeWidth={1.8} dot={false} isAnimationActive={false} /><Line yAxisId="r" type="monotone" dataKey="y10" name="10-yr Treasury (right)" stroke={SLATE} strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
         </ComposedChart></ResponsiveContainer>,
         "Gundlach's growth gauge: copper is industrial demand, gold is fear, and their ratio has tracked the 10-year yield for decades. A ratio falling while yields hold up says the bond market is pricing more growth than the metals see.")}
+      {d.spxGoldStats && chartBox(`S&P 500 priced in gold — ounces per index point, monthly since ${d.spxGoldStats.since}`,
+        <>
+          <ResponsiveContainer width="100%" height={150}><LineChart data={d.charts.spxGold} margin={{ top: 8, right: 8, bottom: 0, left: -14 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={36} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+            <Tooltip contentStyle={tip} formatter={(v, n) => [n === "ratio" ? `${v} oz` : n === "spx" ? v.toLocaleString() : `$${v.toLocaleString()}`, n === "ratio" ? "S&P / gold" : n === "spx" ? "S&P 500" : "Gold"]} />
+            <Line type="monotone" dataKey="ratio" stroke={GOLD} strokeWidth={2} dot={false} isAnimationActive={false} />
+          </LineChart></ResponsiveContainer>
+          <table style={{ width: "100%", borderCollapse: "collapse", margin: "4px 0 2px" }}>
+            <thead><tr>{["Window", "S&P in gold", "S&P in $", "Gold in $"].map((h, i) => <th key={h} style={{ padding: "3px 6px", fontSize: 8.5, color: DIM, fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.4, textAlign: i ? "right" : "left", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>)}</tr></thead>
+            <tbody>{d.spxGoldStats.windows.map(w => <tr key={w.label}><td style={{ padding: "2px 6px", fontSize: 10, fontFamily: fonts.mono, color: "#cbd5e1" }}>{w.label}</td><td style={{ padding: "2px 6px", fontSize: 10, fontFamily: fonts.mono, fontWeight: 700, textAlign: "right", color: upDown(w.ratio) }}>{pc(w.ratio, 0)}</td><td style={{ padding: "2px 6px", fontSize: 10, fontFamily: fonts.mono, textAlign: "right", color: upDown(w.spx) }}>{pc(w.spx, 0)}</td><td style={{ padding: "2px 6px", fontSize: 10, fontFamily: fonts.mono, textAlign: "right", color: upDown(w.gold) }}>{pc(w.gold, 0)}</td></tr>)}</tbody>
+          </table>
+        </>,
+        `Today ${d.spxGoldStats.now} oz buys one S&P point (p${d.spxGoldStats.pct} since ${d.spxGoldStats.since}; peak ${d.spxGoldStats.peak.v} in ${d.spxGoldStats.peak.d.slice(0, 4)}, trough ${d.spxGoldStats.trough.v} in ${d.spxGoldStats.trough.d.slice(0, 4)}). When the line falls, stocks are losing to hard money even if they are rising in dollars — the Dalio question of whether paper wealth is real.`)}
     </div>
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
