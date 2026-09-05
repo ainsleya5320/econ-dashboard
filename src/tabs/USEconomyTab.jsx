@@ -12,6 +12,7 @@ import BudgetSubTab from "./BudgetSubTab.jsx";
 import LaborSubTab from "./LaborSubTab.jsx";
 import FedSubTab from "./FedSubTab.jsx";
 import UsPulseTab from "./UsPulseTab.jsx";
+import MachineTab from "./MachineTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
 import BankCreditTab from "./BankCreditTab.jsx";
 import ProfitsEngineTab from "./ProfitsEngineTab.jsx";
@@ -47,6 +48,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
   const ECON_SUB_TABS = [
     { id: "dashboard",  label: "Pulse"               },
+    { id: "machine",    label: "Machine"             },
     { id: "rates",      label: "Rates"               },
     { id: "debt",       label: "Debt & Credit"       },
     { id: "banks",      label: "Bank Credit"         },
@@ -80,6 +82,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
     {/* Pulse landing — leading indicators, consumer health, debt picture; rows drill into the subtabs */}
     {econSubTab === "dashboard" && <UsPulseTab go={setEconSubTab} />}
+    {econSubTab === "machine" && <MachineTab />}
 
     {/* Rates sub-tab */}
     {econSubTab === "rates" && <RatesTab md={md} td={td} fmpKey={fmpKey} />}

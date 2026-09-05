@@ -7,6 +7,7 @@ import { createRealEstateFeeds } from './server/realEstateFeeds.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
+import { createMachine } from './server/machine.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3647,6 +3648,8 @@ const peopleScreener = createPeopleScreener({ FMP_KEY, UA, dir: __dirname, ticke
 const usPulse = createUsPulse({ fetchFredSeries, dir: __dirname })
 // International Pulse (server/intlPulse.js): 13-economy board, dollar/risk/growth scores, Big Mac index re-marked at live FX
 const intlPulse = createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, fetchCbRates, UA, dir: __dirname })
+// The Economic Machine (server/machine.js): Dalio's three forces and three rules as a live tracker
+const machine = createMachine({ fetchFredSeries, fetchYahooSparkline, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3790,6 +3793,7 @@ export default defineConfig({
         })
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())
+        reRoute('/api/machine', () => machine.get())
         reRoute('/api/redfin', () => reFeeds.redfin())
         reRoute('/api/re-pipeline', () => reFeeds.pipeline())
         reRoute('/api/cre-credit', () => reFeeds.creCredit())
@@ -3801,6 +3805,7 @@ export default defineConfig({
         setTimeout(() => { reFeeds.buildCost().catch(() => {}); reFeeds.redfin().catch(() => {}); reFeeds.rents().catch(() => {}) }, 90 * 1000)
         setTimeout(() => { usPulse.get().catch(() => {}) }, 150 * 1000)
         setTimeout(() => { intlPulse.get().catch(() => {}) }, 240 * 1000)
+        setTimeout(() => { machine.get().catch(() => {}) }, 300 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine",
 };
 
 let cache = { text: "", ts: 0 };
@@ -94,6 +94,13 @@ export function buildVerdictText(d) {
     const p = d.pulse, red = g => p.rows.filter(r => r.group === g && r.tone === "red").map(r => `${r.label} ${r.unit === "%yoy" ? `${r.value >= 0 ? "+" : ""}${r.value}%` : r.value}`).join(", ") || "none";
     L.push(`U.S. Pulse (U.S. Economy tab): ${p.overall.label} — ${p.overall.sentence} Scores (0 worst, 100 best): leading ${p.scores.lead.score} (${p.scores.lead.label}), consumer ${p.scores.consumer.score} (${p.scores.consumer.label}), debt ${p.scores.debt.score} (${p.scores.debt.label}; burden ${p.scores.debt.burden}, stress ${p.scores.debt.stress}).`);
     L.push(`  Red indicators — leading: ${red("lead")}; consumer: ${red("consumer")}; debt: ${red("debt")}.`);
+  }
+
+  // U.S. Economy → Machine: Dalio's three cycles, the rules of thumb, the four levers
+  if (d.machine?.shortCycle) {
+    const m = d.machine, st = m.shortCycle.stages.find(s => s.key === m.shortCycle.stage);
+    L.push(`Economic Machine (Dalio tracker, U.S. Economy tab): productivity — ${m.productivity.label} (${m.productivity.why}) Short-term debt cycle — ${m.shortCycle.name}, ${st ? `${st.met}/${st.known} conditions met` : ''}: ${m.shortCycle.why} Long-term debt cycle — ${m.longCycle.stage}, ${m.longCycle.beautiful.label}: ${m.longCycle.why}`);
+    L.push(`  Rules of thumb: ${m.rules.map(r => `${r.text} — ${r.status.toUpperCase()} (${r.detail})`).join('; ')}. Levers: ${m.longCycle.levers.map(l => `${l.name} ${l.setting}`).join(', ')}. Gold $${m.longCycle.monetization.goldNow} (${pct(m.longCycle.monetization.goldR1y, 0)} 1y).`);
   }
 
   // International → Pulse: dollar / risk / growth scores, the board's USD-return ranking, Big Mac summary
