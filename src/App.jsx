@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
+import "./theme.css";
 import { US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
 import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchFMPPremiumNews, fetchZillowData } from "./lib/api.js";
@@ -46,16 +47,17 @@ export default function Dashboard() {
   // Apply CSS variables to :root whenever darkMode changes - runs before paint to avoid flash
   useLayoutEffect(() => {
     const r = document.documentElement;
+    r.dataset.theme = darkMode ? "dark" : "light";
     if (darkMode) {
-      r.style.setProperty("--page-bg",          "#0c0f1a");
-      r.style.setProperty("--card-bg",           "linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)");
+      r.style.setProperty("--page-bg",          "#0b121c");
+      r.style.setProperty("--card-bg",           "#141f2d");
       r.style.setProperty("--card-border",       "1px solid rgba(255,255,255,0.06)");
       r.style.setProperty("--text-primary",      "#f1f5f9");
       r.style.setProperty("--text-secondary",    "#94a3b8");
       r.style.setProperty("--text-muted",        "#64748b");
       r.style.setProperty("--border-subtle",     "rgba(255,255,255,0.06)");
       r.style.setProperty("--bg-subtle",         "rgba(255,255,255,0.03)");
-      r.style.setProperty("--tab-active-bg",     "linear-gradient(135deg, #1e293b, #1a1a2e)");
+      r.style.setProperty("--tab-active-bg",     "#21364c");
       r.style.setProperty("--tab-active-color",  "#f1f5f9");
       r.style.setProperty("--tab-inactive-color","#64748b");
       r.style.setProperty("--toggle-bg",         "rgba(255,255,255,0.07)");
@@ -65,15 +67,15 @@ export default function Dashboard() {
       r.style.setProperty("--status-input-border","rgba(255,255,255,0.1)");
       r.style.setProperty("--tooltip-bg",        "#0f172a");
     } else {
-      r.style.setProperty("--page-bg",          "#f0f4f8");
-      r.style.setProperty("--card-bg",           "linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)");
+      r.style.setProperty("--page-bg",          "#eef2f5");
+      r.style.setProperty("--card-bg",           "#ffffff");
       r.style.setProperty("--card-border",       "1px solid rgba(0,0,0,0.09)");
       r.style.setProperty("--text-primary",      "#0f172a");
       r.style.setProperty("--text-secondary",    "#1e293b");
       r.style.setProperty("--text-muted",        "#334155");
       r.style.setProperty("--border-subtle",     "rgba(0,0,0,0.10)");
       r.style.setProperty("--bg-subtle",         "rgba(0,0,0,0.04)");
-      r.style.setProperty("--tab-active-bg",     "linear-gradient(135deg, #e8edf5, #ffffff)");
+      r.style.setProperty("--tab-active-bg",     "#dde9f7");
       r.style.setProperty("--tab-active-color",  "#0f172a");
       r.style.setProperty("--tab-inactive-color","#334155");
       r.style.setProperty("--toggle-bg",         "rgba(0,0,0,0.06)");
@@ -88,9 +90,10 @@ export default function Dashboard() {
 
   const [fredKey, setFredKey] = useState(import.meta.env.VITE_FRED_KEY || ""); const [fmpKey, setFmpKey] = useState(import.meta.env.VITE_FMP_KEY || "");
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options'].includes(view)?view:'overview'; });
+  useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
-  const [pendingTicker, setPendingTicker] = useState(null); // global ticker search → opens in Stocks
+  const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
 
   // Persistent market strip: SPY / 10Y / VIX, refreshed every 60s
   useEffect(() => {
@@ -403,26 +406,26 @@ export default function Dashboard() {
   const stripPct = (v) => v == null ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--page-bg)", color: "var(--text-primary)", fontFamily: fonts.heading, padding: "20px 16px 60px", transition: "background 0.25s, color 0.25s" }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", gap: 20, alignItems: "flex-start" }}>
+    <div className="ledger-app" style={{ minHeight: "100vh", background: "var(--page-bg)", color: "var(--text-primary)", fontFamily: fonts.heading, padding: "20px 16px 60px", transition: "background 0.25s, color 0.25s" }}>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;450;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet" />
+      <div className="ledger-layout" style={{ maxWidth: 1480, margin: "0 auto", display: "flex", gap: 20, alignItems: "flex-start" }}>
 
         {/* ── Left sidebar ── */}
-        <aside style={{ width: 176, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
+        <aside className="ledger-sidebar" style={{ width: 190, flexShrink: 0, position: "sticky", top: 20, alignSelf: "flex-start" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 8px 14px" }}>
-            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: -0.5, fontFamily: fonts.heading, color: "var(--text-primary)" }}>Ledger</span>
+            <span style={{ fontSize: 35, fontWeight: 500, letterSpacing: -1.4, fontFamily: fonts.display, color: "var(--text-primary)" }}>Ledger</span>
             <span style={{ fontSize: 8, color: isLive ? "#10B981" : "#F59E0B", fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 1, background: isLive ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)", padding: "2px 6px", borderRadius: 4 }}>{isLive ? "Live" : "Sample"}</span>
           </div>
           {NAV_GROUPS.map(group => (
-            <div key={group.label} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono, letterSpacing: 0.8, textTransform: "uppercase", padding: "4px 10px 3px" }}>{group.label}</div>
+            <div className="ledger-nav-group" key={group.label} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono, letterSpacing: 1.2, textTransform: "uppercase", padding: "4px 10px 3px" }}>{group.label}</div>
               {group.items.map(it => {
                 const active = tab === it.id;
                 return (
-                  <button key={it.id} onClick={() => setTab(it.id)} style={{
+                  <button className="ledger-nav-link" aria-current={active ? "page" : undefined} key={it.id} onClick={() => setTab(it.id)} style={{
                     display: "block", width: "100%", textAlign: "left", border: "none",
-                    padding: "6px 10px", borderRadius: 8, marginBottom: 1, cursor: "pointer",
-                    fontSize: 12.5, fontFamily: fonts.heading, fontWeight: active ? 600 : 400,
+                    padding: "9px 12px", borderRadius: 5, marginBottom: 2, cursor: "pointer",
+                    fontSize: 14, fontFamily: fonts.heading, fontWeight: active ? 600 : 400,
                     background: active ? "var(--tab-active-bg)" : "transparent",
                     color: active ? "var(--tab-active-color)" : "var(--tab-inactive-color)",
                     transition: "all 0.12s",

@@ -234,8 +234,8 @@ export default function ProfitSankey({ data }) {
         {/* Labels */}
         {labels.map((lb, i) => (
           <g key={`label-${i}`}>
-            <text x={lb.x} y={lb.cy - 5} textAnchor={lb.anchor} fill={lb.color} fontSize={11} fontWeight={600} fontFamily="DM Sans, sans-serif">{lb.text}</text>
-            <text x={lb.x} y={lb.cy + 9} textAnchor={lb.anchor} fill="#94a3b8" fontSize={10} fontFamily="JetBrains Mono, monospace">{lb.sub}</text>
+            <text x={lb.x} y={lb.cy - 5} textAnchor={lb.anchor} fill={lb.color} fontSize={11} fontWeight={600} fontFamily="IBM Plex Sans, sans-serif">{lb.text}</text>
+            <text x={lb.x} y={lb.cy + 9} textAnchor={lb.anchor} fill="#94a3b8" fontSize={10} fontFamily="IBM Plex Mono, monospace">{lb.sub}</text>
           </g>
         ))}
       </svg>

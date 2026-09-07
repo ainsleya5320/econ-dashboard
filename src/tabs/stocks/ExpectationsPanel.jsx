@@ -97,9 +97,9 @@ function Scoreboard({ implied, projYears, street, histRev5, histCAGR }) {
   else {
     const d = req - st;
     const yrs = street.k3;
-    if (d <= -0.02) gap = { color: GREEN, text: `The Street's own numbers clear the bar: the price asks for ${pc(req)}/yr and analysts already model ${pc(st)}/yr over the next ${yrs} years. What has to go right is mostly durability — that growth has to persist for ${projYears} years, not ${yrs}.` };
-    else if (Math.abs(d) <= 0.02) gap = { color: AMBER, text: `Priced right at consensus: the price needs ${pc(req)}/yr, the Street models ${pc(st)}/yr for ${yrs} years. The Street has to be right — and then keep being right for ${projYears - yrs} more years.` };
-    else gap = { color: RED, text: `The price asks for more than the Street models: ${pc(req)}/yr for ${projYears} years vs consensus ${pc(st)}/yr over the next ${yrs}. Either estimates rise ${(d * 100).toFixed(1)} pts, margins expand, or the multiple is carrying the difference.` };
+    if (d <= -0.02) gap = { color: SLATE, text: `Consensus revenue growth of ${pc(st)}/yr over ${yrs} years exceeds the modeled FCF growth hurdle of ${pc(req)}/yr over ${projYears} years. These are different measures and horizons: test cash margins, reinvestment and durability before concluding the price is supported.` };
+    else if (Math.abs(d) <= 0.02) gap = { color: SLATE, text: `The growth rates are close, but they are not an apples-to-apples valuation check: ${pc(req)}/yr FCF growth over ${projYears} years versus ${pc(st)}/yr revenue growth over ${yrs} years. Cash conversion and the growth path still matter.` };
+    else gap = { color: AMBER, text: `The modeled FCF hurdle is ${pc(req)}/yr over ${projYears} years; consensus revenue growth is ${pc(st)}/yr over ${yrs} years. Investigate margins, reinvestment and growth beyond the consensus horizon. Their difference alone does not measure an earnings shortfall or mispricing.` };
   }
   const cell = (title, val, sub, color) => (
     <div style={{ flex: "1 1 160px", minWidth: 150 }}>
@@ -117,6 +117,7 @@ function Scoreboard({ implied, projYears, street, histRev5, histCAGR }) {
         {cell("History delivered", pc(histRev5), `revenue CAGR, last 5 yrs${fin(histCAGR) ? ` · FCF ${pc(histCAGR)}` : ""}`, SLATE)}
       </div>
       <div style={{ fontSize: 11.5, color: "#cbd5e1", fontFamily: fonts.heading, marginTop: 12, lineHeight: 1.55 }}>{gap.text}</div>
+      <div style={{ ...note, marginTop: 8 }}>The chart below applies the implied FCF growth rate to revenue or earnings for illustration. That requires constant conversion ratios; it is not an independently solved revenue or earnings requirement.</div>
     </div>
   );
 }

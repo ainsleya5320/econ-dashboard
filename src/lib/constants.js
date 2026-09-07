@@ -69,9 +69,9 @@ const HOUSING_SERIES = { MSPUS: { label: "Median Home Price", color: "#E8553A" }
 // Consumer health FRED series
 const CONSUMER_SERIES = {
   PSAVERT: { label: "Personal Savings Rate", color: "#3B82F6", unit: "%" },
-  DRCCLACBS: { label: "Consumer Loan Delinquency", color: "#E8553A", unit: "%" },
+  DRCLACBS: { label: "Consumer Loan Delinquency", color: "#E8553A", unit: "%" },
   DRSFRMACBS: { label: "Mortgage Delinquency", color: "#F97316", unit: "%" },
-  DRCRELEXFACBS: { label: "Credit Card Delinquency", color: "#D946EF", unit: "%" },
+  DRCCLACBS: { label: "Credit Card Delinquency", color: "#D946EF", unit: "%" },
   DRBLACBS: { label: "Business Loan Delinquency", color: "#F59E0B", unit: "%" },
   TOTALSL: { label: "Total Consumer Credit", color: "#6366F1", unit: "B$" },
   REVOLSL: { label: "Revolving Credit", color: "#EC4899", unit: "B$" },
@@ -137,7 +137,7 @@ const CHOROPLETH_METRICS = [
   { key: "reGrossYield",    group: "realestate", source: "server", src: "Zillow metros, Zipf-weighted to states", cadence: "monthly", label: "Gross Rental Yield", fmt: v => `${v.toFixed(1)}%`, scale: "green", sortAsc: false },
   { key: "rePriceToIncome", group: "realestate", source: "server", src: "Zillow value ÷ Census median household income", cadence: "monthly / annual", label: "Price-to-Income", fmt: v => `${v.toFixed(1)}×`, scale: "greenRed", sortAsc: true, needs: ["medianIncome"] },
   { key: "reBuildCost",     group: "realestate", source: "server", src: "NAHB base × BLS construction wages", cadence: "monthly", label: "Est. Build Cost / sq ft", fmt: v => `$${v.toFixed(0)}`, scale: "blue", sortAsc: false },
-  { key: "reLandShare",     group: "realestate", source: "server", src: "Realtor.com $/sq ft vs est. build cost", cadence: "monthly", label: "Implied Land Share", fmt: v => `${v.toFixed(0)}%`, scale: "purple", sortAsc: false, needs: ["rePriceSqft"] },
+  { key: "reLandShare",     group: "realestate", source: "server", src: "Realtor.com $/sq ft vs est. build cost", cadence: "monthly", label: "Price Minus Hard-Cost Residual", fmt: v => `${v.toFixed(0)}%`, scale: "purple", sortAsc: false, needs: ["rePriceSqft"] },
 ];
 
 // YoY % from an ascending observation array, k observations back

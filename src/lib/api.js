@@ -1,4 +1,5 @@
 import { FRED_BASE, FMP_BASE } from './constants.js';
+import { normalizeChain } from './optionsAnalysis.js';
 
 async function fetchWithTimeout(url, { timeoutMs = 15000, ...options } = {}) {
   const controller = new AbortController();
@@ -82,23 +83,7 @@ async function fetchOptionsChain(ticker) {
   const r = await fetchWithTimeout(`/cboe-api/${ticker}.json`, { timeoutMs: 15000 });
   if (!r.ok) throw new Error("CBOE options error");
   const j = await r.json();
-  const raw = j.data?.options || [];
-  const spot = j.data?.current_price || null;
-  const parsed = raw.map(o => {
-    const sym = o.option || "";
-    // Parse option symbol: e.g., AAPL250221C00230000
-    // Format: TICKER + YYMMDD + C/P + strike*1000 (8 digits)
-    const match = sym.match(/(\d{6})([CP])(\d{8})$/);
-    if (!match) return null;
-    const [, dateStr, type, strikeStr] = match;
-    const yr = 2000 + parseInt(dateStr.slice(0, 2));
-    const mn = parseInt(dateStr.slice(2, 4)) - 1;
-    const dy = parseInt(dateStr.slice(4, 6));
-    const expiry = new Date(yr, mn, dy);
-    const dte = Math.max(0, Math.round((expiry - new Date()) / 86400000));
-    return { sym, strike: o.strike || parseFloat(strikeStr) / 1000, expiry, dte, type, iv: o.iv, bid: o.bid, ask: o.ask, oi: o.open_interest, vol: o.volume, delta: o.delta, gamma: o.gamma, vega: o.vega, theta: o.theta, rho: o.rho, theo: o.theo, lastPrice: o.last_trade_price, lastTime: o.last_trade_time, prevClose: o.prev_day_close, change: o.change, pctChange: o.percent_change };
-  }).filter(o => o && o.iv > 0 && o.dte > 0);
-  return { options: parsed, spot };
+  return normalizeChain(j,ticker);
 }
 
 async function fetchOpenRouterModels() {

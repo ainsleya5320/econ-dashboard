@@ -3,6 +3,10 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import { CHOROPLETH_METRICS, BUILD_COST_PER_SQFT } from "../lib/constants.js";
+import MetroComparison from "./realEstate/MetroComparison.jsx";
+import RefinancingView from "./realEstate/RefinancingView.jsx";
+import { DEFAULT_PROPERTY } from "../lib/propertyAnalysis.js";
+import "./realEstate/PropertyResearch.css";
 import StateChoropleth from "../components/StateChoropleth.jsx";
 import HousingSubTab, { HousingHealthPanel } from "./HousingSubTab.jsx";
 
@@ -14,15 +18,15 @@ import HousingSubTab, { HousingHealthPanel } from "./HousingSubTab.jsx";
 // construction, lending standards). Sub-tabs:
 //   Fair Value    one 0–100 score per sector (the valuation anchors'
 //                 percentiles averaged, archived daily by /api/re-composite),
-//                 the verdict tiles, the anchors, REIT cap rates by type
+//                 the verdict tiles, the anchors, REIT EBITDA yields by type
 //   Residential   synthesis first: what would have to change (price or rate)
 //                 to restore affordability, own-vs-rent, the mortgage lock-in
 //                 gap (FHFA NMDB), the Redfin tape (sale-to-list, price
 //                 drops, months of supply), the supply pipeline; the raw
 //                 series live behind a fold
 //   Commercial    price cycle, credit (delinquency + SLOOS lending
-//                 standards), Kastle office occupancy, construction, vacancy,
-//                 replacement ratio, REIT-implied cap rates by property type
+//                 standards), Kastle office attendance, construction, vacancy,
+//                 replacement ratio, REIT enterprise EBITDA yields by property type
 //   Metro         one metro at a time (Seattle first): Realtor.com listing
 //                 flow, Case-Shiller vs the 20-city, unemployment, Zillow
 //                 value/rent — plus every metro ranked on price-to-rent
@@ -162,19 +166,19 @@ function Segments({ parts, height = 12 }) {
     </div>
   </>);
 }
-const scoreWord = p => (p >= 75 ? "rich" : p >= 58 ? "full" : p >= 42 ? "fair" : p >= 25 ? "reasonable" : "cheap");
+const scoreWord = p => (p >= 75 ? "high" : p >= 58 ? "above middle" : p >= 42 ? "middle" : p >= 25 ? "below middle" : "low");
 function ScoreCard({ name, sec, support, history, histKey, foot }) {
   const hist = (history || []).filter(h => fin(h[histKey]));
-  const parts = sec ? sec.anchors.filter(a => fin(a.pct)).map(a => `${scoreWord(a.pct)} on ${a.label.replace("Price vs ", "").replace("Yield vs bonds", "yield vs bonds")} (p${a.pct})`) : [];
+  const parts = sec ? sec.anchors.filter(a => fin(a.pct)).map(a => `${scoreWord(a.pct)} on ${a.label.replace("Price vs ", "")} (${a.key === 'yield' ? 'rule score ' : 'p'}${a.pct})`) : [];
   return (
     <div style={{ ...card, padding: "14px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <div style={label}>{name} · fair-value score</div>
-        <span style={{ fontSize: 9.5, color: DIM, fontFamily: fonts.mono }}>0 cheap · 100 rich, vs each anchor&apos;s own history</span>
+        <div style={label}>{name} · valuation context score</div>
+        <span style={{ fontSize: 9.5, color: DIM, fontFamily: fonts.mono }}>0 low · 100 high on the selected measures</span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 6 }}>
         <span style={{ fontSize: 34, fontWeight: 800, color: sec?.tone?.color || SLATE, fontFamily: fonts.heading, letterSpacing: -1, lineHeight: 1 }}>{sec && fin(sec.score) ? sec.score : "…"}</span>
-        <span style={{ fontSize: 15, fontWeight: 700, color: sec?.tone?.color || SLATE, fontFamily: fonts.heading }}>{sec?.tone?.label || "loading"}</span>
+        <span style={{ fontSize: 15, fontWeight: 700, color: sec?.tone?.color || SLATE, fontFamily: fonts.heading }}>{fin(sec?.score) ? scoreWord(sec.score) : "loading"}</span>
         {sec && <span style={{ fontSize: 9.5, color: DIM, fontFamily: fonts.mono }}>{sec.n} of {sec.anchors.length} anchors</span>}
       </div>
       <div style={{ position: "relative", height: 10, borderRadius: 5, marginTop: 10, background: "linear-gradient(90deg, #22d3ee 0%, #4ade80 28%, #94a3b8 50%, #fbbf24 72%, #f87171 100%)", opacity: 0.9 }}>
@@ -186,7 +190,7 @@ function ScoreCard({ name, sec, support, history, histKey, foot }) {
           {sec.anchors.map(a => (
             <div key={a.key} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "6px 8px" }}>
               <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, textTransform: "uppercase" }}>{a.label}</div>
-              <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: fonts.mono, color: fin(a.pct) ? (a.pct >= 75 ? RED : a.pct >= 58 ? AMBER : a.pct >= 42 ? SLATE : GREEN) : DIM }}>{fin(a.value) ? `${a.value}${a.unit?.startsWith("%") ? "%" : a.unit?.startsWith("×") ? "×" : ""}` : "—"} <span style={{ fontWeight: 400, color: DIM }}>{fin(a.pct) ? `p${a.pct}` : "n/a"}</span></div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: fonts.mono, color: fin(a.pct) ? (a.pct >= 75 ? RED : a.pct >= 58 ? AMBER : a.pct >= 42 ? SLATE : GREEN) : DIM }}>{fin(a.value) ? `${a.value}${a.unit?.startsWith("%") ? "%" : a.unit?.startsWith("×") ? "×" : ""}` : "—"} <span style={{ fontWeight: 400, color: DIM }}>{fin(a.pct) ? `${a.key === "yield" ? "rule " : "p"}${a.pct}` : "n/a"}</span></div>
             </div>
           ))}
         </div>
@@ -218,7 +222,7 @@ function FairValueView({ housing, repl, cre, reit, comp, credit, rents, go }) {
   const supportRes = comp?.support?.residential ? `${comp.support.residential.supplyMonths?.toFixed(1)} months' supply (p${comp.support.residential.supplyPct}) · mortgage delinquency ${pc0(comp.support.residential.mortgageDq, 2)} · ${comp.support.residential.verdict}` : null;
   const supportCom = comp?.support?.commercial ? `CRE delinquency ${pc0(comp.support.commercial.dq, 2)} (p${comp.support.commercial.dqPct}, ${pc(comp.support.commercial.dqChg1y, 2)} 1y) · prices ${pc(comp.support.commercial.priceYoy)} YoY (${mon(comp.support.commercial.priceAsOf)}) · rental vacancy ${pc0(comp.support.commercial.rentalVacancy)}${credit?.sloos ? ` · ${credit.sloos.verdict.label.toLowerCase()} (SLOOS)` : ""}` : null;
   return (<>
-    <SH>Fair Value — Two Scores, Four Anchors</SH>
+    <SH>Valuation Context — Prices, Income and Financing</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 12, marginBottom: 12 }}>
       <ScoreCard name="Residential" sec={comp?.residential} support={supportRes} history={comp?.history} histKey="res" />
       <ScoreCard name="Commercial" sec={comp?.commercial} support={supportCom} history={comp?.history} histKey="com" />
@@ -229,13 +233,13 @@ function FairValueView({ housing, repl, cre, reit, comp, credit, rents, go }) {
         why={housing ? `affordability ${light(housing.afford?.light) === RED ? "red" : light(housing.afford?.light) === AMBER ? "amber" : "green"} (${pc0(housing.afford?.current)} of income, p${housing.afford?.pct}) · supply p${housing.supply?.pct} · valuation p${housing.valuation?.pct}` : "loading"}
         foot={<AsOf d={housing?.supply?.lastDate} cadence="monthly" src="Census / Freddie Mac via FRED" />} dest="Residential" onOpen={() => go("residential")} />
       <Verdict title="Residential · vs rebuild cost" verdict={rv?.label ?? "…"} color={rv?.color ?? SLATE}
-        why={rv ? `price ÷ build-cost ratio ${rv.ratio} (100 = parity) · p${rv.pct} since ${repl.ratioSince}${rv.chg1y != null ? ` · ${rv.chg1y >= 0 ? "+" : ""}${rv.chg1y} over 12mo` : ""}` : "loading"}
+        why={rv ? `price ÷ build-cost ratio ${rv.ratio} (100 = sample mean) · p${rv.pct} since ${repl.ratioSince}${rv.chg1y != null ? ` · ${rv.chg1y >= 0 ? "+" : ""}${rv.chg1y} over 12mo` : ""}` : "loading"}
         foot={<AsOf d={repl?.tiles?.constructionInputs?.last} cadence="monthly" src="Case-Shiller ÷ PPI via FRED" />} dest="Residential" onOpen={() => go("residential")} />
       <Verdict title="Commercial · price cycle" verdict={cv?.label ?? "…"} color={cv?.color ?? SLATE}
         why={cre ? `CRE prices ${pc(cre.price.yoy)} YoY (BIS) · CRE loan delinquency ${pc0(cre.delinquency.cre.current, 2)} (p${cre.delinquency.cre.pct}, ${pc(cre.delinquency.cre.chg1y, 2)} 1y)` : "loading"}
         foot={<AsOf d={cre?.price?.asOf} cadence="quarterly" src="BIS via FRED" />} dest="Commercial" onOpen={() => go("commercial")} />
       <Verdict title="Commercial · yield vs bonds" verdict={kv?.label ?? "…"} color={kv?.color ?? SLATE}
-        why={reit?.available ? `REIT-implied cap rate ${pc0(reit.avgCap)} vs 10Y ${pc0(reit.tenYear, 2)} → spread ${reit.spread >= 0 ? "+" : ""}${reit.spread?.toFixed(1)} pts · ${reit.coverage} REITs` : reit ? "cap-rate data unavailable" : "loading"}
+        why={reit?.available ? `REIT enterprise EBITDA yield ${pc0(reit.avgCap)} vs 10Y ${pc0(reit.tenYear, 2)} → spread ${reit.spread >= 0 ? "+" : ""}${reit.spread?.toFixed(1)} pts · ${reit.coverage} REITs` : reit ? "EBITDA yield data unavailable" : "loading"}
         foot={<AsOf d={reit?.asOf} cadence="weekly" src="FMP fundamentals + FRED 10Y" />} dest="Commercial" onOpen={() => go("commercial")} />
     </div>
 
@@ -245,14 +249,14 @@ function FairValueView({ housing, repl, cre, reit, comp, credit, rents, go }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
           <Stat title="Price vs income" value={pc0(housing?.afford?.current)} color={light(housing?.afford?.light)} sub={housing ? `median payment as % of income · p${housing.afford?.pct} since ${housing.afford?.since} · long-run median ${pc0(housing.afford?.median)}` : "—"} />
           <Stat title="Price vs rent" value={fin(p2r) ? `${Number(p2r).toFixed(1)}×` : "—"} color={fin(p2rPct) ? (p2rPct >= 75 ? RED : p2rPct >= 50 ? AMBER : GREEN) : SLATE} sub={fin(p2r) ? `Zillow value ÷ annual rent · gross yield ${pc0(100 / p2r)}${fin(p2rPct) ? ` · p${p2rPct} since ${rents?.national?.since || "2015"}` : ""}` : "Zillow ZHVI/ZORI"} />
-          <Stat title="Price vs rebuild" value={rv ? `${rv.ratio}` : "—"} color={rv?.color || SLATE} sub={rv ? `Case-Shiller ÷ construction PPI, 100 = long-run parity · p${rv.pct}` : "—"} />
+          <Stat title="Price vs rebuild" value={rv ? `${rv.ratio}` : "—"} color={rv?.color || SLATE} sub={rv ? `Case-Shiller ÷ construction PPI, 100 = sample mean · p${rv.pct}` : "—"} />
           <Stat title="Supply & credit" value={housing ? `${housing.supply?.current?.toFixed(1)} mo` : "—"} color={light(housing?.supply?.light)} sub={housing ? `months of supply (p${housing.supply?.pct}) · mortgage delinquency ${pc0(cre?.delinquency?.mortgage?.current, 2)}` : "—"} />
         </div>
       </div>
       <div style={card}>
         <div style={label}>Commercial — the anchors</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
-          <Stat title="Yield vs bonds" value={reit?.available ? `${reit.spread >= 0 ? "+" : ""}${reit.spread?.toFixed(1)} pts` : "—"} color={kv?.color || SLATE} sub={reit?.available ? `implied cap ${pc0(reit.avgCap)} − 10Y ${pc0(reit.tenYear, 2)} · norm ≈ 3 pts` : "REIT proxy"} />
+          <Stat title="Yield vs bonds" value={reit?.available ? `${reit.spread >= 0 ? "+" : ""}${reit.spread?.toFixed(1)} pts` : "—"} color={kv?.color || SLATE} sub={reit?.available ? `EBITDA yield ${pc0(reit.avgCap)} − 10Y ${pc0(reit.tenYear, 2)} · screening comparison` : "REIT proxy"} />
           <Stat title="Price vs rebuild" value={cre?.replacement?.current != null ? `${cre.replacement.current}` : "—"} color={cre?.replacement?.pct != null ? (cre.replacement.pct >= 70 ? RED : cre.replacement.pct >= 30 ? AMBER : GREEN) : SLATE} sub={cre ? `CRE price index ÷ construction-input PPI, mean = 100 · p${cre.replacement.pct} since ${cre.replacement.since}` : "—"} />
           <Stat title="Price momentum" value={pc(cre?.price?.yoy)} color={cre ? (cre.price.yoy < 0 ? RED : cre.price.yoy > 3 ? GREEN : AMBER) : SLATE} sub={cre ? `BIS commercial property prices, YoY · rents (CPI) ${pc(cre.rent.cpiYoy)} · build inputs ${pc(cre.cost.ppiYoy)}` : "—"} />
           <Stat title="Credit & lending" value={pc0(cre?.delinquency?.cre?.current, 2)} color={cre ? (cre.delinquency.cre.chg1y > 0.3 ? RED : cre.delinquency.cre.chg1y > 0 ? AMBER : GREEN) : SLATE} sub={cre ? `CRE loan delinquency (p${cre.delinquency.cre.pct})${credit?.sloos ? ` · SLOOS net tightening ${credit.sloos.avg >= 0 ? "+" : ""}${credit.sloos.avg}%` : ""} · rental vacancy ${pc0(cre.vacancy.rental.current)}` : "—"} />
@@ -263,7 +267,7 @@ function FairValueView({ housing, repl, cre, reit, comp, credit, rents, go }) {
     {reit?.available && (
       <div style={{ ...card, marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-          <div style={label}>REIT-implied cap rate by property type · spread over the 10-year ({pc0(reit.tenYear, 2)})</div>
+          <div style={label}>REIT enterprise EBITDA yield by property type · spread over the 10-year ({pc0(reit.tenYear, 2)})</div>
           <span style={note}>EBITDA ÷ enterprise value · {reit.coverage} bellwethers · {reit.asOf}</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "4px 20px", marginTop: 8 }}>
@@ -282,12 +286,12 @@ function FairValueView({ housing, repl, cre, reit, comp, credit, rents, go }) {
             );
           })}
         </div>
-        <div style={{ ...note, marginTop: 8 }}>White tick = the 10-year. Public REITs own better-than-average assets, so private-market cap rates run higher than these; read the ranking and the spread, not the level. Office is the tell for distress, data centers for the AI bid.</div>
+        <div style={{ ...note, marginTop: 8 }}>White tick = the 10-year Treasury yield. These are enterprise EBITDA yields using annual accounts and current prices. Capital intensity, corporate costs and growth differ across property types; a larger spread does not by itself indicate better value.</div>
       </div>
     )}
 
     <InfoBox color={INDIGO}>
-      <strong style={{ color: "#cbd5e1" }}>The framework.</strong> Real estate is fairly valued when four things line up: the price can be carried out of income (affordability, or rent for a landlord), it doesn&apos;t sit far above what building the asset would cost (replacement cost — the market&apos;s gravity, because a big gap invites new supply), its yield clears a bond by a normal margin (cap rate minus the 10-year), and supply and credit aren&apos;t deteriorating underneath it (vacancy, delinquency, construction, lending standards). The scores above average the valuation anchors&apos; percentiles against their own histories — supply and credit are shown as support because they say whether a rich price is <em>protected</em>, not whether it is rich. Each anchor drills into its sector tab.
+      <strong style={{ color: "#cbd5e1" }}>The framework.</strong> These scores describe valuation context, not an intrinsic value or expected return. Residential components are historical percentiles; the commercial EBITDA spread component is a rule: a 3.5-point spread scores 0 and a zero spread scores 100, clipped at the ends. The price-to-construction-input ratio is normalized to its sample mean, not actual replacement cost. Component coverage and lookback periods can differ. Compare income, recurring capital needs, financing and local supply before drawing an investment conclusion.
     </InfoBox>
   </>);
 }
@@ -421,13 +425,13 @@ function ResidentialView({ hd, md, zillowData, housing, pipe, redfin, rents }) {
 
 // ── Commercial ──────────────────────────────────────────────────────────────
 function KastleCard({ k }) {
-  if (!k || k.error) return <div style={{ ...card, marginBottom: 12, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>{k?.error ? `Kastle barometer unavailable (${k.error}).` : "Loading Kastle office occupancy…"}</div>;
+  if (!k || k.error) return <div style={{ ...card, marginBottom: 12, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>{k?.error ? `Kastle barometer unavailable (${k.error}).` : "Loading Kastle office attendance…"}</div>;
   const cities = Object.entries(k.cities || {}).sort((a, b) => b[1].v - a[1].v);
   const c = v => (v >= 60 ? GREEN : v >= 50 ? AMBER : RED);
   return (
     <div style={{ ...card, marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-        <div style={label}>Office occupancy — Kastle 10-city barometer (card swipes vs Feb-2020 = 100%)</div>
+        <div style={label}>Office attendance — Kastle 10-city barometer (card swipes vs Feb-2020 = 100%)</div>
         <span style={note}>week of {k.d} · weekly</span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
@@ -454,7 +458,7 @@ function KastleCard({ k }) {
           </LineChart>
         </ResponsiveContainer>
       )}
-      <div style={{ ...note, marginTop: 6 }}>Occupancy is NOI for office: rent × occupancy. Kastle counts first badge-ins across ~3,400 buildings; the archive here grows a week at a time from today ({k.weeks?.length || 1} week{k.weeks?.length === 1 ? "" : "s"} so far). Austin and Texas lead; New York, Washington and San Francisco trail — the same ranking the REIT table prices.</div>
+      <div style={{ ...note, marginTop: 6 }}>Kastle measures attendance in participating buildings relative to February 2020. It does not measure leased occupancy, rent collection or NOI. Use leasing spreads, lease expirations, concessions and operating expenses to assess office cash flows. This local archive contains {k.weeks?.length || 1} weekly observations.</div>
     </div>
   );
 }
@@ -484,7 +488,7 @@ function CommercialView({ cre, reit, credit }) {
       <Stat title="Bank CRE loans YoY" value={pc(cre.loans.yoy)} color={cre.loans.yoy < 0 ? RED : cre.loans.yoy < 2 ? AMBER : GREEN} sub={`$${(cre.loans.current / 1000).toFixed(2)}T outstanding (H.8)`} />
       <Stat title="Lending standards" value={sl ? `${sl.avg >= 0 ? "+" : ""}${sl.avg}%` : "…"} color={sl?.verdict?.color || SLATE} sub={sl ? `${sl.verdict.label} · net % of banks tightening CRE standards (SLOOS, ${mon(sl.asOf)})` : "loading SLOOS"} />
       <Stat title="Rental vacancy" value={pc0(cre.vacancy.rental.current)} color={cre.vacancy.rental.pct >= 70 ? RED : cre.vacancy.rental.pct >= 35 ? AMBER : GREEN} sub={`p${cre.vacancy.rental.pct} · homeowner vacancy ${pc0(cre.vacancy.owner.current)}`} />
-      <Stat title="Office occupancy" value={credit?.kastle && !credit.kastle.error ? pc0(credit.kastle.avg) : "…"} color={credit?.kastle && fin(credit.kastle.avg) ? (credit.kastle.avg >= 60 ? GREEN : credit.kastle.avg >= 50 ? AMBER : RED) : SLATE} sub={credit?.kastle && !credit.kastle.error ? `Kastle 10-city weekly average vs Feb-2020 · week of ${credit.kastle.d}` : "Kastle barometer"} />
+      <Stat title="Office attendance" value={credit?.kastle && !credit.kastle.error ? pc0(credit.kastle.avg) : "…"} color={credit?.kastle && fin(credit.kastle.avg) ? (credit.kastle.avg >= 60 ? GREEN : credit.kastle.avg >= 50 ? AMBER : RED) : SLATE} sub={credit?.kastle && !credit.kastle.error ? `Kastle 10-city weekly average vs Feb-2020 · week of ${credit.kastle.d}` : "Kastle barometer"} />
       <Stat title="Price vs rebuild" value={cre.replacement.current ?? "—"} color={cre.replacement.pct >= 70 ? RED : cre.replacement.pct >= 30 ? AMBER : GREEN} sub={`index ÷ construction PPI · p${cre.replacement.pct} since ${cre.replacement.since}`} />
     </div>
 
@@ -519,19 +523,19 @@ function CommercialView({ cre, reit, credit }) {
       <Series title="Commercial property prices — YoY % (BIS, quarterly)" data={priceRows} lines={[{ key: "yoy", name: "CRE price YoY", color: INDIGO, width: 2 }]} yFmt={v => `${Number(v).toFixed(0)}%`} refY={0} foot="Negative = values falling year over year. The 2009–10 and 2023–24 legs are the two corrections in this series." />
       <Series title="Loan delinquency — CRE vs residential mortgages (%)" data={dqRows} lines={[{ key: "cre", name: "CRE loans", color: RED, width: 2 }, { key: "mortgage", name: "Mortgages", color: SLATE }]} yFmt={v => `${Number(v).toFixed(1)}%`} foot="Fed H.8, all commercial banks. Commercial credit turns after prices; the peak in delinquencies has marked the price bottom." />
       <Series title="Construction spending — indexed to 100 (monthly, SAAR)" data={consRows} lines={[{ key: "commercial", name: "Commercial", color: INDIGO, width: 2 }, { key: "office", name: "Office", color: RED }, { key: "residential", name: "Residential", color: GREEN }, { key: "manufacturing", name: "Manufacturing", color: AMBER }]} yFmt={v => Number(v).toFixed(0)} foot="Supply response by segment. A price-above-replacement gap that persists shows up here as a building boom — the manufacturing line is the CHIPS/AI build." />
-      <Series title="Vacancy — rental vs homeowner (%)" data={vacRows} lines={[{ key: "rental", name: "Rental vacancy", color: AMBER, width: 2 }, { key: "owner", name: "Homeowner vacancy", color: CYAN }]} yFmt={v => `${Number(v).toFixed(1)}%`} foot="Census HVS. Rental vacancy is the multifamily occupancy read (occupancy = 100 − vacancy); office occupancy is the Kastle card above; industrial and retail occupancy come from broker surveys — see the curated table." />
-      <Series title="Commercial price vs cost to build — ratio, mean = 100" data={replRows} lines={[{ key: "ratio", name: "CRE price ÷ construction-input PPI", color: CYAN, width: 2 }]} yFmt={v => Number(v).toFixed(0)} refY={100} foot="The commercial Tobin's q: the BIS index chained to a level, divided by the PPI for construction inputs. Above 100 invites supply; well below it, nothing new pencils." />
+      <Series title="Vacancy — rental vs homeowner (%)" data={vacRows} lines={[{ key: "rental", name: "Rental vacancy", color: AMBER, width: 2 }, { key: "owner", name: "Homeowner vacancy", color: CYAN }]} yFmt={v => `${Number(v).toFixed(1)}%`} foot="Census HVS covers the household rental market across structure types. It is not a direct occupancy measure for institutional apartments. Kastle measures office attendance, which is distinct from leased occupancy." />
+      <Series title="Commercial price vs cost to build — ratio, mean = 100" data={replRows} lines={[{ key: "ratio", name: "CRE price ÷ construction-input PPI", color: CYAN, width: 2 }]} yFmt={v => Number(v).toFixed(0)} refY={100} foot="A relative price-to-input-cost index with its sample mean set to 100. It omits land, financing, soft costs and local economics; 100 is not dollar replacement-cost parity." />
     </div>
 
-    <SH>REIT-Implied Cap Rates — What the Public Market Pays for NOI</SH>
+    <SH>REIT Enterprise EBITDA Yields</SH>
     {reit?.available ? (
       <div style={{ ...card, padding: "10px 12px", marginBottom: 12, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Average implied cap <strong style={{ color: "var(--text-primary)" }}>{pc0(reit.avgCap)}</strong> vs 10Y {pc0(reit.tenYear, 2)} → spread <strong style={{ color: reit.verdict.color }}>{reit.spread >= 0 ? "+" : ""}{reit.spread?.toFixed(1)} pts</strong> · {reit.verdict.label}</span>
+          <span style={{ fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Average EBITDA yield <strong style={{ color: "var(--text-primary)" }}>{pc0(reit.avgCap)}</strong> vs 10Y {pc0(reit.tenYear, 2)} → spread <strong style={{ color: reit.verdict.color }}>{reit.spread >= 0 ? "+" : ""}{reit.spread?.toFixed(1)} pts</strong> · {reit.verdict.label}</span>
           <span style={note}>{reit.coverage} names · fiscal-year EBITDA ÷ current EV · {reit.asOf}</span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr><th style={{ padding: "6px 8px", fontSize: 8.5, color: DIM, fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>Property type · REIT</th>{th("Implied cap")}{th("Spread vs 10Y")}{th("Div. yield")}{th("Debt / EV")}{th("Off 52w high")}{th("EV")}</tr></thead>
+          <thead><tr><th style={{ padding: "6px 8px", fontSize: 8.5, color: DIM, fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.4, textAlign: "left", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>Property type · REIT</th>{th("EBITDA yield")}{th("Spread vs 10Y")}{th("Div. yield")}{th("Debt / EV")}{th("Off 52w high")}{th("EV")}</tr></thead>
           <tbody>
             {reit.rows.filter(r => !r.error).sort((a, b) => a.sector.localeCompare(b.sector) || b.cap - a.cap).map(r => {
               const sp = fin(reit.tenYear) ? r.cap - reit.tenYear : null;
@@ -550,9 +554,9 @@ function CommercialView({ cre, reit, credit }) {
             })}
           </tbody>
         </table>
-        <div style={{ ...note, marginTop: 6 }}>Cap rate here = EBITDA ÷ (market cap + debt − cash), a public-market proxy for NOI yield. It understates private cap rates for the same property type (REITs own trophy assets and trade with liquidity) but ranks the sectors faithfully and moves daily.</div>
+        <div style={{ ...note, marginTop: 6 }}>Enterprise EBITDA yield = fiscal-year EBITDA ÷ (current market cap + reported debt − cash). It mixes annual financial statements with current prices and excludes recurring capital expenditure. Corporate costs and asset mix differ by REIT; this is not a property NOI cap rate and has no reliable fixed adjustment to private-market cap rates.</div>
       </div>
-    ) : <div style={{ ...card, marginBottom: 12, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>{reit ? `REIT cap rates unavailable (${reit.reason || "no data"}).` : "Loading REIT cap rates (FMP)…"}</div>}
+    ) : <div style={{ ...card, marginBottom: 12, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>{reit ? `REIT EBITDA yields unavailable (${reit.reason || "no data"}).` : "Loading REIT EBITDA yields (FMP)…"}</div>}
 
     <div style={{ ...card, marginBottom: 12 }}>
       <div style={label}>Private-market cap rates &amp; occupancy by property type — curated{CURATED_COMMERCIAL.length ? "" : " (awaiting first entry)"}</div>
@@ -563,13 +567,13 @@ function CommercialView({ cre, reit, credit }) {
         </table>
       ) : (
         <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 6, lineHeight: 1.6 }}>
-          Private-market cap rates and occupancy by property type only exist in broker surveys (CBRE, Cushman &amp; Wakefield, JLL; STR for hotels), published quarterly and not machine-readable. When one prints, add a row to CURATED_COMMERCIAL in RealEstateTab.jsx — type, cap rate, occupancy, source, date — and it renders here beside the live REIT-implied numbers.
+          No verified private-market observations have been added yet. Broker surveys, transaction reports and property disclosures can add useful comparisons when geography, asset quality, observation date and the definition of NOI are matched.
         </div>
       )}
     </div>
 
     <InfoBox color={CYAN}>
-      <strong style={{ color: "#cbd5e1" }}>Reading commercial.</strong> Three things move commercial values: rates (through the cap rate), NOI (rents × occupancy), and credit availability. The BIS price index tells you where values were a year ago; lending standards and delinquency tell you whether credit is coming back or still leaving; the cap-rate spread tells you whether the asset class is being paid for its risk; construction tells you whether supply is coming; Kastle tells you whether office NOI has a floor. Office is the sector where all of them are worst — and the sector the REIT table prices accordingly.
+      <strong style={{ color: "#cbd5e1" }}>Reading commercial.</strong> Connect effective rents and leased occupancy to operating expenses, capital needs and debt maturities. Lending surveys describe changes in standards; delinquency measures realized stress. Construction authorizations and spending do not establish delivery timing. Kastle attendance is a separate demand indicator. Use the Refinancing tab to test whether income and property value can support a new loan.
     </InfoBox>
   </>);
 }
@@ -684,15 +688,21 @@ function buildServerCache({ redfin, rents, build, choroplethCache }) {
   const ppsf = choroplethCache?.rePriceSqft;
   if (ppsf && build?.states) {
     const o = {};
-    for (const [st, p] of Object.entries(ppsf)) { if (st === "_national") continue; const b = build.states[st]; if (p?.v && b?.cost) o[st] = { v: Math.max(0, (1 - b.cost / p.v) * 100), d: p.d }; }
-    put("reLandShare", o, ppsf._national?.v ? { v: Math.max(0, (1 - build.base.value / ppsf._national.v) * 100), d: ppsf._national.d } : null);
+    for (const [st, p] of Object.entries(ppsf)) { if (st === "_national") continue; const b = build.states[st]; if (p?.v && b?.cost) o[st] = { v: (1 - b.cost / p.v) * 100, d: p.d }; }
+    put("reLandShare", o, ppsf._national?.v ? { v: (1 - build.base.value / ppsf._national.v) * 100, d: ppsf._national.d } : null);
   }
   return out;
 }
 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 export default function RealEstateTab({ hd, md, zillowData, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
-  const [view, setView] = useState("fair");
+  const [view, setView] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    const section = query.get('section');
+    return ['fair','residential','commercial','metro','refinance','map'].includes(section) ? section : query.get('view') === 'research' ? 'metro' : 'fair';
+  });
+  const [metroView, setMetroView] = useState('comparison');
+  const [property, setProperty] = useState({...DEFAULT_PROPERTY});
   const housing = useJson("/api/housing-health");
   const repl = useJson("/api/replacement-cost");
   const cre = useJson("/api/cre-fundamentals");
@@ -719,8 +729,9 @@ export default function RealEstateTab({ hd, md, zillowData, choroplethCache, cho
     else if (!m.source) fetchChoroplethData(key);
   }, [view, choroplethMetric, setChoroplethMetric, fetchChoroplethData]);
 
-  const VIEWS = [["fair", "Fair Value"], ["residential", "Residential"], ["commercial", "Commercial"], ["metro", "Metro"], ["map", "State Map"]];
+  const VIEWS = [["fair", "Valuation Context"], ["residential", "Residential"], ["commercial", "Commercial"], ["metro", "Metro Markets"], ["refinance", "Refinancing"], ["map", "State Map"]];
   return (<>
+    <header className="market-masthead"><div><div className="market-edition">Ledger / Property research</div><h1>Real estate</h1><p>Income, supply and the cost of capital.</p></div><button onClick={() => setView('metro')}>Explore local markets ↗</button></header>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, background: "var(--bg-subtle)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
       {VIEWS.map(([id, text]) => (
         <button key={id} onClick={() => setView(id)} style={{
@@ -735,10 +746,16 @@ export default function RealEstateTab({ hd, md, zillowData, choroplethCache, cho
     {view === "fair" && <FairValueView housing={housing} repl={repl} cre={cre} reit={reit} comp={comp} credit={credit} rents={rents} go={setView} />}
     {view === "residential" && <ResidentialView hd={hd} md={md} zillowData={zillowData} housing={housing} pipe={pipe} redfin={redfin} rents={rents} />}
     {view === "commercial" && <CommercialView cre={cre} reit={reit} credit={credit} />}
-    {view === "metro" && <MetroView rents={rents} />}
+    {view === "metro" && <>
+      <div className="property-research"><div className="lab-nav" aria-label="Metro market views">
+        {[["comparison", "Market dashboard"], ["detail", "Local market detail"]].map(([id, text]) => <button key={id} aria-pressed={metroView === id} data-active={metroView === id} onClick={() => setMetroView(id)}>{text}</button>)}
+      </div>{metroView === "comparison" && <MetroComparison />}</div>
+      {metroView === "detail" && <MetroView rents={rents} />}
+    </>}
+    {view === "refinance" && <div className="property-research"><RefinancingView p={property} setP={setProperty} /></div>}
     {view === "map" && (<>
       <StateChoropleth title="State-Level Real Estate" metrics={RE_MAP_METRICS} metric={choroplethMetric} setMetric={setChoroplethMetric} cache={mapCache} loading={choroplethLoading} progress={choroplethProgress}
-        note={`Prices: Realtor.com listing price and FHFA index (via FRED), Redfin median SALE price (${redfin?.asOf ? `latest ${mon(redfin.asOf)}` : "loading"}), Zillow typical value. Value: price-to-income (Zillow value ÷ Census median household income), price-to-rent and gross yield (Zillow metro ratios rolled up to states with Zipf weights, since Zillow publishes rents by metro), estimated build cost per sq ft (the national $${BUILD_COST_PER_SQFT.value} NAHB hard cost scaled by each state's construction hourly earnings, labor share 40%), listing $/sq ft vs that cost, and the implied land share (1 − build cost ÷ listing $/sq ft — the residual a replacement-cost lens is meant to isolate; a share near zero means structures trade at or below rebuild). Tape: Redfin sale-to-list, sold-above-list, price-drop share, months of supply and days on market, plus Realtor.com days on market and active-listing growth. Vacancy: Census HVS, annual. State-level foreclosures and private cap rates have no free feed; the national delinquency series on the Commercial tab is the honest substitute.`} />
+        note={`Prices: Realtor.com listing price and FHFA index (via FRED), Redfin median SALE price (${redfin?.asOf ? `latest ${mon(redfin.asOf)}` : "loading"}), Zillow typical value. Value: price-to-income (Zillow value ÷ Census median household income), price-to-rent and gross yield (Zillow metro ratios rolled up to states with Zipf weights, since Zillow publishes rents by metro), estimated build cost per sq ft (the national $${BUILD_COST_PER_SQFT.value} NAHB hard cost scaled by each state's construction hourly earnings, labor share 40%), listing $/sq ft vs that cost, and the price-minus-hard-cost residual (1 − build cost ÷ listing $/sq ft). It includes land, soft costs, financing, developer profit and measurement differences; it is not an observed land share. Tape: Redfin sale-to-list, sold-above-list, price-drop share, months of supply and days on market, plus Realtor.com days on market and active-listing growth. Vacancy: Census HVS, annual. State-level foreclosures and private cap rates have no free feed; the national delinquency series on the Commercial tab is the honest substitute.`} />
     </>)}
   </>);
 }

@@ -1,4 +1,5 @@
 node_modules
+/.investment-lab/
 dist
 .env
 *.local

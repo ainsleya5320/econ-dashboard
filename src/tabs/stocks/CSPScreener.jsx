@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 import { fetchOptionsChain } from "../../lib/api.js";
+import { quoteQuality } from "../../lib/optionsAnalysis.js";
 import { SH, InfoBox } from "../../components/shared.jsx";
 
 const TARGET_DTES = [30, 60, 90, 180, 365];
@@ -48,7 +49,7 @@ export default function CSPScreener({ tickers }) {
       const batchResults = await Promise.all(batch.map(async (ticker) => {
         try {
           const { options, spot } = await fetchOptionsChain(ticker);
-          const puts = options.filter(o => o.type === "P");
+          const puts = spot > 0 ? options.filter(o => o.type === "P" && o.iv > 0 && quoteQuality(o).usable) : [];
           if (!puts.length) return { symbol: ticker, spot, error: false, empty: true };
           const availableDTEs = [...new Set(puts.map(p => p.dte))].sort((a, b) => a - b);
           const row = { symbol: ticker, spot, error: false, empty: false, maturities: [] };
@@ -71,17 +72,18 @@ export default function CSPScreener({ tickers }) {
               !best || Math.abs(o.strike - spot) < Math.abs(best.strike - spot) ? o : best, null);
 
             if (atmPut && atmPut.bid > 0) {
-              const annYield = (atmPut.bid / atmPut.strike) * (365 / nearestDTE) * 100;
+              const periodYield = (atmPut.bid / atmPut.strike) * 100;
               row.maturities.push({
                 iv: atmPut.iv * 100,
                 bid: atmPut.bid,
                 ask: atmPut.ask,
                 strike: atmPut.strike,
                 dte: nearestDTE,
+                expiryDate: atmPut.expiryDate,
                 delta: atmPut.delta,
                 oi: atmPut.oi,
                 vol: atmPut.vol,
-                annYield,
+                periodYield,
                 breakeven: atmPut.strike - atmPut.bid,
                 cushion: ((spot - (atmPut.strike - atmPut.bid)) / spot) * 100,
               });
@@ -123,7 +125,7 @@ export default function CSPScreener({ tickers }) {
         const am = a.maturities?.[idx];
         const bm = b.maturities?.[idx];
         if (metric === "iv") { av = am?.iv; bv = bm?.iv; }
-        else if (metric === "yield") { av = am?.annYield; bv = bm?.annYield; }
+        else if (metric === "yield") { av = am?.periodYield; bv = bm?.periodYield; }
         else if (metric === "premium") { av = am?.bid; bv = bm?.bid; }
       }
       if (av == null && bv == null) return 0;
@@ -152,7 +154,7 @@ export default function CSPScreener({ tickers }) {
   const getMetricValue = (mat) => {
     if (!mat) return null;
     if (viewMode === "iv") return mat.iv;
-    if (viewMode === "yield") return mat.annYield;
+    if (viewMode === "yield") return mat.periodYield;
     if (viewMode === "premium") return mat.bid;
     return null;
   };
@@ -160,7 +162,7 @@ export default function CSPScreener({ tickers }) {
   const fmtMetric = (mat) => {
     if (!mat) return "—";
     if (viewMode === "iv") return fmtPct(mat.iv);
-    if (viewMode === "yield") return fmtPct(mat.annYield);
+    if (viewMode === "yield") return fmtPct(mat.periodYield);
     if (viewMode === "premium") return fmtDollar(mat.bid);
     return "—";
   };
@@ -168,20 +170,20 @@ export default function CSPScreener({ tickers }) {
   const metricColor = (mat) => {
     if (!mat) return "#475569";
     if (viewMode === "iv") return ivColor(mat.iv);
-    if (viewMode === "yield") return yieldColor(mat.annYield);
+    if (viewMode === "yield") return yieldColor(mat.periodYield);
     return "#cbd5e1";
   };
 
   return (<>
     <SH>Cash-Secured Put Screener</SH>
     <InfoBox color="#10B981">
-      <strong style={{ color: "#cbd5e1" }}>ATM implied volatility &amp; put premiums across maturities.</strong> Higher IV = larger premium for selling puts. Annualized yield = (put bid / strike) × (365/DTE). Break-even = strike − premium collected. Data from CBOE options chains.
+      <strong style={{ color: "#cbd5e1" }}>ATM implied volatility &amp; put premiums across maturities.</strong> Period premium yield = put bid / strike for the actual expiration shown. It excludes fees and underlying losses; it is not a total investment return. Break-even at expiry = strike minus premium. Cboe delayed quotes pass the same spread and open-interest checks as the detailed views.
     </InfoBox>
 
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>Show:</span>
       <button onClick={() => setViewMode("iv")} style={btnStyle(viewMode === "iv")}>ATM IV %</button>
-      <button onClick={() => setViewMode("yield")} style={btnStyle(viewMode === "yield")}>Ann. Yield %</button>
+      <button onClick={() => setViewMode("yield")} style={btnStyle(viewMode === "yield")}>Period Premium %</button>
       <button onClick={() => setViewMode("premium")} style={btnStyle(viewMode === "premium")}>Put Premium $</button>
       <div style={{ marginLeft: "auto" }}>
         <button onClick={fetchAll} disabled={loading} style={{ ...btnStyle(false), opacity: loading ? 0.5 : 1, cursor: loading ? "wait" : "pointer" }}>
@@ -261,7 +263,7 @@ export default function CSPScreener({ tickers }) {
                               );
                               return (
                                 <div key={i} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.04)" }}>
-                                  <div style={{ fontSize: 10, color: DTE_COLORS[i], fontFamily: fonts.mono, fontWeight: 700, marginBottom: 8 }}>{DTE_LABELS[i]} ({m.dte}d actual)</div>
+                                  <div style={{ fontSize: 10, color: DTE_COLORS[i], fontFamily: fonts.mono, fontWeight: 700, marginBottom: 8 }}>{DTE_LABELS[i]} ({m.expiryDate} / {m.dte}d)</div>
                                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" }}>
                                     <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Strike</span>
                                     <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, textAlign: "right" }}>${m.strike}</span>
@@ -269,8 +271,8 @@ export default function CSPScreener({ tickers }) {
                                     <span style={{ fontSize: 11, color: ivColor(m.iv), fontFamily: fonts.mono, textAlign: "right", fontWeight: 600 }}>{m.iv.toFixed(1)}%</span>
                                     <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Bid / Ask</span>
                                     <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, textAlign: "right" }}>${m.bid.toFixed(2)} / ${m.ask.toFixed(2)}</span>
-                                    <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Ann. Yield</span>
-                                    <span style={{ fontSize: 11, color: yieldColor(m.annYield), fontFamily: fonts.mono, textAlign: "right", fontWeight: 600 }}>{m.annYield.toFixed(1)}%</span>
+                                    <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Period Premium</span>
+                                    <span style={{ fontSize: 11, color: yieldColor(m.periodYield), fontFamily: fonts.mono, textAlign: "right", fontWeight: 600 }}>{m.periodYield.toFixed(1)}%</span>
                                     <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Break-even</span>
                                     <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: fonts.mono, textAlign: "right" }}>${m.breakeven.toFixed(2)}</span>
                                     <span style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono }}>Cushion</span>
@@ -302,7 +304,7 @@ export default function CSPScreener({ tickers }) {
 
     {!loading && sorted.length > 0 && (
       <div style={{ fontSize: 10, color: "#475569", fontFamily: fonts.mono, marginTop: 6 }}>
-        Click any row to expand full put details. ATM = nearest strike to spot price. Cushion = % stock can drop before you lose money. Sort by clicking column headers.
+        Click any row to expand full put details. ATM = nearest strike to spot price. Cushion is the distance to the fee-excluded break-even at expiry; losses before expiry can differ. Sort by clicking column headers.
       </div>
     )}
   </>);

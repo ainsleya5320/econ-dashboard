@@ -442,12 +442,12 @@ export function createRealEstateFeeds({ fetchFredSeries, UA, dir, stateFips, fet
     const resAnchors = [
       { key: 'income', label: 'Price vs income', value: housing?.afford?.current ?? null, unit: '% of income', pct: housing?.afford?.pct ?? null, detail: housing ? `P&I on the median home = ${housing.afford.current}% of median income (p${housing.afford.pct} since ${housing.afford.since})` : 'unavailable' },
       { key: 'rent', label: 'Price vs rent', value: rr?.national?.p2r ?? null, unit: '× annual rent', pct: rr?.national?.p2rPct ?? null, detail: rr ? `Zillow value ÷ annual rent = ${rr.national.p2r}× (p${rr.national.p2rPct} since ${rr.national.since}; gross yield ${rr.national.yield}%)` : 'unavailable' },
-      { key: 'rebuild', label: 'Price vs rebuild', value: repl?.verdict?.ratio ?? null, unit: 'index, 100 = parity', pct: repl?.verdict?.pct ?? null, detail: repl ? `Case-Shiller ÷ construction-input PPI = ${repl.verdict.ratio} (p${repl.verdict.pct} since ${repl.ratioSince})` : 'unavailable' },
+      { key: 'rebuild', label: 'Price vs rebuild', value: repl?.verdict?.ratio ?? null, unit: 'index, sample mean = 100', pct: repl?.verdict?.pct ?? null, detail: repl ? `Case-Shiller ÷ construction-input PPI = ${repl.verdict.ratio} (p${repl.verdict.pct} since ${repl.ratioSince})` : 'unavailable' },
     ]
     const spread = reit?.available ? reit.spread : null
     const spreadScore = fin(spread) ? Math.round(Math.max(0, Math.min(100, ((3.5 - spread) / 3.5) * 100))) : null
     const comAnchors = [
-      { key: 'yield', label: 'Yield vs bonds', value: fin(spread) ? +spread.toFixed(2) : null, unit: 'pts over 10Y', pct: spreadScore, detail: fin(spread) ? `REIT-implied cap rate ${reit.avgCap.toFixed(2)}% − 10Y ${reit.tenYear.toFixed(2)}% = ${spread >= 0 ? '+' : ''}${spread.toFixed(1)} pts (3.5 pts scores cheap, 0 scores rich)` : 'unavailable' },
+      { key: 'yield', label: 'EBITDA yield vs bonds', value: fin(spread) ? +spread.toFixed(2) : null, unit: 'pts over 10Y', pct: spreadScore, detail: fin(spread) ? `REIT enterprise EBITDA yield ${reit.avgCap.toFixed(2)}% − 10Y ${reit.tenYear.toFixed(2)}% = ${spread >= 0 ? '+' : ''}${spread.toFixed(1)} pts (3.5 pts scores cheap, 0 scores rich)` : 'unavailable' },
       { key: 'rebuild', label: 'Price vs rebuild', value: cre?.replacement?.current ?? null, unit: 'index, mean = 100', pct: cre?.replacement?.pct ?? null, detail: cre ? `BIS CRE price level ÷ construction-input PPI = ${cre.replacement.current} (p${cre.replacement.pct} since ${cre.replacement.since})` : 'unavailable' },
     ]
     const resScore = r(mean(resAnchors.map(a => a.pct))), comScore = r(mean(comAnchors.map(a => a.pct)))
@@ -467,7 +467,7 @@ export function createRealEstateFeeds({ fetchFredSeries, UA, dir, stateFips, fet
       residential: { score: resScore, tone: tone(resScore), anchors: resAnchors, n: resAnchors.filter(a => fin(a.pct)).length },
       commercial: { score: comScore, tone: tone(comScore), anchors: comAnchors, n: comAnchors.filter(a => fin(a.pct)).length },
       support, history: store.days,
-      scale: '0 = cheapest versus its own history, 100 = richest. Each score averages its valuation anchors\' percentiles; supply and credit are reported as support, not scored.',
+      scale: 'Valuation context, not intrinsic value. Historical percentiles for residential components and the commercial price/input-cost ratio; a fixed linear rule for the EBITDA spread (3.5 points = 0, zero = 100). Coverage and lookbacks vary.',
       updated: new Date().toISOString(),
     }
   }, d => d && (fin(d.residential.score) || fin(d.commercial.score)))

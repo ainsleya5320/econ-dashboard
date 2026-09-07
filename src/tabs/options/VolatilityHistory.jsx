@@ -1,0 +1,29 @@
+import React,{useMemo} from 'react';
+import {ResponsiveContainer,LineChart,Line,XAxis,YAxis,Tooltip,CartesianGrid,Legend,ReferenceLine} from 'recharts';
+import {constantMaturityIv,realizedHistory,earningsWindows,finite,todayNY,dateOnly} from '../../lib/optionsAnalysis.js';
+import {EventStrip} from './DecisionWorkbench.jsx';
+
+const archiveKey=s=>`ledger-options-history-${s}`;
+export function readVolSnapshots(symbol) {try{const saved=JSON.parse(localStorage.getItem(archiveKey(symbol))||'[]');return Array.isArray(saved)?saved.filter(p=>p?.date&&finite(p.iv)):[];}catch{return [];}}
+export function saveVolSnapshot(symbol,chain) {
+  if(dateOnly(chain.underlyingLastTrade)!==todayNY()||chain.valuationDate!==todayNY())return;
+  const iv=constantMaturityIv(chain.options,chain.spot);if(iv==null)return;
+  try{const date=todayNY(),points=readVolSnapshots(symbol).filter(p=>p.date!==date);points.push({date,iv:iv*100,sourceTimestamp:chain.sourceTimestamp,underlyingLastTrade:chain.underlyingLastTrade});localStorage.setItem(archiveKey(symbol),JSON.stringify(points.sort((a,b)=>a.date.localeCompare(b.date)).slice(-800)));}catch{}
+}
+export default function VolatilityHistory({symbol,chain,context,closes}) {
+  const points=readVolSnapshots(symbol),current=constantMaturityIv(chain.options,chain.spot),realized=useMemo(()=>realizedHistory(closes).slice(-252),[closes]);
+  const byDate=Object.fromEntries(realized.map(p=>[p.date,p]));for(const p of points)(byDate[p.date]??={date:p.date}).iv=p.iv;
+  const chart=Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
+  const percentile=points.length>=252&&current!=null?100*points.filter(p=>p.iv<=current*100).length/points.length:null;
+  const windows=earningsWindows(context?.pastEarnings,closes);
+  const moves=windows.map(w=>w.move).filter(finite).map(Math.abs).sort((a,b)=>a-b),mid=Math.floor(moves.length/2),median=moves.length?(moves.length%2?moves[mid]:(moves[mid-1]+moves[mid])/2):null;
+  return <>
+    <EventStrip context={context} expiryDate={new Date(Date.now()+365*86400000).toISOString().slice(0,10)}/>
+    <section className="opt-card"><div className="opt-section-label">Volatility context / {symbol}</div><h2>How unusual is today’s volatility?</h2><div className="opt-metrics"><div><span>30-day implied volatility</span><strong>{current!=null?`${(current*100).toFixed(1)}%`:'—'}</strong><small>Interpolated in total variance between expiries</small></div><div><span>Recent realized volatility</span><strong>{realized.length?`${realized.at(-1).rv.toFixed(1)}%`:'—'}</strong><small>21 trading-day window · {realized.at(-1)?.date||'history unavailable'}</small></div><div><span>Implied-volatility percentile</span><strong>{percentile!=null?`${percentile.toFixed(0)}th`:'Building history'}</strong><small>{points.length} saved daily observations · 252 required</small></div></div>
+      {chart.length>1?<div className="opt-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{top:15,right:15,left:0,bottom:8}}><CartesianGrid vertical={false} stroke="var(--border-subtle)"/><XAxis dataKey="date" tickFormatter={d=>d.slice(0,7)} minTickGap={70} stroke="var(--text-secondary)"/><YAxis tickFormatter={v=>`${v}%`} stroke="var(--text-secondary)"/><Tooltip contentStyle={{background:'var(--tooltip-bg)',border:'1px solid var(--border-subtle)'}} formatter={(v,n)=>[`${v.toFixed(1)}%`,n]}/><Legend/><Line dataKey="rv" name="Realized volatility" stroke="var(--chart-blue)" dot={false} strokeWidth={2} isAnimationActive={false}/><Line dataKey="iv" name="Saved implied volatility" stroke="var(--chart-gold)" dot={{r:3}} connectNulls={false} isAnimationActive={false}/></LineChart></ResponsiveContainer></div>:<p className="opt-note">A history chart will appear when price history or multiple saved observations are available.</p>}
+      <p className="opt-note">Implied volatility describes the coming 30 calendar days; realized volatility measures the last 21 trading days. Their difference does not establish that premiums are mispriced. Historical prices use the provider’s adjusted close where supplied, otherwise its close.</p>
+      <p className="opt-note">Implied-volatility snapshots are saved locally when you load a symbol whose underlying traded today, at most one per day. Prior-session snapshots are skipped to avoid counting weekends and holidays as new observations. This is a sample of visits, not a complete daily archive. Percentiles require 252 saved observations and remain conditional on this sample. Historical option-implied earnings moves and strategy backtests require a historical option feed, which is not connected here.</p>
+    </section>
+    <section className="opt-card"><div className="opt-section-label">Historical earnings windows</div><h2>How much has the stock moved around results?</h2><p className="opt-note">{median!=null?`Median absolute move across ${moves.length} comparable windows: ${median.toFixed(1)}%.`:'Comparable historical price windows are unavailable.'} Each window runs from the close before the report date to the first close after it; it can include unrelated market news.</p><div className="opt-table-wrap"><table className="opt-table"><thead><tr><th>Report date</th><th>Price window</th><th>Observed move</th></tr></thead><tbody>{windows.map(w=><tr key={w.date}><td>{w.date}</td><td>{w.from?`${w.from} → ${w.to}`:'Unavailable'}</td><td>{finite(w.move)?`${w.move>=0?'+':''}${w.move.toFixed(1)}%`:'—'}</td></tr>)}</tbody></table></div><p className="opt-note">This consistently uses a wider window because reliable before-open / after-close timing is not always supplied. It is not a pure earnings reaction or evidence of an options trading edge. FMP report dates and daily price history; no past implied move is estimated from today’s chain.</p></section>
+  </>;
+}

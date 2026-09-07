@@ -4,6 +4,7 @@ import createPlotlyComponent from "react-plotly.js/factory";
 import Plotly from "plotly.js-dist-min";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fetchFMP, fetchOptionsChain } from "../lib/api.js";
+import { quoteQuality } from "../lib/optionsAnalysis.js";
 import { RateCard, SH, InfoBox } from "../components/shared.jsx";
 import ProfitSankey from "./stocks/ProfitSankey.jsx";
 import TickerSearch from "../components/TickerSearch.jsx";
@@ -13,6 +14,8 @@ import ExpectationsPanel, { consensusGrowth } from "./stocks/ExpectationsPanel.j
 import MarketFairValuePanel from "../components/MarketFairValue.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 import PeopleScreener from "./stocks/PeopleScreener.jsx";
+import StockResearchSheet from "./stocks/StockResearchSheet.jsx";
+import {fetchStockDetail} from "../lib/stockDetail.js";
 
 const Plot = createPlotlyComponent(Plotly);
 
@@ -167,32 +170,6 @@ async function fetchStockData(symbol, fmpKey) {
   };
 }
 
-async function fetchStockDetail(symbol, fmpKey) {
-  const [incArr, bsArr, cfArr, ratArr, kmArr, profile, fullQuote, priceHist, estArr, ptArr, gradesArr] = await Promise.all([
-    fetchFMP(`/income-statement?symbol=${symbol}&limit=20`, fmpKey),
-    fetchFMP(`/balance-sheet-statement?symbol=${symbol}&limit=20`, fmpKey),
-    fetchFMP(`/cash-flow-statement?symbol=${symbol}&limit=20`, fmpKey),
-    fetchFMP(`/ratios?symbol=${symbol}&limit=20`, fmpKey),
-    fetchFMP(`/key-metrics?symbol=${symbol}&limit=20`, fmpKey),
-    fetchFMP(`/profile?symbol=${symbol}`, fmpKey),
-    fetchFMP(`/quote?symbol=${symbol}`, fmpKey).catch(() => null),
-    fetchFMP(`/historical-price-eod/full?symbol=${symbol}`, fmpKey).catch(() => null),
-    // Street consensus for the expectations panel (each optional — a miss just hides its piece).
-    // limit=10 is the Starter-plan ceiling on this endpoint (12 is rejected outright).
-    fetchFMP(`/analyst-estimates?symbol=${symbol}&period=annual&limit=10`, fmpKey).catch(() => null),
-    fetchFMP(`/price-target-consensus?symbol=${symbol}`, fmpKey).catch(() => null),
-    fetchFMP(`/grades-consensus?symbol=${symbol}`, fmpKey).catch(() => null),
-  ]);
-  const prof = profile?.[0];
-  const quote = Array.isArray(fullQuote) ? fullQuote[0] : fullQuote;
-  const price = quote?.price || prof?.price || null;
-  const hist = Array.isArray(priceHist) ? [...priceHist].reverse().slice(-90) : (priceHist?.historical ? [...priceHist.historical].reverse().slice(-90) : []);
-  const years = (incArr || []).map(r => r.fiscalYear || r.date?.slice(0, 4)).reverse();
-  return { symbol, price, quote, hist, years, inc: [...(incArr || [])].reverse(), bs: [...(bsArr || [])].reverse(), cf: [...(cfArr || [])].reverse(), rat: [...(ratArr || [])].reverse(), km: [...(kmArr || [])].reverse(), prof,
-    est: Array.isArray(estArr) ? [...estArr].sort((a, b) => (a.date || "").localeCompare(b.date || "")) : [],
-    pt: Array.isArray(ptArr) ? ptArr[0] : null,
-    grades: Array.isArray(gradesArr) ? gradesArr[0] : null };
-}
 
 // ── Reverse DCF helpers ──
 function dcfValue(fcf, growthRate, discountRate, termGrowth, years) {
@@ -417,8 +394,8 @@ const OPT_TERMS = {
   },
   impliedMove: {
     title: "Implied Move",
-    def: "The market's expected price range of ±1 standard deviation over a given horizon, derived from ATM IV. Roughly 68% of the time, the underlying should stay within this range.",
-    sub: "Math: spot × IV × √(days/365). Used for sizing CSP strikes and sanity-checking client expectations on weekly moves.",
+    def: "A reference move calculated from ATM implied volatility and square-root-of-time scaling. It does not describe the probability of staying inside a range throughout the period.",
+    sub: "Math: spot × IV × √(days/365). Ignores skew, drift and jumps; a real-world 68% coverage rate is not established.",
   },
   volSurface: {
     title: "Volatility Surface",
@@ -438,7 +415,7 @@ const OPT_TERMS = {
   },
   delta: {
     title: "Delta (Δ)",
-    def: "Change in option price per $1 change in the underlying. |Delta| also approximates the probability the option expires in-the-money.",
+    def: "Change in option price per $1 change in the underlying, all else equal. Delta is not the probability of receiving an exercise assignment.",
     sub: "ATM calls have Δ ≈ 0.50; deep ITM calls approach 1.00; deep OTM calls approach 0.00. Puts are negative.",
   },
   gamma: {
@@ -454,29 +431,29 @@ const OPT_TERMS = {
   vega: {
     title: "Vega (ν)",
     def: "Change in option price per 1 percentage point change in IV. Highest for ATM and longer-dated options. Tells you how exposed the position is to volatility shifts.",
-    sub: "Selling premium right before an IV crush (e.g., post-earnings) profits from vega collapse.",
+    sub: "Falling IV helps a short option, all else equal; stock moves and other risks can outweigh that effect.",
   },
   maxPain: {
     title: "Max Pain",
-    def: "The strike at which the total in-the-money value across all open option contracts is minimized — where option holders collectively make the least money (= writers pay the least).",
-    sub: "Historically a magnet for prices into Friday op-ex as dealers unwind hedges. Strongest pin-effect for SPY/QQQ.",
+    def: "The strike minimizing aggregate intrinsic value at this expiration, weighted by reported open interest. Premiums paid are excluded, so this is not holder profit or loss.",
+    sub: "A descriptive open-interest statistic. It does not establish where the stock will trade or reveal dealer hedges.",
   },
   callOI: {
     title: "Total Call Open Interest",
-    def: "Number of currently-open call contracts at this expiration. High call OI often signals bullish positioning or upside speculation.",
+    def: "Number of open call contracts at this expiration. Each has a buyer and seller; open interest alone does not identify investor direction or multi-leg positions.",
   },
   putOI: {
     title: "Total Put Open Interest",
-    def: "Number of currently-open put contracts at this expiration. High put OI usually means downside protection or bearish positioning.",
+    def: "Number of open put contracts at this expiration. Protective purchases, put sales, and multi-leg positions can all contribute.",
   },
   pcRatio: {
     title: "Put/Call Ratio (OI)",
-    def: "Total put OI divided by total call OI at this expiration. Above 1.0 = more puts than calls open (bearish); below 1.0 = call-heavy.",
-    sub: "Extreme readings (>1.5 or <0.5) are typically contrarian signals.",
+    def: "Total put OI divided by total call OI at this expiration. Above 1.0 means more put contracts; below 1.0 means more calls.",
+    sub: "It does not identify net bullish or bearish exposure without trade direction and position context.",
   },
   spotVsMaxPain: {
     title: "Spot vs Max Pain",
-    def: "Percentage distance between current spot and the max-pain strike. Larger gaps create stronger gravitational pull into expiration.",
+    def: "Percentage distance between current spot and the strike minimizing OI-weighted intrinsic value. Distance alone is not a trading signal.",
   },
 };
 
@@ -535,7 +512,7 @@ function HelpTip({ term, children }) {
 }
 
 // ── Vol Surface ──
-function VolSurface({ symbol, spot: initialSpot }) {
+function VolSurface({ symbol, spot: initialSpot, chain: sharedChain }) {
   const [optData, setOptData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -548,18 +525,22 @@ function VolSurface({ symbol, spot: initialSpot }) {
   const tooltipRef = useRef(null);
 
   useEffect(() => {
+    let alive = true;
     setLoading(true); setError(null);
+    if (sharedChain) { setOptData(sharedChain); setLoading(false); return; }
     fetchOptionsChain(symbol)
-      .then(d => { setOptData(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
-  }, [symbol]);
+      .then(d => { if(alive) { setOptData(d); setLoading(false); } })
+      .catch(e => { if(alive) { setError(e.message); setLoading(false); } });
+    return () => { alive = false; };
+  }, [symbol, sharedChain]);
 
   const processed = useMemo(() => {
     if (!optData) return null;
-    const spot = optData.spot || initialSpot || 100;
+    const spot = optData.spot || initialSpot;
+    if (!(spot > 0)) return null;
     const dteMax = dteRange === "30" ? 30 : dteRange === "90" ? 90 : dteRange === "180" ? 180 : dteRange === "365" ? 365 : dteRange === "leaps" ? 99999 : 99999;
     const dteMin = dteRange === "leaps" ? 365 : 0;
-    const filtered = optData.options.filter(o => o.type === optType && Math.abs(o.strike - spot) / spot <= strikeRange && o.dte >= dteMin && o.dte <= dteMax);
+    const filtered = optData.options.filter(o => quoteQuality(o).usable && o.iv > 0 && o.type === optType && Math.abs(o.strike - spot) / spot <= strikeRange && o.dte >= dteMin && o.dte <= dteMax);
     if (!filtered.length) return null;
     const expiries = [...new Set(filtered.map(o => o.dte))].sort((a, b) => a - b);
     const strikes = [...new Set(filtered.map(o => o.strike))].sort((a, b) => a - b);
@@ -576,7 +557,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
       return { dte, iv: atm ? atm.iv * 100 : null };
     }).filter(t => t.iv != null);
     // Smile for selected expiry
-    const smileExpiry = selectedExpiry || (expiries.length > 2 ? expiries[Math.min(2, expiries.length - 1)] : expiries[0]);
+    const smileExpiry = expiries.includes(selectedExpiry) ? selectedExpiry : (expiries.length > 2 ? expiries[Math.min(2, expiries.length - 1)] : expiries[0]);
     const smile = filtered.filter(o => o.dte === smileExpiry).sort((a, b) => a.strike - b.strike).map(o => ({ strike: o.strike, iv: o.iv * 100, oi: o.oi, moneyness: ((o.strike / spot - 1) * 100).toFixed(1) }));
     // Stats
     const allIVs = filtered.map(o => o.iv * 100).sort((a, b) => a - b);
@@ -584,8 +565,8 @@ function VolSurface({ symbol, spot: initialSpot }) {
     const totalOI = filtered.reduce((s, o) => s + (o.oi || 0), 0);
     const totalVol = filtered.reduce((s, o) => s + (o.vol || 0), 0);
     // IV Skew: compare OTM puts vs OTM calls
-    const otmPuts = optData.options.filter(o => o.type === "P" && o.strike < spot * 0.95 && o.dte === smileExpiry);
-    const otmCalls = optData.options.filter(o => o.type === "C" && o.strike > spot * 1.05 && o.dte === smileExpiry);
+    const otmPuts = optData.options.filter(o => quoteQuality(o).usable && o.iv > 0 && o.type === "P" && o.strike < spot * 0.95 && o.dte === smileExpiry);
+    const otmCalls = optData.options.filter(o => quoteQuality(o).usable && o.iv > 0 && o.type === "C" && o.strike > spot * 1.05 && o.dte === smileExpiry);
     const avgPutIV = otmPuts.length ? otmPuts.reduce((s, o) => s + o.iv, 0) / otmPuts.length * 100 : null;
     const avgCallIV = otmCalls.length ? otmCalls.reduce((s, o) => s + o.iv, 0) / otmCalls.length * 100 : null;
     const skew = avgPutIV != null && avgCallIV != null ? avgPutIV - avgCallIV : null;
@@ -612,13 +593,14 @@ function VolSurface({ symbol, spot: initialSpot }) {
         const diff = Math.abs(ts.dte - t.dte);
         if (diff < minDiff) { minDiff = diff; best = ts; }
       }
-      if (!best || best.iv == null) return null;
+      if (!best || best.iv == null || minDiff > Math.max(3,t.dte*.4)) return null;
       const iv = best.iv / 100;
       const sigma = spot * iv * Math.sqrt(t.dte / 365);
       return {
         label: t.label,
         targetDte: t.dte,
         actualDte: best.dte,
+        expiryDate: optData.options.find(o=>o.dte===best.dte)?.expiryDate,
         iv: best.iv,
         expectedMove: sigma,
         pctMove: (sigma / spot) * 100,
@@ -648,11 +630,11 @@ function VolSurface({ symbol, spot: initialSpot }) {
   // ── Open Interest profile + Max Pain ──
   // Max pain = strike that minimizes the total intrinsic value of all
   // open option contracts at expiration (i.e., where option writers collectively
-  // lose the LEAST). Historically a magnet for prices into op-ex Friday.
+  // intrinsic value only; this is not a forecast of expiration price.
   const oiProfile = useMemo(() => {
     if (!optData || !processed) return null;
     const { smileExpiry, spot } = processed;
-    const allAtExpiry = optData.options.filter(o => o.dte === smileExpiry);
+    const allAtExpiry = optData.options.filter(o => o.dte === smileExpiry && o.standard !== false && Number.isFinite(o.oi));
     if (!allAtExpiry.length) return null;
 
     const callsByStrike = new Map();
@@ -720,7 +702,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
       }
     }
     // X axis labels (strikes)
-    ctx.fillStyle = "#64748b"; ctx.font = "9px JetBrains Mono, monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "#64748b"; ctx.font = "9px IBM Plex Mono, monospace"; ctx.textAlign = "center";
     const xStep = Math.max(1, Math.floor(strikes.length / 12));
     for (let i = 0; i < strikes.length; i += xStep) {
       ctx.fillText(`$${strikes[i]}`, padL + i * cellW + cellW / 2, H - 8);
@@ -738,7 +720,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(legX, padT + y, legW, 1);
     }
-    ctx.fillStyle = "#94a3b8"; ctx.font = "8px JetBrains Mono, monospace"; ctx.textAlign = "left";
+    ctx.fillStyle = "#94a3b8"; ctx.font = "8px IBM Plex Mono, monospace"; ctx.textAlign = "left";
     ctx.fillText(`${ivMax?.toFixed(0)}%`, legX + legW + 4, padT + 8);
     ctx.fillText(`${ivMin?.toFixed(0)}%`, legX + legW + 4, padT + legH);
   }, [processed, surfaceView]);
@@ -786,13 +768,13 @@ function VolSurface({ symbol, spot: initialSpot }) {
 
     {/* ── Implied Move ── */}
     {impliedMoves.length > 0 && (<>
-      <SH><HelpTip term="impliedMove">Implied Move</HelpTip> — Market's Expected Range (±1σ from ATM IV)</SH>
+      <SH><HelpTip term="impliedMove">Volatility-scaled reference move</HelpTip> — ATM IV × square root of time</SH>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 14 }}>
         {impliedMoves.map(im => (
           <div key={im.label} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#818cf8", borderRadius: "14px 14px 0 0" }} />
             <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>
-              {im.label} <span style={{ color: "#475569" }}>· {im.actualDte}d @ {im.iv.toFixed(0)}% IV</span>
+              {im.label} <span style={{ color: "#475569" }}>· IV from {im.expiryDate} ({im.actualDte}d) · {im.iv.toFixed(0)}%</span>
             </div>
             <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontFamily: fonts.heading, lineHeight: 1.1 }}>
               ±${im.expectedMove.toFixed(2)}
@@ -861,7 +843,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
               bgcolor: "rgba(20,24,41,1)",
               camera: { eye: { x: 1.8, y: -1.5, z: 0.8 } }
             },
-            font: { family: "JetBrains Mono, monospace", color: "#94a3b8" },
+            font: { family: "IBM Plex Mono, monospace", color: "#94a3b8" },
           }}
           config={{ responsive: true, displayModeBar: true, modeBarButtonsToRemove: ["toImage", "sendDataToCloud"], displaylogo: false }}
           style={{ width: "100%", height: 450 }}
@@ -981,7 +963,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
         <RateCard label={<HelpTip term="maxPain">Max Pain Strike</HelpTip>} value={null} color="#F97316" format="plain" subtitle={oiProfile.maxPainStrike != null ? `$${oiProfile.maxPainStrike}` : "—"} small />
         <RateCard label={<HelpTip term="callOI">Total Call OI</HelpTip>} value={null} color="#10B981" format="plain" subtitle={oiProfile.totalCallOI.toLocaleString()} small />
         <RateCard label={<HelpTip term="putOI">Total Put OI</HelpTip>} value={null} color="#EF4444" format="plain" subtitle={oiProfile.totalPutOI.toLocaleString()} small />
-        <RateCard label={<HelpTip term="pcRatio">Put/Call Ratio (OI)</HelpTip>} value={oiProfile.pcRatio} color={oiProfile.pcRatio > 1 ? "#EF4444" : "#10B981"} subtitle={oiProfile.pcRatio != null ? oiProfile.pcRatio.toFixed(2) : "—"} small />
+        <RateCard label={<HelpTip term="pcRatio">Put/Call Ratio (OI)</HelpTip>} value={oiProfile.pcRatio} color="#818cf8" subtitle={oiProfile.pcRatio != null ? oiProfile.pcRatio.toFixed(2) : "—"} small />
         <RateCard label={<HelpTip term="spotVsMaxPain">Spot vs Max Pain</HelpTip>} value={null} color="#818cf8" format="plain" subtitle={oiProfile.maxPainStrike != null ? `${(((spot - oiProfile.maxPainStrike) / oiProfile.maxPainStrike) * 100).toFixed(1)}%` : "—"} small />
       </div>
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
@@ -1005,7 +987,7 @@ function VolSurface({ symbol, spot: initialSpot }) {
           </BarChart>
         </ResponsiveContainer>
         <div style={{ fontSize: 9, color: "#64748b", fontFamily: fonts.mono, paddingLeft: 12, paddingTop: 4 }}>
-          Calls above axis (green), puts below (red). Max-pain strike is where total in-the-money value to all option holders is minimized — historically a magnet for prices into expiration.
+          Calls above axis (green), puts below (red). The marked strike minimizes OI-weighted intrinsic value. It is not a supported forecast of the expiration price.
         </div>
       </div>
     </>)}
@@ -1028,17 +1010,17 @@ function VolSurface({ symbol, spot: initialSpot }) {
 
     <InfoBox color="#818cf8">
       <strong style={{ color: "var(--text-primary)" }}>Reading the tools.</strong>
-      &nbsp;<strong>Implied Move</strong>: the market's ±1σ expected price range over each tenor — useful for setting CSP strikes or sanity-checking client expectations.
-      &nbsp;<strong>Greeks</strong>: |Delta| ≈ probability of expiring ITM; Gamma peaks at ATM (where positions are most reactive); Theta is the daily $ paid to hold long options; Vega is the $ change per 1pp IV shift.
-      &nbsp;<strong>Max Pain</strong>: the strike that minimizes total in-the-money value to all option holders — historically a magnet for prices into Friday expirations, especially for SPY/QQQ.
-      &nbsp;<strong>Vol Surface</strong>: the smile shows OTM-put crash-protection premium; the term structure usually slopes up — inversion signals an imminent catalyst (earnings, FOMC).
+      &nbsp;<strong>Implied Move</strong>: a volatility-scaled reference range, not a forecast or guaranteed probability band.
+      &nbsp;<strong>Greeks</strong>: Delta measures stock-price sensitivity; Gamma measures its change; Theta measures time decay; Vega measures sensitivity to a 1pp IV shift.
+      &nbsp;<strong>Max Pain</strong>: an open-interest statistic, without evidence here of a price-targeting effect. OI includes matching standard roots even when their quotes fail the surface filters.
+      &nbsp;<strong>Vol Surface</strong>: quote-checked IV across strikes and expiries. The displayed skew averages different strikes and is not a matched-delta risk reversal. Term-structure changes may warrant checking the event calendar.
     </InfoBox>
   </>);
 }
 
 function StockDetailView({ data, onBack, fmpKey }) {
   const { symbol, years, prof } = data;
-  const [viewMode, setViewMode] = useState("summary");
+  const [viewMode, setViewMode] = useState("classic");
   const [descExpanded, setDescExpanded] = useState(false);
 
   const q = data.quote || {};
@@ -1052,7 +1034,8 @@ function StockDetailView({ data, onBack, fmpKey }) {
 
   // Morningstar-style subtabs — content areas when a stock is in context
   const DETAIL_TABS = [
-    { id: "summary",    label: "Summary" },
+    { id: "classic",    label: "Research sheet" },
+    { id: "summary",    label: "Financial checks" },
     { id: "chart",      label: "Chart" },
     { id: "ratios",     label: "Key Ratios" },
     { id: "financials", label: "Profitability waterfall" },
@@ -1093,7 +1076,7 @@ function StockDetailView({ data, onBack, fmpKey }) {
     </div>
   );
 
-  return (<>
+  return (<div className="stock-detail-shell">
     {/* ── Breadcrumb ── */}
     <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12, fontSize: 11, fontFamily: fonts.mono }}>
       <span onClick={onBack} style={{ color: "#818cf8", cursor: "pointer", borderBottom: "1px dashed rgba(129,140,248,0.4)" }}>Stocks</span>
@@ -1102,6 +1085,7 @@ function StockDetailView({ data, onBack, fmpKey }) {
     </div>
 
     {/* ── In-context header: identity + live price, always visible ── */}
+    {viewMode!=='classic'&&(
     <div style={{ background: cardBg, border: cardBorder, borderBottom: "none", borderRadius: "14px 14px 0 0", padding: "18px 22px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 18, flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 260px", minWidth: 0 }}>
@@ -1128,23 +1112,12 @@ function StockDetailView({ data, onBack, fmpKey }) {
         )}
       </div>
     </div>
+    )}
 
-    {/* ── Morningstar-style subtab bar, attached to header ── */}
-    <div style={{ display: "flex", gap: 2, background: cardBg, border: cardBorder, borderTop: "1px solid var(--border-subtle)", borderRadius: "0 0 14px 14px", padding: "0 14px", marginBottom: 18, overflowX: "auto" }}>
-      {DETAIL_TABS.map(t => {
-        const active = viewMode === t.id;
-        return (
-          <button key={t.id} onClick={() => setViewMode(t.id)} style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            padding: "11px 14px", fontSize: 12.5, fontFamily: fonts.heading,
-            fontWeight: active ? 700 : 400,
-            color: active ? "var(--text-primary)" : "var(--tab-inactive-color)",
-            borderBottom: active ? "2px solid #818cf8" : "2px solid transparent",
-            whiteSpace: "nowrap", transition: "all 0.12s",
-          }}>{t.label}</button>
-        );
-      })}
-    </div>
+    <nav className="stock-detail-nav" aria-label="Company research">
+      {DETAIL_TABS.map(t=><button key={t.id} onClick={()=>setViewMode(t.id)} aria-pressed={viewMode===t.id}>{t.label}</button>)}
+    </nav>
+    {viewMode==='classic'&&<StockResearchSheet data={data}/>}
 
     {/* ═══ SUMMARY ═══ */}
     {viewMode === "summary" && (<>
@@ -1236,7 +1209,7 @@ function StockDetailView({ data, onBack, fmpKey }) {
         </table>
       </div>
     </>)}
-  </>);
+  </div>);
 }
 
 function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
@@ -1266,6 +1239,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
   const [detailSymbol, setDetailSymbol] = useState(null);
+  const detailRequest = useRef(0);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [stockView, setStockView] = useState("overview"); // "overview" | "sp500" | "screener"
@@ -1318,17 +1292,18 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
   };
 
   const openDetail = async (symbol) => {
+    const request = ++detailRequest.current;
     setDetailSymbol(symbol);
     setDetailData(null);
     setDetailLoading(true);
     try {
       const d = await fetchStockDetail(symbol, fmpKey);
-      setDetailData(d);
+      if(request===detailRequest.current)setDetailData(d);
     } catch (e) { console.error("Detail fetch error:", e); }
-    setDetailLoading(false);
+    if(request===detailRequest.current)setDetailLoading(false);
   };
 
-  const closeDetail = () => { setDetailSymbol(null); setDetailData(null); };
+  const closeDetail = () => { detailRequest.current++; setDetailSymbol(null); setDetailData(null); setDetailLoading(false); };
 
   // Global ticker search from the app header opens that stock's detail view
   useEffect(() => {
@@ -1344,10 +1319,10 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
       {detailLoading ? (
         <div style={{ textAlign: "center", padding: 60, color: "#94a3b8", fontFamily: fonts.heading }}>
           <div style={{ fontSize: 18, marginBottom: 8 }}>Loading {detailSymbol} details…</div>
-          <div style={{ fontSize: 12, color: "#475569" }}>Fetching 20 years of financial data (8 API calls)</div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Preparing financial history, recent quarters and market prices.</div>
         </div>
       ) : detailData ? (
-        <StockDetailView data={detailData} onBack={closeDetail} fmpKey={fmpKey} />
+        <StockDetailView key={detailData.symbol} data={detailData} onBack={closeDetail} fmpKey={fmpKey} />
       ) : (
         <div style={{ textAlign: "center", padding: 60, color: "#f87171", fontFamily: fonts.heading }}>
           <div style={{ fontSize: 16, marginBottom: 8 }}>Failed to load data for {detailSymbol}</div>
@@ -1462,7 +1437,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened }) {
 
     <SH>Stock Fundamentals Screener</SH>
     <InfoBox color="#6366F1">
-      <strong style={{ color: "var(--text-primary)" }}>Powered by Financial Modeling Prep.</strong> Screener uses ~6 calls per ticker. Detail view fetches 20 years of financials, price history, and full quote data (8 calls). Data auto-loads on page visit.
+      <strong style={{ color: "var(--text-primary)" }}>Financial Modeling Prep data.</strong> Open a company for its research sheet, with up to 20 years of financial statements, recent fiscal quarters, and market prices. Coverage varies by company.
     </InfoBox>
 
     {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{error}</div>}

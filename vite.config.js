@@ -4,6 +4,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRealEstateFeeds } from './server/realEstateFeeds.js'
+import { createMetroComparison } from './server/metroComparison.js'
+import { createMetroEmployment } from './server/metroEmployment.js'
+import { createOptionsContext } from './server/optionsContext.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
@@ -1319,8 +1322,8 @@ const CONSUMER_SERIES = {
   TERMCBCCALLNS: { label: 'Credit Card APR',          freq: 'M', limit: 240, unit: '%' },
   GASREGW:       { label: 'Gas Price (regular)',      freq: 'W', limit: 1200, unit: '$' },
   PSAVERT:       { label: 'Personal Savings Rate',    freq: 'M', limit: 480, unit: '%' },
-  DRCCLACBS:     { label: 'Consumer Loan Delinquency',freq: 'Q', limit: 160, unit: '%' },
-  DRCRELEXFACBS: { label: 'Credit Card Delinquency',  freq: 'Q', limit: 160, unit: '%' },
+  DRCLACBS:      { label: 'Consumer Loan Delinquency',freq: 'Q', limit: 160, unit: '%' },
+  DRCCLACBS:     { label: 'Credit Card Delinquency',  freq: 'Q', limit: 160, unit: '%' },
   DRSFRMACBS:    { label: 'Mortgage Delinquency',     freq: 'Q', limit: 160, unit: '%' },
   WFRBST01134:   { label: 'Top 1% Wealth Share',      freq: 'Q', limit: 160, unit: '%' },
   WFRBSB50215:   { label: 'Bottom 50% Wealth Share',  freq: 'Q', limit: 160, unit: '%' },
@@ -1385,8 +1388,8 @@ async function fetchConsumerHealth() {
     cardApr: s.TERMCBCCALLNS?.current ?? null,
     gas: s.GASREGW?.current ?? null, gasYoY: s.GASREGW?.yoy ?? null,
     savings: s.PSAVERT?.current ?? null, savingsPct: s.PSAVERT?.pctRaw ?? null,
-    cardDelinq: s.DRCRELEXFACBS?.current ?? null, cardDelinqDir: s.DRCRELEXFACBS?.deltaYr ?? null,
-    consumerDelinq: s.DRCCLACBS?.current ?? null,
+    cardDelinq: s.DRCCLACBS?.current ?? null, cardDelinqDir: s.DRCCLACBS?.deltaYr ?? null,
+    consumerDelinq: s.DRCLACBS?.current ?? null,
     top1: s.WFRBST01134?.current ?? null, top1Dir: s.WFRBST01134?.deltaYr ?? null,
     bottom50: s.WFRBSB50215?.current ?? null, bottom50Dir: s.WFRBSB50215?.deltaYr ?? null,
     sentiment: s.UMCSENT?.current ?? null, sentimentPct: s.UMCSENT?.pctRaw ?? null,
@@ -1656,16 +1659,16 @@ async function fetchReplacementCost() {
   const months = Object.keys(cs).filter(m => ppi[m] > 0).sort()
   let raw = months.map(m => ({ d: `${m}-01`, v: cs[m] / ppi[m] }))
   const mean = raw.reduce((t, p) => t + p.v, 0) / (raw.length || 1)
-  const ratio = raw.map(p => ({ d: p.d, v: +((p.v / mean) * 100).toFixed(1) })) // 100 = long-run parity
+  const ratio = raw.map(p => ({ d: p.d, v: +((p.v / mean) * 100).toFixed(1) })) // 100 = sample mean, not dollar replacement-cost parity
   const ratioCur = ratio.length ? ratio[ratio.length - 1].v : null
   const ratio1yAgo = ratio.length > 12 ? ratio[ratio.length - 13].v : null
   const ratioPct = pctileOf(ratio.map(p => p.v), ratioCur)
 
-  let verdict = { label: 'Near Rebuild Parity', color: '#4ade80' }
+  let verdict = { label: 'Near Historical Middle', color: '#94a3b8' }
   if (ratioPct != null) {
-    if (ratioPct >= 80)      verdict = { label: 'Rich vs Replacement Cost',  color: '#f87171' }
-    else if (ratioPct >= 60) verdict = { label: 'Above Rebuild Parity',      color: '#fbbf24' }
-    else if (ratioPct <= 25) verdict = { label: 'Below Replacement Cost',    color: '#22d3ee' }
+    if (ratioPct >= 80)      verdict = { label: 'High Price / Input-Cost Ratio', color: '#f87171' }
+    else if (ratioPct >= 60) verdict = { label: 'Above Historical Middle',     color: '#fbbf24' }
+    else if (ratioPct <= 25) verdict = { label: 'Low Price / Input-Cost Ratio', color: '#22d3ee' }
   }
 
   // ── Indexed price-vs-cost chart (base = first month wages exist) ──
@@ -3360,9 +3363,9 @@ async function fetchReitCapRates() {
   const spread = avgCap != null && y10 != null ? avgCap - y10 : null
   let verdict
   if (spread == null) verdict = { label: 'Data unavailable', color: '#64748b', note: '' }
-  else if (spread < 1.0) verdict = { label: 'Cap rates rich vs bonds', color: '#f87171', note: 'REIT-implied cap rates barely clear the 10-year — buyers are paying for growth or accepting bond-like yields with equity risk.' }
-  else if (spread < 2.5) verdict = { label: 'Cap-rate spread thin', color: '#fbbf24', note: 'Below the roughly 3-point long-run norm — property is priced for rates to fall or rents to grow.' }
-  else verdict = { label: 'Cap-rate spread healthy', color: '#4ade80', note: 'Property yields a normal premium over Treasuries — the base case for income-driven returns.' }
+  else if (spread < 1.0) verdict = { label: 'EBITDA spread below 1 pt', color: '#f87171', note: 'Annual EBITDA yield less the current 10-year Treasury yield. This is an enterprise earnings comparison, not a property cap rate or total-return forecast.' }
+  else if (spread < 2.5) verdict = { label: 'EBITDA spread 1–2.5 pts', color: '#fbbf24', note: 'Screening band only; not calibrated to a historical premium. Compare operating costs, capital intensity and growth within property types.' }
+  else verdict = { label: 'EBITDA spread above 2.5 pts', color: '#94a3b8', note: 'A wider enterprise earnings spread can reflect either income or risk. EBITDA excludes recurring capital expenditure and is not property NOI.' }
   const data = { available: ok.length > 0, rows, bySector, avgCap, tenYear: y10, spread, verdict, asOf: new Date().toISOString().slice(0, 10), coverage: `${ok.length}/${REIT_BELLWETHERS.length}` }
   if (ok.length >= Math.ceil(REIT_BELLWETHERS.length * 0.6)) reitCache = { data, ts: Date.now() }
   return data
@@ -3668,6 +3671,9 @@ export default defineConfig({
     {
       name: 'tickers-persist',
       configureServer(server) {
+        createMetroComparison({dir: __dirname, getRents: () => reFeeds.rents()}).register(server)
+        createMetroEmployment({dir: __dirname, blsKey: BLS_KEY}).register(server)
+        createOptionsContext({dir: __dirname, fmpKey: FMP_KEY}).register(server)
         // Central bank rates endpoint (FMP calendar + FRED live series)
         server.middlewares.use('/api/cb-rates', async (_req, res) => {
           res.setHeader('Content-Type', 'application/json')

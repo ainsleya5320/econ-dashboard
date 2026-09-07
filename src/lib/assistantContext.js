@@ -140,9 +140,9 @@ export function buildVerdictText(d) {
   // Real Estate tab — fair-value scores, lock-in, supply pipeline, the Redfin tape, CRE credit and office occupancy
   if (d.reComp) {
     const r = d.reComp.residential, c = d.reComp.commercial;
-    const anch = s => s.anchors.filter(a => fin(a.pct)).map(a => `${a.label.toLowerCase()} ${fin(a.value) ? a.value : "n/a"}${a.unit ? ` ${a.unit}` : ""} (p${a.pct})`).join(", ");
-    if (fin(r?.score)) L.push(`Real estate (Real Estate tab) — residential fair-value score ${r.score}/100 (${r.tone.label}; 0 = cheapest vs each anchor's own history, 100 = richest): ${anch(r)}.`);
-    if (fin(c?.score)) L.push(`Real estate — commercial fair-value score ${c.score}/100 (${c.tone.label}): ${anch(c)}.`);
+    const anch = s => s.anchors.filter(a => fin(a.pct)).map(a => `${a.label.toLowerCase()} ${fin(a.value) ? a.value : "n/a"}${a.unit ? ` ${a.unit}` : ""} (${a.key === "yield" ? "rule score " : "historical percentile "}${a.pct})`).join(", ");
+    if (fin(r?.score)) L.push(`Real estate (Real Estate tab) — residential valuation-context score ${r.score}/100 (average historical percentile; not intrinsic value): ${anch(r)}.`);
+    if (fin(c?.score)) L.push(`Real estate — commercial valuation-context score ${c.score}/100 (mixes a historical ratio percentile and a rule-based EBITDA spread score; not intrinsic value): ${anch(c)}.`);
     const sr = d.reComp.support?.residential, sc = d.reComp.support?.commercial;
     if (sr) L.push(`  Residential support (not scored): ${num(sr.supplyMonths, 1)} months' supply (p${sr.supplyPct}), mortgage delinquency ${num(sr.mortgageDq)}%; housing regime "${sr.verdict}".`);
     if (sc) L.push(`  Commercial support: CRE loan delinquency ${num(sc.dq)}% (p${sc.dqPct}, ${pct(sc.dqChg1y)} over 1y), BIS prices ${pct(sc.priceYoy, 1)} YoY as of ${sc.priceAsOf} (lagged ~1y), rental vacancy ${num(sc.rentalVacancy, 1)}%; cycle "${sc.cycle}".`);
@@ -156,7 +156,7 @@ export function buildVerdictText(d) {
   if (rf) L.push(`  Redfin national tape (${d.redfin.asOf}): median sale price $${Math.round(rf.price / 1000)}K, sale-to-list ${num(rf.saleToList * 100, 1)}% (p${rp?.saleToList} since 2012), ${num(rf.priceDrops * 100, 0)}% of listings with price drops (p${rp?.priceDrops}), ${num(rf.months, 1)} months of supply, ${Math.round(rf.dom)} days on market.`);
   const sl = d.creCredit?.sloos, ks = d.creCredit?.kastle;
   if (sl?.verdict) L.push(`  CRE lending standards (Fed SLOOS ${sl.asOf}): ${sl.verdict.label} — net ${pct(sl.avg, 1)} of banks tightening (construction & land ${pct(sl.cld, 1)}, non-residential ${pct(sl.nonres, 1)}, multifamily ${pct(sl.multi, 1)}).`);
-  if (ks && fin(ks.avg)) L.push(`  Office occupancy (Kastle 10-city, week of ${ks.d}): ${num(ks.avg, 1)}% of the Feb-2020 baseline${ks.cities ? `; ${Object.entries(ks.cities).sort((a, b) => b[1].v - a[1].v).map(([n, v]) => `${n} ${v.v}%`).join(", ")}` : ""}.`);
+  if (ks && fin(ks.avg)) L.push(`  Office attendance, not leased occupancy or NOI (Kastle 10-city, week of ${ks.d}): ${num(ks.avg, 1)}% of the Feb-2020 baseline${ks.cities ? `; ${Object.entries(ks.cities).sort((a, b) => b[1].v - a[1].v).map(([n, v]) => `${n} ${v.v}%`).join(", ")}` : ""}.`);
 
   return L.length > 1 ? L.join("\n") : "";
 }
