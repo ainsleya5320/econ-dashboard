@@ -38,6 +38,9 @@ sfc/__pycache__/
 bankruptcy.json
 bk-recent.json
 bk-public.json
-# Seattle metro caches (re-derivable); warn.json is a tracked archive
+# Municipality caches (re-derivable); the warn-*.json archives are tracked
+municipality-seattle.json
+municipality-sf.json
+metro-postings.json
 seattle.json
 seattle-postings.json

@@ -15,7 +15,7 @@ import UsPulseTab from "./UsPulseTab.jsx";
 import MachineTab from "./MachineTab.jsx";
 import SfcModelTab from "./SfcModelTab.jsx";
 import BankruptcyTab from "./BankruptcyTab.jsx";
-import SeattleTab from "./SeattleTab.jsx";
+import MunicipalitiesTab from "./MunicipalitiesTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
 import BankCreditTab from "./BankCreditTab.jsx";
 import ProfitsEngineTab from "./ProfitsEngineTab.jsx";
@@ -51,7 +51,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
   const ECON_SUB_TABS = [
     { id: "dashboard",  label: "Pulse"               },
-    { id: "seattle",    label: "Seattle"             },
+    { id: "municipal",  label: "Municipalities"      },
     { id: "machine",    label: "Machine"             },
     { id: "model",      label: "Model"               },
     { id: "rates",      label: "Rates"               },
@@ -96,8 +96,8 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
     {/* Bankruptcy tracker: official F-2 quarterly, West Coast court dockets, credit stress (server/bankruptcy.js) */}
     {econSubTab === "bankruptcy" && <BankruptcyTab />}
 
-    {/* Seattle metro: labor, housing, prices, business, growth, the Puget Sound 12 (server/seattle.js) */}
-    {econSubTab === "seattle" && <SeattleTab go={setEconSubTab} />}
+    {/* Municipalities: one metro at a time — Seattle by default, San Francisco alongside (server/municipalities.js) */}
+    {econSubTab === "municipal" && <MunicipalitiesTab go={setEconSubTab} />}
 
     {/* Rates sub-tab */}
     {econSubTab === "rates" && <RatesTab md={md} td={td} fmpKey={fmpKey} />}

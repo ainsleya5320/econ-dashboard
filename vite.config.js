@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createRealEstateFeeds } from './server/realEstateFeeds.js'
+import { createRealEstateFeeds, unzipEntries } from './server/realEstateFeeds.js'
 import { createMetroComparison } from './server/metroComparison.js'
 import { createMetroEmployment } from './server/metroEmployment.js'
 import { createOptionsContext } from './server/optionsContext.js'
@@ -16,7 +16,7 @@ import { createCommodityPulse } from './server/commodityPulse.js'
 import { createAiPulse } from './server/aiPulse.js'
 import { createSfcModel } from './server/sfcModel.js'
 import { createBankruptcy } from './server/bankruptcy.js'
-import { createSeattle } from './server/seattle.js'
+import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3671,8 +3671,9 @@ const aiPulse = createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, 
 const sfcModel = createSfcModel({ dir: __dirname })
 // Bankruptcy tracker (server/bankruptcy.js): U.S. Courts F-2 quarterly, West Coast court RSS feeds, CourtListener, EDGAR, FRED credit stress
 const bankruptcy = createBankruptcy({ fetchFredSeries, UA, dir: __dirname })
-// Seattle metro (server/seattle.js): labor, housing, prices, business, growth, the Puget Sound 12 — reuses the RE metro feed and the bankruptcy tracker
-const seattle = createSeattle({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, UA, dir: __dirname, reMetro: code => reFeeds.metro(code), bankruptcy: () => bankruptcy.get() })
+// Municipalities (server/municipalities.js): one metro at a time — labor, housing, prices, business, growth, the local majors.
+// Reuses the Real Estate metro feed, the bankruptcy tracker and the zip reader.
+const municipalities = createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, unzipEntries, UA, dir: __dirname, reMetro: code => reFeeds.metro(code), bankruptcy: () => bankruptcy.get() })
 
 export default defineConfig({
   plugins: [
@@ -3825,7 +3826,7 @@ export default defineConfig({
         reRoute('/api/ai-pulse', () => aiPulse.get())
         reRoute('/api/sfc', () => sfcModel.get())
         reRoute('/api/bankruptcy', () => bankruptcy.get())
-        reRoute('/api/seattle', () => seattle.get())
+        reRoute('/api/municipality', req => municipalities.get(new URL(req.url || '/', 'http://x').searchParams.get('city') || undefined))
         // Artificial Analysis key check — reports whether the key in .env works, never the key itself
         reRoute('/api/aa-check', async () => {
           if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }
@@ -3849,7 +3850,7 @@ export default defineConfig({
         setTimeout(() => { commodityPulse.get().catch(() => {}) }, 360 * 1000)
         setTimeout(() => { aiPulse.get().catch(() => {}) }, 420 * 1000)
         setTimeout(() => { bankruptcy.get().catch(() => {}) }, 20 * 1000)
-        setTimeout(() => { seattle.get().catch(() => {}) }, 90 * 1000)
+        setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')
