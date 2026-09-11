@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse", sfc: "/api/sfc",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse", sfc: "/api/sfc", bk: "/api/bankruptcy",
 };
 
 let cache = { text: "", ts: 0 };
@@ -115,6 +115,22 @@ export function buildVerdictText(d) {
     if (a.aa) L.push(`  Artificial Analysis: best ${a.aa.best.name} (index ${a.aa.best.idx}, $${a.aa.best.price}/M); cheapest within 5 pts ${a.aa.frontier?.name} at $${a.aa.frontier?.price}/M; top-10 median $${a.aa.top10MedianPrice}/M; ${a.aa.releases90d} releases in 90 days; ${a.aa.pareto.length} models on the price/intelligence frontier.`);
     const g = a.gpu;
     L.push(`  GPU rentals: ${g.vast.filter(v => v.median != null).map(v => `${v.gpu} $${v.median}/hr`).join(', ')} (Vast.ai medians); Ornn H100 ${g.ornn.latest?.h100?.current != null ? `$${g.ornn.latest.h100.current.toFixed(2)} (30d ${pct(g.ornn.latest.h100.chg30, 0)})` : 'n/a'}; SemiAnalysis 1-yr contract ${g.semi.h100Contract != null ? `$${g.semi.h100Contract}` : 'n/a'}. Bridge: $${g.bridge.costPerM1000}/M tokens at 1,000 tok/s vs realized ~$${g.bridge.otpiAvg}/M; break-even ≈ ${g.bridge.breakevenTps} tok/s per H100.`);
+  }
+  if (d.bk?.scores) {
+    const b = d.bk, sc = b.scores, N = b.national?.latest, home = (b.board || []).find(x => x.id === b.home);
+    const fq = q => (q ? `${q.slice(0, 4)}Q${Math.ceil(+q.slice(5, 7) / 3)}` : '');
+    L.push(`BANKRUPTCY TRACKER (U.S. Courts F-2 quarterly through ${fq(N?.q)}, West Coast court dockets, CourtListener, EDGAR, FRED credit stress):`);
+    L.push(`  Verdict: ${b.headline.label}. Scores 0-100: national filings ${sc.filings.score} (${sc.filings.label}); bank credit stress ${sc.credit.score} (${sc.credit.label}); W.D. Washington ${sc.local.score} (${sc.local.label}).`);
+    if (N) L.push(`  National ${fq(N.q)}: ${N.total.toLocaleString()} cases (${pct(N.yoy, 1)} yoy; ${(N.t4 / 1e3).toFixed(0)}k trailing year), chapter 7 ${N.ch7.toLocaleString()}, chapter 13 ${N.ch13.toLocaleString()}, chapter 11 ${N.ch11.toLocaleString()} of which business ${N.bizCh11.toLocaleString()} (${pct(N.bizCh11Yoy, 0)} yoy).`);
+    L.push(`  West Coast districts ${fq(home?.q)}: ${(b.board || []).map(x => `${x.district} ${x.total?.toLocaleString()} (${pct(x.yoy, 1)}), biz ch.11 ${x.bizCh11}`).join('; ')}.`);
+    const lv = b.live || {};
+    const homeLive = (lv.ch11Recent || []).filter(c => c.court === b.home).slice(0, 8);
+    if (homeLive.length) L.push(`  Live Seattle/Tacoma chapter 11 petitions (court RSS, archived since ${lv.firstDay}): ${homeLive.map(c => `${c.name}${c.office ? ` (${c.office})` : ''} ${c.day}`).join('; ')}.`);
+    const rec = b.recent?.[b.home]?.cases || [];
+    if (rec.length) L.push(`  Named W.D. Washington chapter 11 cases, last 180 days (CourtListener, partial coverage, ${b.recent[b.home].count} on record): ${rec.filter(c => c.entity).slice(0, 12).map(c => `${c.name} (${c.filed})`).join('; ')}.`);
+    if (b.public) L.push(`  Public-company bankruptcies (EDGAR 8-K Item 1.03, since ${b.public.since}): ${b.public.n} filings, ${b.public.west} West Coast; latest ${b.public.list.slice(0, 5).map(r => `${r.name}${r.ticker ? ` (${r.ticker})` : ''} ${r.date} ${r.state || ''}`).join('; ')}.`);
+    const F = Object.fromEntries((b.fred || []).map(r => [r.id, r]));
+    L.push(`  Credit stress: business-loan delinquency ${F.DRBLACBS?.v}% (p${F.DRBLACBS?.pct}), consumer ${F.DRCLACBS?.v}%, credit card ${F.DRCCLACBS?.v}% (p${F.DRCCLACBS?.pct}), CRE ${F.DRCRELEXFACBS?.v}%; charge-offs business ${F.CORBLACBS?.v}%; net ${F.DRTSCILM?.v}% of banks tightening C&I; HY OAS ${F.BAMLH0A0HYM2?.v}%. Business applications US ${F.BABATOTALSAUS?.v?.toLocaleString()}/mo, WA ${F.BABATOTALSAWA?.v?.toLocaleString()}/mo.`);
   }
   if (d.sfc?.scores) {
     const m = d.sfc, sc = m.scores, flat = Object.fromEntries((m.board || []).flatMap(g => g.rows.map(r => [r.id, r])));

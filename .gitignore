@@ -34,3 +34,7 @@ aa-models.json
 # SFC model: python cache (re-derivable); data/sfc/*.json are tracked source
 data/cache/
 sfc/__pycache__/
+# Bankruptcy tracker caches (re-derivable); bk-official.json and bk-filings.json are tracked archives
+bankruptcy.json
+bk-recent.json
+bk-public.json

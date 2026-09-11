@@ -14,6 +14,7 @@ import FedSubTab from "./FedSubTab.jsx";
 import UsPulseTab from "./UsPulseTab.jsx";
 import MachineTab from "./MachineTab.jsx";
 import SfcModelTab from "./SfcModelTab.jsx";
+import BankruptcyTab from "./BankruptcyTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
 import BankCreditTab from "./BankCreditTab.jsx";
 import ProfitsEngineTab from "./ProfitsEngineTab.jsx";
@@ -53,6 +54,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
     { id: "model",      label: "Model"               },
     { id: "rates",      label: "Rates"               },
     { id: "debt",       label: "Debt & Credit"       },
+    { id: "bankruptcy", label: "Bankruptcy"          },
     { id: "banks",      label: "Bank Credit"         },
     { id: "profits",    label: "Profits Engine"      },
     { id: "fed",        label: "Fed Balance Sheet"   },
@@ -88,6 +90,9 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
 
     {/* Stock-flow-consistent ledger + four-layer simulation (server/sfcModel.js, built by sfc/) */}
     {econSubTab === "model" && <SfcModelTab />}
+
+    {/* Bankruptcy tracker: official F-2 quarterly, West Coast court dockets, credit stress (server/bankruptcy.js) */}
+    {econSubTab === "bankruptcy" && <BankruptcyTab />}
 
     {/* Rates sub-tab */}
     {econSubTab === "rates" && <RatesTab md={md} td={td} fmpKey={fmpKey} />}
