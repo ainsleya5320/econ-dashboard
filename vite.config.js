@@ -14,6 +14,7 @@ import { createMachine } from './server/machine.js'
 import { createDamodaranErp } from './server/damodaranErp.js'
 import { createCommodityPulse } from './server/commodityPulse.js'
 import { createAiPulse } from './server/aiPulse.js'
+import { createSfcModel } from './server/sfcModel.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -3664,6 +3665,8 @@ const damodaranErp = createDamodaranErp({ UA, dir: __dirname })
 const commodityPulse = createCommodityPulse({ fetchFredSeries, fetchYahooSparkline, fetchCommoditySpot, UA, dir: __dirname, EIA_KEY })
 // AI Pulse (server/aiPulse.js): the token tracker (OpenRouter archive), Artificial Analysis frontier, GPU rental rates
 const aiPulse = createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, AA_KEY, UA, dir: __dirname })
+// SFC model (server/sfcModel.js): the stock-flow ledger + four-layer simulation, built offline by `python run_sfc.py`
+const sfcModel = createSfcModel({ dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3814,6 +3817,7 @@ export default defineConfig({
         reRoute('/api/damodaran-erp', () => damodaranErp.get())
         reRoute('/api/commodity-pulse', () => commodityPulse.get())
         reRoute('/api/ai-pulse', () => aiPulse.get())
+        reRoute('/api/sfc', () => sfcModel.get())
         // Artificial Analysis key check — reports whether the key in .env works, never the key itself
         reRoute('/api/aa-check', async () => {
           if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }

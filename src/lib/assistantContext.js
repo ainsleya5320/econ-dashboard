@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse", sfc: "/api/sfc",
 };
 
 let cache = { text: "", ts: 0 };
@@ -115,6 +115,19 @@ export function buildVerdictText(d) {
     if (a.aa) L.push(`  Artificial Analysis: best ${a.aa.best.name} (index ${a.aa.best.idx}, $${a.aa.best.price}/M); cheapest within 5 pts ${a.aa.frontier?.name} at $${a.aa.frontier?.price}/M; top-10 median $${a.aa.top10MedianPrice}/M; ${a.aa.releases90d} releases in 90 days; ${a.aa.pareto.length} models on the price/intelligence frontier.`);
     const g = a.gpu;
     L.push(`  GPU rentals: ${g.vast.filter(v => v.median != null).map(v => `${v.gpu} $${v.median}/hr`).join(', ')} (Vast.ai medians); Ornn H100 ${g.ornn.latest?.h100?.current != null ? `$${g.ornn.latest.h100.current.toFixed(2)} (30d ${pct(g.ornn.latest.h100.chg30, 0)})` : 'n/a'}; SemiAnalysis 1-yr contract ${g.semi.h100Contract != null ? `$${g.semi.h100Contract}` : 'n/a'}. Bridge: $${g.bridge.costPerM1000}/M tokens at 1,000 tok/s vs realized ~$${g.bridge.otpiAvg}/M; break-even ≈ ${g.bridge.breakevenTps} tok/s per H100.`);
+  }
+  if (d.sfc?.scores) {
+    const m = d.sfc, sc = m.scores, flat = Object.fromEntries((m.board || []).flatMap(g => g.rows.map(r => [r.id, r])));
+    const at = id => flat[id]?.v;
+    L.push(`SFC LEDGER & MODEL (Z.1/NIPA/DFA ledger, ${m.quarters} quarters to ${m.latest}; four-layer simulation calibrated to ${m.asOf}):`);
+    L.push(`  Verdict: ${m.headline.label}. ${m.headline.why}`);
+    L.push(`  Scores 0-100: private credit ${sc.credit.score} (${sc.credit.label}); interest channel ${sc.interest.score} (${sc.interest.label}); measurement ${sc.measure.score} (${sc.measure.label}).`);
+    L.push(`  Ledger now: household debt ${at('debt_household')}% of GDP, business ${at('debt_business')}%, federal ${at('debt_federal')}%; BIS credit gap ${at('credit_gap')}pp; household debt service ${at('household_dsr')}% of disposable income; federal interest ${at('fed_interest_pct_gdp')}% of GDP; wage share ${at('wage_share')}%; dark-output signal ${at('dark_output_signal')}pp.`);
+    L.push(`  Sectoral balances (Godley, sum to zero): government ${at('bal_gov')}%, private ${at('bal_private')}%, foreign ${at('bal_foreign')}% of GDP.`);
+    if (m.crux?.data) {
+      const flip = m.crux.data.filter(x => x.debt_gov > 100 && x.d_utilization > 0).sort((a, b) => a.mpc_capital - b.mpc_capital)[0];
+      L.push(`  Crux — a 3pp rate hike stops cooling the economy at today's debt ratio once the MPC out of capital income passes ~${flip ? flip.mpc_capital : 0.5}; at 50% government debt it never flips. Scenario paths are model output under stated assumptions, not forecasts.`);
+    }
   }
   if (d.commod?.scores) {
     const p = d.commod, sc = p.scores;

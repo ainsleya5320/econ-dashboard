@@ -30,3 +30,7 @@ damodaran-monthly.json
 commodity-pulse.json
 ai-pulse.json
 aa-models.json
+
+# SFC model: python cache (re-derivable); data/sfc/*.json are tracked source
+data/cache/
+sfc/__pycache__/
