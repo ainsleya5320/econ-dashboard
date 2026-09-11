@@ -307,7 +307,7 @@ export default function MunicipalitiesTab({ go }) {
           <div style={{ ...card }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
               <div style={label}>Bankruptcies · {B.bk.court}</div>
-              {go && <button onClick={() => go("bankruptcy")} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(129,140,248,0.35)", background: "rgba(129,140,248,0.12)", color: "#c7d2fe", fontFamily: fonts.mono, fontSize: 9.5, cursor: "pointer" }}>open the tracker →</button>}
+              {go && <button onClick={() => go("credit", "defaults")} style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(129,140,248,0.35)", background: "rgba(129,140,248,0.12)", color: "#c7d2fe", fontFamily: fonts.mono, fontSize: 9.5, cursor: "pointer" }}>open the tracker →</button>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginTop: 8 }}>
               {[["Filings, latest qtr", num(B.bk.total), pc(B.bk.yoy) + " yoy"], ["Trailing year", num(B.bk.t4), `p${B.bk.t4Pct} of the decade`], ["Business ch.11, qtr", num(B.bk.bizCh11), `${num(B.bk.bizCh11T4)} in a year, p${B.bk.bizCh11Pct}`], ["Live docket, 30d", `${B.bk.live30?.ch11 ?? 0} ch.11`, `${B.bk.live30?.ch7 ?? 0} ch.7 · ${B.bk.live30?.ch13 ?? 0} ch.13`]].map(([t, v, sub]) => (

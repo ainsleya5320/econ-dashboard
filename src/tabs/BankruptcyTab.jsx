@@ -10,8 +10,8 @@ import { SH, InfoBox } from "../components/shared.jsx";
 //      and the official quarterly series since 2010.
 //   2. The tracked districts side by side — the West Coast, plus W.D. Texas
 //      and S.D. New York, which back the Austin and New York municipality pages.
-//   3. National: official filings by chapter, and the bank credit-stress gauges
-//      that lead filings by two to four quarters.
+//   3. National: official filings by chapter (the credit-stress gauges that lead
+//      them live on the Banks view of the same Credit tab).
 //   4. Public-company bankruptcies from EDGAR 8-K Item 1.03.
 // Data: /api/bankruptcy (server/bankruptcy.js). Official counts are U.S. Courts
 // Table F-2 Quarterly; the docket lists are the courts' own CM/ECF feeds and
@@ -97,16 +97,6 @@ export default function BankruptcyTab() {
     for (const c of d.courts) for (const r of d.districts[c.district] || []) { if (r.q < "2015-01-01") continue; const row = byQ.get(r.q) || { q: r.q }; row[c.id] = r.bizCh11; byQ.set(r.q, row); }
     return [...byQ.values()].sort((a, b) => a.q.localeCompare(b.q));
   }, [d]);
-
-  // hooks stay above the early returns
-  const DELINQ = ["DRBLACBS", "DRCLACBS", "DRCCLACBS", "DRCRELEXFACBS"];
-  const delinq = d ? DELINQ.filter(id => d.fredSeries[id]) : [];
-  const delinqRows = useMemo(() => {
-    if (!d) return [];
-    const m = new Map();
-    for (const id of DELINQ) for (const p of d.fredSeries[id] || []) { const r = m.get(p.d) || { d: p.d }; r[id] = p.v; m.set(p.d, r); }
-    return [...m.values()].sort((a, b) => a.d.localeCompare(b.d));
-  }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (err) return <div style={{ ...card, fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Could not load the bankruptcy tracker: {err}</div>;
   if (!d) return <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading the courts (the first build pulls sixteen years of quarterly tables from uscourts.gov — up to two minutes, then cached)…</div>;
@@ -232,8 +222,8 @@ export default function BankruptcyTab() {
     </div>
 
     {/* ── national ─────────────────────────────────────────────────────── */}
-    <SH>National — Official Filings and the Credit Gauges That Lead Them</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12, marginBottom: 12 }}>
+    <SH>National — Official Filings by Chapter</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(300px, 1fr)", gap: 12, marginBottom: 14, alignItems: "start" }}>
       {chartBox(`Cases commenced per quarter by chapter, since ${fq(natChart[0]?.q)} · business Chapter 11 on the right axis`,
         <ResponsiveContainer width="100%" height={220}><AreaChart data={natChart} margin={{ top: 6, right: 6, bottom: 0, left: -6 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="q" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={34} axisLine={false} tickLine={false} /><YAxis yAxisId="l" tick={axis} axisLine={false} tickLine={false} tickFormatter={k} width={44} /><YAxis yAxisId="r" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={k} width={36} />
@@ -245,32 +235,10 @@ export default function BankruptcyTab() {
           <Line yAxisId="r" type="monotone" dataKey="bizCh11" stroke={RED} strokeWidth={1.6} dot={false} isAnimationActive={false} />
         </AreaChart></ResponsiveContainer>,
         `${k(Math.max(...d.national.rows.map(r => r.t4).filter(fin)))} a year at the top of this window and a low under the pandemic stimulus and foreclosure moratoria; ${NL ? `${k(NL.t4)} in the trailing year, ${pc(NL.yoy, 1)} year on year.` : ""} The 2010 crisis peak, 1.6M, sits outside the readable spreadsheets.`)}
-      {chartBox("Delinquency rates by loan type, % of balances (commercial banks)",
-        <ResponsiveContainer width="100%" height={220}><LineChart data={delinqRows} margin={{ top: 6, right: 6, bottom: 0, left: -14 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={34} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={tip} labelFormatter={fq} formatter={(v, n) => [`${v}%`, F[n]?.label || n]} />
-          <Legend wrapperStyle={{ fontSize: 9, fontFamily: fonts.mono }} formatter={n => F[n]?.label || n} />
-          {delinq.map((id, i) => <Line key={id} type="monotone" dataKey={id} stroke={[INDIGO, GREEN, RED, AMBER][i]} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />)}
-        </LineChart></ResponsiveContainer>,
-        "Delinquencies lead filings by two to four quarters: a household stops paying, then files. Credit cards are the earliest tell; commercial real estate is the slow one.")}
-    </div>
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(300px, 1fr)", gap: 12, marginBottom: 14, alignItems: "start" }}>
-      <div style={{ ...card, padding: "6px 8px", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>{th("Credit-stress gauge (FRED)", "left")}{th("Latest")}{th("As of")}{th("1-yr Δ")}{th("Own history", "left")}{th("Trend", "center")}</tr></thead>
-          <tbody>{d.fred.filter(r => fin(r.v)).map(r => (
-            <tr key={r.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.035)" }} title={`${r.id} · ${r.freq === "Q" ? "quarterly" : r.freq === "M" ? "monthly" : "daily"} since ${r.since} · range ${r.min} to ${r.max}`}>
-              <td style={{ padding: "4px 6px", fontSize: 10.5, fontFamily: fonts.mono, color: "var(--text-primary)", whiteSpace: "nowrap" }}><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 999, background: TONE[r.tone], marginRight: 7, verticalAlign: "middle" }} />{r.label}<span style={{ color: DIM, marginLeft: 5, fontSize: 9 }}>{r.unit}</span></td>
-              {td(r.unit === "/mo" ? k(r.v) : num(r.v, r.v >= 1000 ? 0 : 2), "var(--text-primary)", { fontWeight: 700 })}{td(r.freq === "Q" ? fq(r.d) : r.d.slice(0, 7), DIM)}{td(fin(r.chg1y) ? `${sgn(r.chg1y)}${Math.abs(r.chg1y) >= 100 ? num(Math.abs(r.chg1y)) : Math.abs(r.chg1y).toFixed(2)}` : "—", !fin(r.chg1y) || r.chg1y === 0 ? SLATE : r.chg1y * r.dir > 0 ? RED : GREEN)}
-              <td style={{ padding: "4px 6px", minWidth: 90 }}><PctBar pct={r.pct} tone={r.tone} /></td>
-              <td style={{ padding: "2px 6px", textAlign: "center" }}><Spark values={r.spark} color={TONE[r.tone]} /></td>
-            </tr>))}</tbody>
-        </table>
-        <div style={{ ...note, marginTop: 6 }}>Percentile against each series&apos; full FRED history. Business applications are the other side of the ledger — firms being born while others die — and are graded the other way round.</div>
-      </div>
       <div style={{ display: "grid", gap: 12 }}>
         <VerdictCard title="Filings (national)" s={S.filings} />
         <VerdictCard title="Bank credit stress" s={S.credit} />
+        <div style={{ ...note, padding: "0 4px" }}>The delinquency and charge-off gauges behind the credit-stress score are on the Banks view of this tab, where they belong with loan growth and provisions; the score here reads the same series.</div>
       </div>
     </div>
 
