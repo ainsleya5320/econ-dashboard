@@ -1,6 +1,6 @@
 // ============================================================================
-// BANKRUPTCY TRACKER — national filings, bank credit stress, and the West
-// Coast courts with Seattle first
+// BANKRUPTCY TRACKER — national filings, bank credit stress, and the courts
+// behind the Municipalities tab, with Seattle first
 //   official  U.S. Courts Table F-2 Quarterly (cases commenced in the three
 //             months ending each quarter, by district, by chapter, business vs
 //             nonbusiness). One xlsx per quarter back to 2010; parsed once and
@@ -8,8 +8,9 @@
 //             FRED has no live filings series — this is the authoritative one.
 //   fred      delinquency and charge-off rates by loan type, SLOOS tightening,
 //             high-yield spread, business applications (US, WA, OR, CA)
-//   live      the CM/ECF RSS feed of every West Coast bankruptcy court (W.D.
-//             and E.D. Washington, Oregon, the four California districts):
+//   live      the CM/ECF RSS feed of every tracked bankruptcy court (W.D. and
+//             E.D. Washington, Oregon, the four California districts, W.D.
+//             Texas and S.D. New York):
 //             a rolling ~24 hours of docket entries, from which new voluntary
 //             petitions are counted by chapter and the Chapter 11 debtors are
 //             named. Archived daily in bk-filings.json (tracked), de-duplicated
@@ -20,7 +21,7 @@
 //             is roughly half to two-thirds of the official count, so it is a
 //             list, not a count.
 //   public    SEC EDGAR full-text search for 8-K Item 1.03 (Bankruptcy or
-//             Receivership), last 180 days, West Coast flagged by business
+//             Receivership), last 180 days, tracked states flagged by business
 //             state.
 //   scores    filings momentum (national), bank credit stress, local pressure
 //             (W.D. Washington) — 0–100, with verdicts.
@@ -41,7 +42,9 @@ const pctile = (arr, v) => { const a = (arr || []).filter(fin); if (!a.length ||
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const ENTITY = /\b(LLC|L\.L\.C\.|Inc\.?|Corp\.?|Corporation|Company|Co\.|LP|L\.P\.|LLP|PLLC|Ltd\.?|Holdings|Group|Partners|Enterprises|Associates|Trust|Ventures|Properties|Development|Restaurant|Farms?|Services|Solutions|Industries|International|Technologies|Foundation|Church|Hospital|Clinic|Motors?|Marine|Construction|Realty|Investments?)\b/i
 
-// The West Coast bankruptcy courts: CM/ECF id, the district label the AO uses, and the office codes where known.
+// The bankruptcy courts this dashboard tracks: CM/ECF id, the district label the
+// AO uses in Table F-2, and the office codes where known. The first seven cover
+// the West Coast; the last two back the Austin and New York municipality pages.
 export const COURTS = [
   { id: 'wawb', district: 'WA,W', name: 'W.D. Washington', cities: 'Seattle · Tacoma', offices: { 2: 'Seattle', 3: 'Tacoma' }, home: true },
   { id: 'waeb', district: 'WA,E', name: 'E.D. Washington', cities: 'Spokane · Yakima' },
@@ -50,9 +53,12 @@ export const COURTS = [
   { id: 'caeb', district: 'CA,E', name: 'E.D. California', cities: 'Sacramento · Fresno' },
   { id: 'cacb', district: 'CA,C', name: 'C.D. California', cities: 'Los Angeles · Santa Ana · Riverside' },
   { id: 'casb', district: 'CA,S', name: 'S.D. California', cities: 'San Diego' },
+  { id: 'txwb', district: 'TX,W', name: 'W.D. Texas', cities: 'Austin · San Antonio · El Paso' },
+  { id: 'nysb', district: 'NY,S', name: 'S.D. New York', cities: 'Manhattan · White Plains · Poughkeepsie' },
 ]
 const DISTRICTS = COURTS.map(c => c.district)
-const WEST_STATES = new Set(['WA', 'OR', 'CA'])
+// EDGAR flags registrants headquartered where this dashboard tracks a court.
+const TRACKED_STATES = new Set(['WA', 'OR', 'CA', 'TX', 'NY'])
 
 // FRED credit-stress complex. dir +1 = up is bad.
 const FRED = [
@@ -266,14 +272,14 @@ export function createBankruptcy({ fetchFredSeries, UA, dir }) {
         const ticker = disp.match(/\(([A-Z.\-]{1,6})\)\s*\(CIK/i)?.[1] || null
         const cik = (s.ciks || [])[0] || null, adsh = s.adsh || null
         const state = (s.biz_states || [])[0] || null
-        rows.push({ name, ticker, date: s.file_date, state, west: WEST_STATES.has(state), sic: (s.sics || [])[0] || null, url: cik && adsh ? `https://www.sec.gov/Archives/edgar/data/${+cik}/${adsh.replace(/-/g, '')}/${adsh}-index.htm` : null })
+        rows.push({ name, ticker, date: s.file_date, state, tracked: TRACKED_STATES.has(state), sic: (s.sics || [])[0] || null, url: cik && adsh ? `https://www.sec.gov/Archives/edgar/data/${+cik}/${adsh.replace(/-/g, '')}/${adsh}-index.htm` : null })
       }
       if (hits.length < 100) break
       await sleep(300)
     }
     const seen = new Set()
     const list = rows.filter(r => { const k = `${r.name}|${r.date}`; if (seen.has(k)) return false; seen.add(k); return true }).sort((a, b) => b.date.localeCompare(a.date))
-    return { since: start, total, n: list.length, west: list.filter(r => r.west).length, list: list.slice(0, 120) }
+    return { since: start, total, n: list.length, tracked: list.filter(r => r.tracked).length, states: [...TRACKED_STATES], list: list.slice(0, 120) }
   }
 
   async function slowGet(key, fn) {
@@ -343,7 +349,7 @@ export function createBankruptcy({ fetchFredSeries, UA, dir }) {
       districts: Object.fromEntries(DISTRICTS.map(d => [d, distRows[d].slice(-68)])),
       fred: fredRows.map(r => ({ ...r, series: undefined })), fredSeries: Object.fromEntries(fredRows.filter(r => r.series).map(r => [r.id, r.series])),
       live: lv, recent: rec, public: pub, courts: COURTS,
-      source: 'U.S. Courts Table F-2 Quarterly (official filings by district and chapter, business vs nonbusiness); CM/ECF RSS feeds of the seven West Coast bankruptcy courts (live docket, archived daily by this dashboard); CourtListener/RECAP (named Chapter 11 dockets, partial coverage); SEC EDGAR full-text search (8-K Item 1.03); FRED (delinquency, charge-offs, SLOOS, HY OAS, business applications).',
+      source: `U.S. Courts Table F-2 Quarterly (official filings by district and chapter, business vs nonbusiness); CM/ECF RSS feeds of the ${COURTS.length} tracked bankruptcy courts (live docket, archived daily by this dashboard); CourtListener/RECAP (named Chapter 11 dockets, partial coverage); SEC EDGAR full-text search (8-K Item 1.03); FRED (delinquency, charge-offs, SLOOS, HY OAS, business applications).`,
       updated: new Date().toISOString(),
     }
   }

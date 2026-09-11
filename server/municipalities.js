@@ -446,7 +446,7 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     const bkRow = bk?.board?.find(b => b.id === city.court.id) || null
     const business = {
       bk: bk && bkRow ? {
-        court: city.court.name, score: bk.scores?.local?.score ?? null,
+        court: city.court.name,
         q: bkRow.q, total: bkRow.total, yoy: bkRow.yoy, t4: bkRow.t4, t4Pct: bkRow.t4Pct,
         bizCh11: bkRow.bizCh11, bizCh11T4: bkRow.bizCh11T4, bizCh11Pct: bkRow.bizCh11Pct, live30: bkRow.live30,
         liveCh11: (bk.live?.ch11Recent || []).filter(c => c.court === city.court.id).slice(0, 8),

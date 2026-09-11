@@ -8,7 +8,8 @@ import { SH, InfoBox } from "../components/shared.jsx";
 //   1. W.D. Washington: the live docket (Chapter 11 petitions as they land in
 //      Seattle and Tacoma), the named Chapter 11 list for the last six months,
 //      and the official quarterly series since 2010.
-//   2. The seven West Coast districts side by side.
+//   2. The tracked districts side by side — the West Coast, plus W.D. Texas
+//      and S.D. New York, which back the Austin and New York municipality pages.
 //   3. National: official filings by chapter, and the bank credit-stress gauges
 //      that lead filings by two to four quarters.
 //   4. Public-company bankruptcies from EDGAR 8-K Item 1.03.
@@ -31,7 +32,7 @@ const num = (v, dp = 0) => (fin(v) ? v.toLocaleString(undefined, { maximumFracti
 const k = v => (!fin(v) ? "—" : v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(v >= 1e5 ? 0 : 1)}k` : `${v}`);
 const fq = q => (q ? `${q.slice(0, 4)}Q${Math.ceil(+q.slice(5, 7) / 3)}` : "—");
 const upBad = v => (!fin(v) || v === 0 ? SLATE : v > 0 ? RED : GREEN);
-const COURT_COLOR = { wawb: INDIGO, waeb: "#a78bfa", orb: GREEN, canb: CYAN, caeb: "#38bdf8", cacb: ORANGE, casb: AMBER };
+const COURT_COLOR = { wawb: INDIGO, waeb: "#a78bfa", orb: GREEN, canb: CYAN, caeb: "#38bdf8", cacb: ORANGE, casb: AMBER, txwb: "#f472b6", nysb: "#facc15" };
 
 function Spark({ values, color, w = 68, h = 18 }) {
   const v = (values || []).filter(fin);
@@ -204,7 +205,7 @@ export default function BankruptcyTab() {
     </div>
 
     {/* ── West Coast board ─────────────────────────────────────────────── */}
-    <SH>The West Coast — Seven Districts, Official Counts</SH>
+    <SH>The Tracked Districts — Official Counts</SH>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(320px, 1fr)", gap: 12, marginBottom: 14, alignItems: "start" }}>
       <div style={{ ...card, padding: "6px 8px", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -218,16 +219,16 @@ export default function BankruptcyTab() {
               <td style={{ padding: "2px 6px", textAlign: "center" }}><Spark values={b.spark} color={COURT_COLOR[b.id]} /></td>
             </tr>))}</tbody>
         </table>
-        <div style={{ ...note, marginTop: 6 }}>Tone marks the trailing-year total against each district&apos;s own range since {d.national.since.slice(0, 4)} (the U.S. Courts spreadsheets before that are a legacy format): green is the quiet end. Click a row to switch the docket panels above. Live counts accumulate only while the dashboard has been running.</div>
+        <div style={{ ...note, marginTop: 6 }}>The seven West Coast districts, plus W.D. Texas and S.D. New York, which back the Austin and New York pages on the Municipalities tab. Tone marks the trailing-year total against each district&apos;s own range since {d.national.since.slice(0, 4)} (the U.S. Courts spreadsheets before that are a legacy format): green is the quiet end. Click a row to switch the docket panels above. Live counts accumulate only while the dashboard has been running.</div>
       </div>
-      {chartBox("Business Chapter 11 filings per quarter by district, since 2015",
+      {chartBox("Business Chapter 11 filings per quarter by tracked district, since 2015",
         <ResponsiveContainer width="100%" height={220}><BarChart data={distChart} margin={{ top: 6, right: 6, bottom: 0, left: -12 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="q" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={34} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} />
           <Tooltip contentStyle={tip} labelFormatter={fq} formatter={(v, n) => [num(v), d.courts.find(c => c.id === n)?.name || n]} />
           <Legend wrapperStyle={{ fontSize: 9, fontFamily: fonts.mono }} formatter={n => d.courts.find(c => c.id === n)?.district || n} />
           {d.courts.map(c => <Bar key={c.id} dataKey={c.id} stackId="w" fill={COURT_COLOR[c.id]} fillOpacity={0.85} isAnimationActive={false} />)}
         </BarChart></ResponsiveContainer>,
-        "Central California alone is usually a third of the West Coast's business reorganizations. The stack is the corporate distress cycle for the region; the household cycle is ten times larger and lives in Chapters 7 and 13.")}
+        "Central California alone is usually a third of the West Coast's business reorganizations, and S.D. New York carries the large corporate cases that file in Manhattan regardless of where the company sits. The stack is the corporate distress cycle for these districts; the household cycle is ten times larger and lives in Chapters 7 and 13.")}
     </div>
 
     {/* ── national ─────────────────────────────────────────────────────── */}
@@ -278,16 +279,16 @@ export default function BankruptcyTab() {
       <SH>Public-Company Bankruptcies — EDGAR 8-K Item 1.03, Last Six Months</SH>
       <div style={{ ...card, padding: "6px 8px", marginBottom: 14, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap", padding: "4px 6px" }}>
-          <div style={label}>{d.public.n} filings since {d.public.since} · {d.public.west} headquartered in WA, OR or CA</div>
+          <div style={label}>{d.public.n} filings since {d.public.since} · {d.public.tracked} headquartered in {(d.public.states || []).join(", ")}</div>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr>{th("Filed", "left")}{th("Company", "left")}{th("Ticker", "left")}{th("HQ", "left")}{th("SIC")}</tr></thead>
           <tbody>{d.public.list.slice(0, 60).map((r, i) => (
-            <tr key={r.name + r.date + i} style={{ borderBottom: "1px solid rgba(255,255,255,0.035)", background: r.west ? "rgba(129,140,248,0.06)" : "transparent" }}>
+            <tr key={r.name + r.date + i} style={{ borderBottom: "1px solid rgba(255,255,255,0.035)", background: r.tracked ? "rgba(129,140,248,0.06)" : "transparent" }}>
               <td style={{ padding: "4px 6px", fontSize: 10, fontFamily: fonts.mono, color: DIM, whiteSpace: "nowrap" }}>{r.date}</td>
-              <td style={{ padding: "4px 6px", fontSize: 10.5, fontFamily: fonts.mono, color: "var(--text-primary)", fontWeight: r.west ? 700 : 400, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><A href={r.url}>{r.name}</A>{r.west ? <Pill color={INDIGO}>West Coast</Pill> : null}</td>
+              <td style={{ padding: "4px 6px", fontSize: 10.5, fontFamily: fonts.mono, color: "var(--text-primary)", fontWeight: r.tracked ? 700 : 400, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><A href={r.url}>{r.name}</A>{r.tracked ? <Pill color={INDIGO}>{r.state}</Pill> : null}</td>
               <td style={{ padding: "4px 6px", fontSize: 10, fontFamily: fonts.mono, color: SLATE }}>{r.ticker || "—"}</td>
-              <td style={{ padding: "4px 6px", fontSize: 10, fontFamily: fonts.mono, color: r.west ? "#c7d2fe" : SLATE }}>{r.state || "—"}</td>
+              <td style={{ padding: "4px 6px", fontSize: 10, fontFamily: fonts.mono, color: r.tracked ? "#c7d2fe" : SLATE }}>{r.state || "—"}</td>
               {td(r.sic || "—", DIM)}
             </tr>))}</tbody>
         </table>

@@ -320,7 +320,7 @@ export default function MunicipalitiesTab({ go }) {
         {!B.bk && (
           <div style={{ ...card }}>
             <div style={label}>Bankruptcies · {CT.court}</div>
-            <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 5, lineHeight: 1.55 }}>The bankruptcy tracker currently covers the seven West Coast districts, so {CT.court} filings are not wired in yet. Business formation below and, where a state publishes one, WARN notices carry this metro&apos;s business score on their own.</div>
+            <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 5, lineHeight: 1.55 }}>The bankruptcy tracker does not carry {CT.court} yet — adding it is one entry in its court list. Business formation below and, where a state publishes one, WARN notices carry this metro&apos;s business score on their own.</div>
           </div>
         )}
       </div>
