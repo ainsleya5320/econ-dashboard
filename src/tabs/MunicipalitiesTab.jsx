@@ -80,6 +80,40 @@ const yr4 = x => (typeof x === "string" ? x.slice(0, 4) : "");
 const XA = p => <XAxis dataKey="d" tick={axis} tickFormatter={yr4} minTickGap={34} axisLine={false} tickLine={false} {...p} />;
 const grid = <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />;
 
+// While a metro builds for the first time (about fifty throttled FRED series,
+// two to three minutes) this reports what is happening and which cities are
+// already warm, so an empty page is never mistaken for a broken one.
+function BuildNotice({ cityId, cities }) {
+  const [status, setStatus] = useState(null);
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const poll = () => fetch("/api/municipality-status").then(r => r.json()).then(x => setStatus(x.cities || null)).catch(() => {});
+    poll();
+    const a = setInterval(poll, 5000), b = setInterval(() => setSecs(s => s + 1), 1000);
+    return () => { clearInterval(a); clearInterval(b); };
+  }, []);
+  const me = status?.find(c => c.id === cityId);
+  const warm = (status || []).filter(c => c.warm && c.id !== cityId);
+  const mm = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  const name = cities.find(c => c.id === cityId)?.name || cityId;
+  return (
+    <div style={{ ...card, padding: "22px 24px", textAlign: "center" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.3 }}>
+        Building {name} — {mm}
+      </div>
+      <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 6, lineHeight: 1.6, maxWidth: 560, margin: "6px auto 0" }}>
+        About fifty FRED series behind a shared rate limit, plus the metro&apos;s housing feed, WARN notices and a dozen quotes. First open of a city takes two to three minutes; after that it is cached for three hours and loads instantly.
+        {me && !me.building && !me.warm ? " Queued behind another build." : ""}
+      </div>
+      {warm.length > 0 && (
+        <div style={{ fontSize: 10, color: DIM, fontFamily: fonts.mono, marginTop: 10 }}>
+          Ready now: {warm.map(c => c.name).join(" · ")} — switch with the dropdown above while this finishes.
+        </div>
+      )}
+    </div>
+  );
+}
+
 const FALLBACK_CITIES = [{ id: "seattle", name: "Seattle", msa: "Seattle-Tacoma-Bellevue" }, { id: "sf", name: "San Francisco", msa: "San Francisco-Oakland-Fremont" }];
 
 export default function MunicipalitiesTab({ go }) {
@@ -115,7 +149,7 @@ export default function MunicipalitiesTab({ go }) {
   );
 
   if (err && !d) return (<>{Picker}<div style={{ ...card, fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Could not load {cityId}: {err}</div></>);
-  if (!d) return (<>{Picker}<div style={{ padding: 30, textAlign: "center", color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading the metro (about fifty series the first time a city is opened, then cached)…</div></>);
+  if (!d) return (<>{Picker}<BuildNotice cityId={cityId} cities={cityList} /></>);
 
   const H = d.headline, S = d.scores, L = d.labor, U = L.unemployment, P = L.payrolls, E = L.earnings, J = L.postings, C = L.claims;
   const Hs = d.housing, M = Hs.metro, cs = M?.caseShiller, Z = M?.zillow, LS = M?.listing, I = Hs.inventory, Pm = Hs.permits;

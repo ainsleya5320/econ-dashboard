@@ -3827,6 +3827,7 @@ export default defineConfig({
         reRoute('/api/sfc', () => sfcModel.get())
         reRoute('/api/bankruptcy', () => bankruptcy.get())
         reRoute('/api/municipality', req => municipalities.get(new URL(req.url || '/', 'http://x').searchParams.get('city') || undefined))
+        reRoute('/api/municipality-status', () => ({ cities: municipalities.status() }))
         // Artificial Analysis key check — reports whether the key in .env works, never the key itself
         reRoute('/api/aa-check', async () => {
           if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }
@@ -3851,6 +3852,9 @@ export default defineConfig({
         setTimeout(() => { aiPulse.get().catch(() => {}) }, 420 * 1000)
         setTimeout(() => { bankruptcy.get().catch(() => {}) }, 20 * 1000)
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
+        // the remaining metros warm after the other feeds have had the throttle,
+        // so switching cities is instant instead of a three-minute cold build
+        setTimeout(() => { municipalities.warmAll().catch(() => {}) }, 480 * 1000)
         server.middlewares.use('/api/reit-caprates', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')

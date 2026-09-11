@@ -526,6 +526,26 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     }
   }
 
+  // Which cities can answer instantly (memory or a fresh file on disk). The client
+  // uses this to say what it is waiting for instead of showing a bare spinner.
+  function status() {
+    return CITIES.map(c => {
+      const disk = mem[c.id] || load(`municipality-${c.id}.json`)
+      const warm = !!(disk && Date.now() - disk.ts < TTL)
+      return { id: c.id, name: c.name, warm, building: !!inflight[c.id], age: disk ? Math.round((Date.now() - disk.ts) / 1000) : null }
+    })
+  }
+
+  // Warm every configured city, one at a time so the shared FRED throttle is not
+  // monopolised. Called well after startup; a city already on disk is skipped.
+  async function warmAll() {
+    for (const c of CITIES) {
+      const disk = mem[c.id] || load(`municipality-${c.id}.json`)
+      if (disk && Date.now() - disk.ts < TTL) continue
+      try { await get(c.id) } catch { /* a city that fails is retried on demand */ }
+    }
+  }
+
   async function get(id = DEFAULT_CITY) {
     const city = byId[id] || byId[DEFAULT_CITY]
     const key = city.id
@@ -540,5 +560,5 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     })()
     return inflight[key]
   }
-  return { get, CITIES }
+  return { get, status, warmAll, CITIES }
 }
