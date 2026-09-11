@@ -41,6 +41,8 @@ bk-public.json
 # Municipality caches (re-derivable); the warn-*.json archives are tracked
 municipality-seattle.json
 municipality-sf.json
+municipality-austin.json
+municipality-nyc.json
 metro-postings.json
 seattle.json
 seattle-postings.json

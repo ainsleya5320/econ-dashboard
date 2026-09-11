@@ -19,7 +19,7 @@
 //   giants    twelve locally headquartered public companies: day change, year
 //             to date, one-year sparkline, equal-weight index vs SPY
 //   scores    labor, housing, cost of living, business — 0–100 with verdicts
-// Seattle is the default city; San Francisco is configured alongside it.
+// Seattle is the default city; San Francisco, Austin and New York sit alongside.
 // Cached 3h per city (postings 24h), disk-backed; complete builds only.
 // ============================================================================
 import fs from 'node:fs'
@@ -117,6 +117,62 @@ export const CITIES = [
     colour: '#22d3ee',
     blurb: 'San Francisco’s economy is the most concentrated bet on software in the country: information and professional services together are roughly a third of payrolls, office demand is downstream of both, and the metro’s price level is the highest the BEA measures.',
   },
+  {
+    id: 'austin', name: 'Austin', msa: 'Austin-Round Rock-San Marcos', region: 'Central Texas', giantsName: 'Austin 12',
+    cbsa: '12420', state: 'TX', stateName: 'Texas', county: 'Travis County', countyShort: 'Travis',
+    sector: 'AUST448', warn: 'tx', court: { id: 'txwb', district: 'TX,W', name: 'W.D. Texas' },
+    fhfaNote: 'Austin-Round Rock-Georgetown',
+    // BLS publishes no Austin CPI or average-price series: the South region CPI and
+    // the Dallas gasoline price stand in, and both are labelled as such on the board.
+    cpiLabel: 'South region', cpiNote: 'BLS publishes no Austin CPI; the South census region stands in',
+    gasLabel: 'Gasoline (Dallas)',
+    ids: {
+      urSa: 'AUST448UR', urNsa: 'AUST448URN', pay: 'AUST448NA', lf: 'AUST448LFN', ahe: 'SMU48124200500000003',
+      permits: 'AUST448BPPRIVSA', cpi: 'CUUR0300SA0', rentCpi: 'CUUR0300SEHA', gas: 'APUS37A7471A',
+      csHigh: null, csLow: null, act: 'ACTLISCOU12420', newl: 'NEWLISCOU12420',
+      dom: 'MEDDAYONMAR12420', mlp: 'MEDLISPRI12420', fhfa: 'ATNHPIUS12420Q',
+      claims: 'TXICLAIMS', apps: 'BABATOTALSATX',
+      realGdp: 'REALGDPALL48453', gdp: 'GDPALL48453', pcpi: 'PCPI48453', mhi: 'MHITX48453A052NCEN',
+      msaPop: 'AUSPOP', countyPop: 'TXTRAV3POP', hown: 'HOWNRATEACS048453', burden: 'DP04ACS048453',
+      ineq: '2020RATIO048453', rpp: 'RPPALL12420',
+    },
+    counties: [['TXTRAV3URN', 'Travis'], ['TXWILL5URN', 'Williamson'], ['TXHAYS9URN', 'Hays'], ['TXBAST1URN', 'Bastrop']],
+    match: /\b(Travis|Williamson|Hays|Bastrop|Caldwell|Austin|Round Rock|Georgetown|Cedar Park|San Marcos|Pflugerville|Leander|Kyle|Buda|Bee Cave|Lakeway|Del Valle|Manor|Taylor|Hutto|Elgin|Dripping Springs|Westlake|West Lake Hills)\b/i,
+    giants: [
+      ['TSLA', 'Tesla', 'Austin'], ['ORCL', 'Oracle', 'Austin'], ['DELL', 'Dell', 'Round Rock'], ['CRWD', 'CrowdStrike', 'Austin'],
+      ['SCHW', 'Charles Schwab', 'Westlake'], ['DLR', 'Digital Realty', 'Austin'], ['CRUS', 'Cirrus Logic', 'Austin'], ['SLAB', 'Silicon Labs', 'Austin'],
+      ['QTWO', 'Q2 Holdings', 'Austin'], ['BMBL', 'Bumble', 'Austin'], ['NTRA', 'Natera', 'Austin'], ['VITL', 'Vital Farms', 'Austin'],
+    ],
+    giantsNote: 'Tesla and Oracle moved their headquarters here this decade, which is most of why the basket looks nothing like it would have in 2019.',
+    colour: '#fb923c',
+    blurb: 'Austin is the fastest-growing large metro of the past decade and the one most exposed to that growth reversing: a tech and semiconductor base bolted onto a state capital, with a housing market that overshot harder than anywhere else in the country and has been correcting since 2022.',
+  },
+  {
+    id: 'nyc', name: 'New York', msa: 'New York-Newark-Jersey City', region: 'New York metro', giantsName: 'New York 12',
+    cbsa: '35620', state: 'NY', stateName: 'New York', county: 'New York County', countyShort: 'Manhattan',
+    sector: 'NEWY636', warn: null, court: { id: 'nysb', district: 'NY,S', name: 'S.D. New York' },
+    fhfaNote: 'New York-Jersey City-White Plains',
+    ids: {
+      urSa: 'NEWY636UR', urNsa: 'NEWY636URN', pay: 'NEWY636NA', lf: 'NEWY636LFN', ahe: 'SMU36356200500000003',
+      permits: 'NEWY636BPPRIVSA', cpi: 'CUURA101SA0', rentCpi: 'CUURA101SEHA', gas: 'APUS12A7471A',
+      csHigh: 'NYXRHTSA', csLow: 'NYXRLTSA', act: 'ACTLISCOU35620', newl: 'NEWLISCOU35620',
+      dom: 'MEDDAYONMAR35620', mlp: 'MEDLISPRI35620', fhfa: 'ATNHPIUS35614Q',
+      claims: 'NYICLAIMS', apps: 'BABATOTALSANY',
+      realGdp: 'REALGDPALL36061', gdp: 'GDPALL36061', pcpi: 'PCPI36061', mhi: 'MHINY36061A052NCEN',
+      msaPop: 'NYTPOP', countyPop: 'NYNEWY1POP', hown: 'HOWNRATEACS036061', burden: 'DP04ACS036061',
+      ineq: '2020RATIO036061', rpp: 'RPPALL35620',
+    },
+    counties: [['NYNEWY1URN', 'Manhattan'], ['NYKING7URN', 'Brooklyn'], ['NYQUEE1URN', 'Queens'], ['NYBRON5URN', 'Bronx'], ['NYRICH5URN', 'Staten Island']],
+    match: /\b(New York|Manhattan|Brooklyn|Queens|Bronx|Staten Island|Kings County|Richmond County|Newark|Jersey City|Yonkers|White Plains|Long Island|Nassau|Suffolk|Westchester|Hoboken|Elizabeth|Paterson)\b/i,
+    giants: [
+      ['JPM', 'JPMorgan Chase', 'New York'], ['GS', 'Goldman Sachs', 'New York'], ['MS', 'Morgan Stanley', 'New York'], ['C', 'Citigroup', 'New York'],
+      ['BLK', 'BlackRock', 'New York'], ['BX', 'Blackstone', 'New York'], ['KKR', 'KKR', 'New York'], ['AXP', 'American Express', 'New York'],
+      ['VZ', 'Verizon', 'New York'], ['PFE', 'Pfizer', 'New York'], ['IBM', 'IBM', 'Armonk'], ['MET', 'MetLife', 'New York'],
+    ],
+    giantsNote: 'Weighted to finance because the metro is: securities alone is a twentieth of payrolls here and a much larger share of the wage bill.',
+    colour: '#4ade80',
+    blurb: 'New York is the one metro whose cycle is a financial cycle first: securities and banking pay a fifth of the wage bill on a twentieth of the jobs, so Wall Street bonuses move the local economy more than local employment does, and the boroughs diverge sharply from one another.',
+  },
 ]
 const byId = Object.fromEntries(CITIES.map(c => [c.id, c]))
 export const DEFAULT_CITY = 'seattle'
@@ -130,9 +186,11 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
 
   // ── Indeed Hiring Lab: every configured metro out of one pass over the 62MB file ──
   async function postings() {
-    const disk = load('metro-postings.json')
-    if (disk && Date.now() - disk.ts < 24 * H) return disk.data
     const codes = new Set(CITIES.map(c => c.cbsa))
+    const codeKey = [...codes].sort().join(',')
+    const disk = load('metro-postings.json')
+    // a cache built before a city was added has no column for it, so the key counts
+    if (disk && disk.codeKey === codeKey && Date.now() - disk.ts < 24 * H) return disk.data
     try {
       const r = await fetch('https://raw.githubusercontent.com/hiring-lab/job_postings_tracker/master/US/metro_job_postings_us.csv', { headers: { 'User-Agent': UA } })
       if (!r.ok || !r.body) throw new Error(`Indeed metro HTTP ${r.status}`)
@@ -155,7 +213,7 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
       const us = ru.ok ? (await ru.text()).split('\n').map(l => l.split(',')).filter(c => c[0] && c[4] === 'total postings').map(c => ({ d: c[0], v: +c[2] })) : []
       if (Object.values(metros).some(v => v.length < 100)) throw new Error('too few metro rows')
       const data = { metros, us }
-      save('metro-postings.json', { data, ts: Date.now() })
+      save('metro-postings.json', { data, ts: Date.now(), codeKey })
       return data
     } catch (e) { console.warn('Indeed postings:', e.message); return disk?.data || { metros: {}, us: [] } }
   }
@@ -236,7 +294,29 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     return out
   }
 
+  // ── WARN: Texas's Socrata dataset on data.texas.gov ──────────────────────
+  async function fetchWarnTx() {
+    const url = 'https://data.texas.gov/resource/8w53-c4f6.json?$limit=1200&$order=notice_date%20DESC'
+    const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } })
+    if (!r.ok) throw new Error(`WARN TX HTTP ${r.status}`)
+    const rows = await r.json()
+    const out = []
+    for (const x of rows) {
+      const received = (x.notice_date || x.wfdd_received_date || '').slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(received)) continue
+      const county = (x.county_name || '').trim(), town = (x.city_name || '').trim()
+      out.push({
+        company: (x.job_site_name || '').trim(), location: [town, county && `${county} County`].filter(Boolean).join(', '),
+        start: (x.layoff_date || '').slice(0, 10) || null, workers: +String(x.total_layoff_number || '').replace(/[^\d]/g, '') || 0,
+        kind: 'Layoff', received, statewide: false,
+      })
+    }
+    if (!out.length) throw new Error('WARN TX: no notices parsed')
+    return out
+  }
+
   async function warn(city) {
+    if (!city.warn) return null // no machine-readable state feed for this metro
     const raw = load(`warn-${city.state.toLowerCase()}.json`) || { notices: {} }
     // Re-key on load: company names arrive XML-escaped from some sources, and an
     // escaping change would otherwise leave the same notice archived twice.
@@ -248,7 +328,7 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     }
     let fetched = 0
     try {
-      const rows = city.warn === 'ca' ? await fetchWarnCa() : await fetchWarnWa()
+      const rows = city.warn === 'ca' ? await fetchWarnCa() : city.warn === 'tx' ? await fetchWarnTx() : await fetchWarnWa()
       for (const n of rows) {
         n.company = unesc(n.company || '').replace(/\s+/g, ' ').trim()
         n.location = unesc(n.location || '').replace(/\s+/g, ' ').trim()
@@ -260,6 +340,10 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     save(`warn-${city.state.toLowerCase()}.json`, store)
     const all = Object.values(store.notices).filter(n => n.received).sort((a, b) => b.received.localeCompare(a.received))
     for (const n of all) n.local = city.match.test(n.location || '')
+    // Some states publish on a lag (Texas's dataset trails by weeks). When the newest
+    // notice predates the 90-day window, that window is an artefact, not an improvement.
+    const newest = all[0]?.received || null
+    const lagDays = newest ? Math.round((Date.now() - Date.parse(newest)) / 864e5) : null
     const cut = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10)
     const win = (from, to, pred) => all.filter(n => n.received >= from && n.received < to && pred(n))
     const sum = rows => rows.reduce((s, n) => s + (n.workers || 0), 0)
@@ -267,12 +351,14 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     const monthly = {}
     for (const n of all) { const kk = n.received.slice(0, 7); const m = monthly[kk] = monthly[kk] || { d: kk + '-01', local: 0, other: 0, notices: 0 }; m[n.local ? 'local' : 'other'] += n.workers || 0; m.notices++ }
     return {
-      notices: all.slice(0, 120), archived: all.length, since: all.length ? all[all.length - 1].received : null, newThisRun: fetched,
+      notices: all.slice(0, 120), archived: all.length, newest, lagDays, stale: lagDays == null || lagDays > 45, since: all.length ? all[all.length - 1].received : null, newThisRun: fetched,
       local90: { notices: l90.length, workers: sum(l90) }, local90prev: { notices: l90prev.length, workers: sum(l90prev) },
       state90: { notices: win(cut(90), cut(-1), () => true).length, workers: sum(win(cut(90), cut(-1), () => true)) },
       monthly: Object.values(monthly).sort((a, b) => a.d.localeCompare(b.d)).slice(-24),
       source: city.warn === 'ca'
         ? 'California EDD WARN report (the live spreadsheet for the current fiscal year), matched to the metro by the notice’s county'
+        : city.warn === 'tx'
+        ? 'Texas Workforce Commission WARN notices (the data.texas.gov dataset), matched to the metro by the notice’s county and city'
         : 'Washington ESD WARN database (the public grid, first four pages each refresh), matched to the metro by the notice’s location',
     }
   }
@@ -348,9 +434,9 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     const cS = yoyByMonth(cpiM), cU = yoyByMonth(cpiUs), rS = yoyByMonth(rentM), rU = yoyByMonth(rentUs)
     const merge2 = (a, b) => { const mb = new Map(b.map(p => [p.d, p.v])); return a.filter(p => p.d >= '2000-01-01').map(p => ({ d: p.d, metro: p.v, us: mb.get(p.d) ?? null })) }
     const prices = {
-      cpi: { metro: last(cS)?.v ?? null, us: last(cU)?.v ?? null, d: last(cS)?.d, usAtSameMonth: cU.find(p => p.d === last(cS)?.d)?.v ?? null, series: merge2(cS, cU), note: 'the metro CPI is published for every other month' },
-      rent: { metro: last(rS)?.v ?? null, us: last(rU)?.v ?? null, d: last(rS)?.d, usAtSameMonth: rU.find(p => p.d === last(rS)?.d)?.v ?? null, series: merge2(rS, rU) },
-      gas: { metro: r2(last(gasM)?.v), us: r2(last(gasUs)?.v), d: last(gasM)?.d, metroYoy: yoyPct(gasM, 12), premium: fin(last(gasM)?.v) && fin(last(gasUs)?.v) ? r1((last(gasM).v / last(gasUs).v - 1) * 100) : null },
+      cpi: { metro: last(cS)?.v ?? null, us: last(cU)?.v ?? null, d: last(cS)?.d, usAtSameMonth: cU.find(p => p.d === last(cS)?.d)?.v ?? null, series: merge2(cS, cU), label: city.cpiLabel || 'Metro', note: city.cpiNote || 'the metro CPI is published for every other month' },
+      rent: { metro: last(rS)?.v ?? null, us: last(rU)?.v ?? null, d: last(rS)?.d, usAtSameMonth: rU.find(p => p.d === last(rS)?.d)?.v ?? null, series: merge2(rS, rU), label: city.cpiLabel || 'Metro' },
+      gas: { metro: r2(last(gasM)?.v), us: r2(last(gasUs)?.v), d: last(gasM)?.d, label: city.gasLabel || 'Gasoline', metroYoy: yoyPct(gasM, 12), premium: fin(last(gasM)?.v) && fin(last(gasUs)?.v) ? r1((last(gasM).v / last(gasUs).v - 1) * 100) : null },
       rpp: { v: r1(last(rpp)?.v), d: last(rpp)?.d },
     }
 
@@ -410,7 +496,7 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     const housingScore = Math.round(mean([fin(cs?.yoy) ? clamp(50 + cs.yoy * 5, 0, 100) : null, fin(inv.activeYoy) ? clamp(50 - inv.activeYoy / 2, 0, 100) : null, fin(inv.dom) && fin(inv.dom1y) ? clamp(50 - (inv.dom - inv.dom1y) * 2, 0, 100) : null, fin(housing.permits.m12Yoy) ? clamp(50 + housing.permits.m12Yoy / 2, 0, 100) : null]) ?? 50)
     const pricesScore = Math.round(mean([fin(prices.cpi.metro) ? clamp(100 - prices.cpi.metro * 15, 0, 100) : null, fin(prices.rent.metro) ? clamp(100 - prices.rent.metro * 15, 0, 100) : null, fin(prices.cpi.metro) && fin(prices.cpi.usAtSameMonth) ? clamp(50 - (prices.cpi.metro - prices.cpi.usAtSameMonth) * 12, 0, 100) : null]) ?? 50)
     const W = business.warn
-    const warnChg = W.local90prev.workers ? chg(W.local90.workers, W.local90prev.workers) : null
+    const warnChg = W && !W.stale && W.local90prev.workers ? chg(W.local90.workers, W.local90prev.workers) : null
     const bkScore = bkRow ? Math.round(mean([fin(bkRow.t4Pct) ? 100 - bkRow.t4Pct : null, fin(bkRow.yoy) ? clamp(50 - bkRow.yoy * 2.5, 0, 100) : null, fin(bkRow.bizCh11Pct) ? 100 - bkRow.bizCh11Pct : null])) : null
     const businessScore = Math.round(mean([bkScore, fin(business.apps.m12Yoy) ? clamp(50 + business.apps.m12Yoy * 2, 0, 100) : null, fin(warnChg) ? clamp(50 - warnChg / 3, 0, 100) : null]) ?? 50)
     const tone = s => (s >= 60 ? 'green' : s >= 35 ? 'amber' : 'red')
@@ -418,16 +504,16 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
     const counties = U.counties.filter(c => fin(c.v)).map(c => `${c.name} ${c.v}%`).join(', ')
     const scores = {
       labor: { score: laborScore, tone: tone(laborScore), label: laborScore >= 60 ? 'Labor market firm' : laborScore >= 35 ? 'Labor market cooling' : 'Labor market weak', why: `Unemployment ${U.msa}% in the metro (${ord(U.msaPct)} percentile of its own history; ${counties}) vs ${U.state}% for ${city.stateName} and ${U.us}% nationally. Payrolls ${sg(P.yoy)}% year on year (US ${sg(P.yoyUs)}%), ${sg(P.sinceFeb2020)}% vs February 2020. Indeed postings ${fin(J.metro) ? `${J.metro} against 100 in February 2020` : 'n/a'}, ${sg(J.metroChg1y)}% over a year (US ${sg(J.usChg1y)}%). ${city.stateName} initial claims ${sg(labor.claims.state4wYoy)}% on a four-week average.` },
-      housing: { score: housingScore, tone: tone(housingScore), label: housingScore >= 60 ? 'Housing firm' : housingScore >= 35 ? 'Housing softening' : 'Housing correcting', why: `Case-Shiller ${sg(cs?.yoy)}% year on year (US 20-city ${sg(cs?.yoyUs)}%), ${sg(cs?.fromPeak)}% from its peak; high tier ${sg(housing.tiers.high)}%, low tier ${sg(housing.tiers.low)}%. Active listings ${sg(inv.activeYoy)}% year on year, median days on market ${inv.dom} against ${inv.dom1y} a year ago. Permits ${housing.permits.m12?.toLocaleString()} units in twelve months, ${sg(housing.permits.m12Yoy)}%. Zillow rent ${sg(metro?.zillow?.zoriYoy)}%.` },
+      housing: { score: housingScore, tone: tone(housingScore), label: housingScore >= 60 ? 'Housing firm' : housingScore >= 35 ? 'Housing softening' : 'Housing correcting', why: `${fin(cs?.yoy) ? `Case-Shiller ${sg(cs.yoy)}% year on year (US 20-city ${sg(cs.yoyUs)}%), ${sg(cs.fromPeak)}% from its peak; high tier ${sg(housing.tiers.high)}%, low tier ${sg(housing.tiers.low)}%.` : `This metro is not in the Case-Shiller index, so prices come from the FHFA all-transactions index, ${sg(housing.fhfa.yoy)}% year on year and ${sg(housing.fhfa.fromPeak)}% from its peak, and Zillow, ${sg(metro?.zillow?.zhviYoy)}%.`} Active listings ${sg(inv.activeYoy)}% year on year, median days on market ${inv.dom} against ${inv.dom1y} a year ago. Permits ${housing.permits.m12?.toLocaleString()} units in twelve months, ${sg(housing.permits.m12Yoy)}%. Zillow rent ${sg(metro?.zillow?.zoriYoy)}%.` },
       prices: { score: pricesScore, tone: tone(pricesScore), label: pricesScore >= 60 ? 'Cost of living easing' : pricesScore >= 35 ? 'Cost of living sticky' : 'Cost of living squeezing', why: `Metro CPI ${sg(prices.cpi.metro)}% year on year against ${sg(prices.cpi.usAtSameMonth)}% nationally the same month; rent CPI ${sg(prices.rent.metro)}% against ${sg(prices.rent.usAtSameMonth)}%. Gasoline $${prices.gas.metro?.toFixed(2)} against $${prices.gas.us?.toFixed(2)} nationally (${sg(prices.gas.premium)}%). The BEA prices the metro at ${prices.rpp.v?.toFixed(1)} with the US at 100.` },
-      business: { score: businessScore, tone: tone(businessScore), label: businessScore >= 60 ? 'Business conditions healthy' : businessScore >= 35 ? 'Business stress building' : 'Business stress elevated', why: `${business.bk ? `${city.court.name} filings ${sg(business.bk.yoy)}% year on year, ${business.bk.bizCh11T4} business Chapter 11s in the trailing year (p${business.bk.bizCh11Pct} of the decade). ` : ''}WARN notices: ${W.local90.workers.toLocaleString()} ${city.region} workers in ${W.local90.notices} notices over 90 days${W.local90prev.workers ? ` against ${W.local90prev.workers.toLocaleString()} the prior 90` : ''}. ${city.stateName} business applications ${business.apps.m12?.toLocaleString()}/month on a 12-month average, ${sg(business.apps.m12Yoy)}%.` },
+      business: { score: businessScore, tone: tone(businessScore), label: businessScore >= 60 ? 'Business conditions healthy' : businessScore >= 35 ? 'Business stress building' : 'Business stress elevated', why: `${business.bk ? `${city.court.name} filings ${sg(business.bk.yoy)}% year on year, ${business.bk.bizCh11T4} business Chapter 11s in the trailing year (p${business.bk.bizCh11Pct} of the decade). ` : ''}${W && !W.stale ? `WARN notices: ${W.local90.workers.toLocaleString()} ${city.region} workers in ${W.local90.notices} notices over 90 days${W.local90prev.workers ? ` against ${W.local90prev.workers.toLocaleString()} the prior 90` : ''}. ` : W ? `${city.stateName}'s WARN feed last advanced ${W.lagDays} days ago, so recent layoffs are not counted here. ` : `${city.stateName} publishes no machine-readable WARN feed, so layoff notices are absent here. `}${city.stateName} business applications ${business.apps.m12?.toLocaleString()}/month on a 12-month average, ${sg(business.apps.m12Yoy)}%.` },
     }
     const worst = Object.entries(scores).sort((a, b) => a[1].score - b[1].score)[0]
     const avg = Math.round(mean(Object.values(scores).map(s => s.score)))
     const headline = {
       label: avg >= 60 ? `${city.region} holding up` : avg >= 45 ? `${city.region} mixed — ${worst[1].label.toLowerCase()}` : `${city.region} under strain`,
       color: avg >= 60 ? '#4ade80' : avg >= 45 ? '#fbbf24' : '#f87171',
-      why: `Unemployment ${U.msa}% with payrolls ${sg(P.yoy)}% and job postings ${fin(J.metro) ? (J.metro < 100 ? `${Math.round(100 - J.metro)}% below` : `${Math.round(J.metro - 100)}% above`) : ''} their pre-pandemic level; home prices ${sg(cs?.yoy)}% and rents ${sg(metro?.zillow?.zoriYoy)}%; local CPI ${sg(prices.cpi.metro)}%. ${W.local90.workers ? `${W.local90.workers.toLocaleString()} WARN-notice layoffs in the region in 90 days` : ''}${business.bk ? `, ${business.bk.bizCh11T4} business Chapter 11s in a year` : ''}. The ${city.giantsName} are ${sg(r1(ewYtd))}% year to date, equal-weighted, against ${sg(spyRow?.ytd)}% for the S&P 500.`,
+      why: `Unemployment ${U.msa}% with payrolls ${sg(P.yoy)}%${fin(J.metro) ? ` and job postings ${J.metro < 100 ? `${Math.round(100 - J.metro)}% below` : `${Math.round(J.metro - 100)}% above`} their pre-pandemic level` : ''}; home prices ${fin(cs?.yoy) ? `${sg(cs.yoy)}%` : fin(metro?.zillow?.zhviYoy) ? `${sg(metro.zillow.zhviYoy)}% (Zillow — this metro is not in Case-Shiller)` : 'n/a'} and rents ${sg(metro?.zillow?.zoriYoy)}%; ${prices.cpi.label === 'Metro' ? 'local' : prices.cpi.label} CPI ${sg(prices.cpi.metro)}%. ${[W && !W.stale && W.local90.workers ? `${W.local90.workers.toLocaleString()} WARN-notice layoffs in the region in 90 days` : null, business.bk ? `${business.bk.bizCh11T4} business Chapter 11s in a year` : null].filter(Boolean).join(', ')}${(W && !W.stale && W.local90.workers) || business.bk ? '. ' : ''}The ${city.giantsName} are ${sg(r1(ewYtd))}% year to date, equal-weighted, against ${sg(spyRow?.ytd)}% for the S&P 500.`,
     }
 
     return {
@@ -435,7 +521,7 @@ export function createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYa
       cities: CITIES.map(c => ({ id: c.id, name: c.name, msa: c.msa, region: c.region })),
       headline, scores, labor, housing, prices, business, growth,
       giants: { rows: giants, index, ewYtd: r1(ewYtd), ewYr: r1(ewYr), spyYtd: spyRow?.ytd ?? null, spyYr: spyRow?.yr1 ?? null },
-      source: `BLS via FRED (LAUS unemployment, CES payrolls by sector, metro CPI, average prices), Indeed Hiring Lab, Zillow/Case-Shiller/Redfin via the Real Estate metro feed, Realtor.com inventory via FRED, Census permits and business applications, BEA county GDP and income, ${city.stateName} WARN, U.S. Courts and the ${city.court.name} docket via the bankruptcy tracker, Yahoo Finance quotes.`,
+      source: `BLS via FRED (LAUS unemployment, CES payrolls by sector, metro CPI, average prices), Indeed Hiring Lab, Zillow/Case-Shiller/Redfin via the Real Estate metro feed, Realtor.com inventory via FRED, Census permits and business applications, BEA county GDP and income${city.warn ? `, ${city.stateName} WARN` : ''}${bkRow ? `, U.S. Courts and the ${city.court.name} docket via the bankruptcy tracker` : ''}, Yahoo Finance quotes.`,
       updated: new Date().toISOString(),
     }
   }

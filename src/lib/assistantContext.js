@@ -23,7 +23,7 @@ const FEEDS = {
   summary: "/api/dashboard-summary", erp: "/api/erp", ms: "/api/ms-fair-value", fg: "/api/fear-greed",
   kalecki: "/api/kalecki", debt: "/api/debt-market", bank: "/api/bank-credit", housing: "/api/housing-health",
   or: "/api/or-rankings-history", ornn: "/api/ornn", semi: "/api/semi-h100", mem: "/api/memory",
-  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse", sfc: "/api/sfc", bk: "/api/bankruptcy", sea: "/api/municipality?city=seattle", sf: "/api/municipality?city=sf",
+  reComp: "/api/re-composite", rePipe: "/api/re-pipeline", redfin: "/api/redfin", creCredit: "/api/cre-credit", pulse: "/api/us-pulse", intl: "/api/intl-pulse", machine: "/api/machine", dam: "/api/damodaran-erp", commod: "/api/commodity-pulse", ai: "/api/ai-pulse", sfc: "/api/sfc", bk: "/api/bankruptcy", sea: "/api/municipality?city=seattle", sf: "/api/municipality?city=sf", austin: "/api/municipality?city=austin", nyc: "/api/municipality?city=nyc",
 };
 
 let cache = { text: "", ts: 0 };
@@ -116,7 +116,7 @@ export function buildVerdictText(d) {
     const g = a.gpu;
     L.push(`  GPU rentals: ${g.vast.filter(v => v.median != null).map(v => `${v.gpu} $${v.median}/hr`).join(', ')} (Vast.ai medians); Ornn H100 ${g.ornn.latest?.h100?.current != null ? `$${g.ornn.latest.h100.current.toFixed(2)} (30d ${pct(g.ornn.latest.h100.chg30, 0)})` : 'n/a'}; SemiAnalysis 1-yr contract ${g.semi.h100Contract != null ? `$${g.semi.h100Contract}` : 'n/a'}. Bridge: $${g.bridge.costPerM1000}/M tokens at 1,000 tok/s vs realized ~$${g.bridge.otpiAvg}/M; break-even ≈ ${g.bridge.breakevenTps} tok/s per H100.`);
   }
-  for (const m of [d.sea, d.sf]) {
+  for (const m of [d.sea]) {
     if (!m?.scores) continue;
     const sc = m.scores, C = m.city, U = m.labor.unemployment, P = m.labor.payrolls, J = m.labor.postings;
     const cs = m.housing.metro?.caseShiller, Z = m.housing.metro?.zillow, I = m.housing.inventory, Pr = m.prices, W = m.business.warn, G = m.giants;
@@ -128,6 +128,12 @@ export function buildVerdictText(d) {
     L.push(`  Business: WARN ${W.local90.workers.toLocaleString()} ${C.region} workers in ${W.local90.notices} notices over 90 days (prior 90: ${W.local90prev.workers.toLocaleString()}); latest: ${W.notices.slice(0, 6).map(n => `${n.company} ${n.workers} (${n.location}, ${n.received})`).join('; ')}. ${C.stateName} business applications ${m.business.apps.m12?.toLocaleString()}/mo (${pct(m.business.apps.m12Yoy, 1)}).${m.business.bk ? ` ${C.court} bankruptcies ${m.business.bk.total} last quarter (${pct(m.business.bk.yoy, 1)}), business ch.11 ${m.business.bk.bizCh11T4} in a year (p${m.business.bk.bizCh11Pct}).` : ''}`);
     L.push(`  Growth (annual, lagged): ${m.growth.map(g => `${g.label} ${g.unit === '$' ? '$' + Math.round(g.v).toLocaleString() : g.unit === '$k' ? '$' + (g.v / 1e6).toFixed(1) + 'B' : g.unit === 'k' ? (g.v / 1e3).toFixed(2) + 'M' : g.v.toFixed(1)} (${g.d?.slice(0, 4)}, ${g.unit === '%' || g.unit === 'ratio' || g.unit === 'index' ? (g.yoy >= 0 ? '+' : '') + g.yoy : pct(g.yoy, 1)})`).join('; ')}.`);
     L.push(`  ${C.giantsName} (equal weight): ${pct(G.ewYtd, 1)} YTD vs SPY ${pct(G.spyYtd, 1)}; ${G.rows.filter(r => r.sym !== 'SPY').map(r => `${r.sym} ${pct(r.ytd, 1)} YTD`).join(', ')}.`);
+  }
+  for (const m of [d.sf, d.austin, d.nyc]) {
+    if (!m?.scores) continue;
+    const sc = m.scores, C = m.city, U = m.labor.unemployment, P = m.labor.payrolls, J = m.labor.postings;
+    const cs = m.housing.metro?.caseShiller, Z = m.housing.metro?.zillow, Pr = m.prices, W = m.business.warn, G = m.giants;
+    L.push(`${C.name.toUpperCase()} METRO (${C.msa}): ${m.headline.label}. Scores labor ${sc.labor.score} / housing ${sc.housing.score} / cost of living ${sc.prices.score} / business ${sc.business.score}. Unemployment ${U.msa}% (${C.state} ${U.state}%, US ${U.us}%), payrolls ${pct(P.yoy, 1)} yoy and ${pct(P.sinceFeb2020, 1)} vs Feb 2020, avg hourly earnings $${m.labor.earnings.ahe}; Indeed postings ${J.metro ?? 'n/a'} vs US ${J.us}. Home prices ${cs?.yoy != null ? `Case-Shiller ${pct(cs.yoy, 1)}` : `FHFA ${pct(m.housing.fhfa.yoy, 1)} (not in Case-Shiller)`}, Zillow value $${Math.round(Z?.zhvi ?? 0).toLocaleString()} (${pct(Z?.zhviYoy, 1)}), rent $${Math.round(Z?.zori ?? 0).toLocaleString()} (${pct(Z?.zoriYoy, 1)}), active listings ${pct(m.housing.inventory.activeYoy, 1)}, permits ${m.housing.permits.m12?.toLocaleString()} (${pct(m.housing.permits.m12Yoy, 1)}). ${Pr.cpi.label} CPI ${pct(Pr.cpi.metro, 1)} vs US ${pct(Pr.cpi.usAtSameMonth, 1)}, price parity ${Pr.rpp.v}. ${W ? (W.stale ? `WARN feed lagging ${W.lagDays} days` : `WARN ${W.local90.workers.toLocaleString()} ${C.region} workers in 90 days`) : 'no state WARN feed'}; ${C.stateName} business applications ${m.business.apps.m12?.toLocaleString()}/mo (${pct(m.business.apps.m12Yoy, 1)}). ${C.giantsName} ${pct(G.ewYtd, 1)} YTD vs SPY ${pct(G.spyYtd, 1)}.`);
   }
   if (d.bk?.scores) {
     const b = d.bk, sc = b.scores, N = b.national?.latest, home = (b.board || []).find(x => x.id === b.home);

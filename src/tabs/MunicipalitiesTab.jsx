@@ -30,7 +30,7 @@ const pc = (v, dp = 1) => (fin(v) ? `${sgn(v)}${Math.abs(v).toFixed(dp)}%` : "�
 const pp = (v, dp = 1) => (fin(v) ? `${sgn(v)}${Math.abs(v).toFixed(dp)}pp` : "—");
 const num = (v, dp = 0) => (fin(v) ? v.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: dp }) : "—");
 const k = v => (!fin(v) ? "—" : Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(Math.abs(v) >= 1e5 ? 0 : 1)}k` : `${Math.round(v)}`);
-const ymd = d => (d ? d.slice(0, 7) : "—");
+const ymd = d => (typeof d === "string" ? d.slice(0, 7) : "—");
 const upGood = v => (!fin(v) || v === 0 ? SLATE : v > 0 ? GREEN : RED);
 
 function Spark({ values, color, w = 68, h = 18 }) {
@@ -76,7 +76,8 @@ const Dot = ({ tone }) => <span style={{ display: "inline-block", width: 7, heig
 const Pill = ({ children, color = SLATE }) => <span style={{ fontSize: 8.5, fontFamily: fonts.mono, color, border: `1px solid ${color}55`, borderRadius: 4, padding: "1px 5px", marginLeft: 6, verticalAlign: "middle", whiteSpace: "nowrap" }}>{children}</span>;
 const A = ({ href, children }) => (href ? <a href={href} target="_blank" rel="noopener" style={{ color: "#c7d2fe", textDecoration: "none" }}>{children}</a> : children);
 const toneRel = (v, good = 1, scale = 1) => (!fin(v) ? "slate" : v * good > scale ? "green" : v * good < -scale ? "red" : "amber");
-const XA = p => <XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={34} axisLine={false} tickLine={false} {...p} />;
+const yr4 = x => (typeof x === "string" ? x.slice(0, 4) : "");
+const XA = p => <XAxis dataKey="d" tick={axis} tickFormatter={yr4} minTickGap={34} axisLine={false} tickLine={false} {...p} />;
 const grid = <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />;
 
 const FALLBACK_CITIES = [{ id: "seattle", name: "Seattle", msa: "Seattle-Tacoma-Bellevue" }, { id: "sf", name: "San Francisco", msa: "San Francisco-Oakland-Fremont" }];
@@ -123,7 +124,7 @@ export default function MunicipalitiesTab({ go }) {
   const chips = [
     ["unemployment", fin(U.msa) ? `${U.msa}%` : "—"], ["payrolls yoy", pc(P.yoy)], ["postings vs Feb-20", fin(J.metro) ? `${J.metro}` : "—"],
     ["Case-Shiller yoy", pc(cs?.yoy)], ["rent yoy", pc(Z?.zoriYoy)], ["metro CPI", pc(Pr.cpi.metro)],
-    ["WARN 90d", fin(W.local90?.workers) ? `${num(W.local90.workers)} workers` : "—"], ["biz ch.11 / yr", B.bk ? num(B.bk.bizCh11T4) : "—"],
+    ...(W ? [["WARN 90d", `${num(W.local90.workers)} workers`]] : []), ...(B.bk ? [["biz ch.11 / yr", num(B.bk.bizCh11T4)]] : []),
   ];
   const countyRows = U.counties.filter(c => fin(c.v)).map(c => ({ label: `Unemployment, ${c.name} County`, v: c.v, unit: "%", d: c.d, chg: null, tone: "slate", note: "not seasonally adjusted" }));
   const laborRows = [
@@ -149,9 +150,9 @@ export default function MunicipalitiesTab({ go }) {
     { label: "Permits, 12 months", v: Pm.m12, unit: " units", d: Pm.d, chg: Pm.m12Yoy, chgKind: "%", tone: toneRel(Pm.m12Yoy, 1, 5), note: `${Pm.pct}th percentile since 1988` },
   ].filter(r => r.v != null);
   const priceRows = [
-    { label: "Metro CPI, all items yoy", v: Pr.cpi.metro, unit: "%", d: Pr.cpi.d, tone: toneRel(-(Pr.cpi.metro ?? 0) + 2.5, 1, 0.5), note: `US ${pc(Pr.cpi.usAtSameMonth)} the same month; ${Pr.cpi.note}` },
-    { label: "Metro rent CPI, yoy", v: Pr.rent.metro, unit: "%", d: Pr.rent.d, tone: toneRel(-(Pr.rent.metro ?? 0) + 3, 1, 0.5), note: `US ${pc(Pr.rent.usAtSameMonth)}` },
-    { label: "Gasoline", v: Pr.gas.metro, unit: "$", dp: 2, d: Pr.gas.d, chg: Pr.gas.metroYoy, chgKind: "%", tone: toneRel(-(Pr.gas.metroYoy ?? 0), 1, 5), note: `US $${Pr.gas.us}; ${pc(Pr.gas.premium)} premium` },
+    { label: `${Pr.cpi.label} CPI, all items yoy`, v: Pr.cpi.metro, unit: "%", d: Pr.cpi.d, tone: toneRel(-(Pr.cpi.metro ?? 0) + 2.5, 1, 0.5), note: `US ${pc(Pr.cpi.usAtSameMonth)} the same month; ${Pr.cpi.note}` },
+    { label: `${Pr.rent.label} rent CPI, yoy`, v: Pr.rent.metro, unit: "%", d: Pr.rent.d, tone: toneRel(-(Pr.rent.metro ?? 0) + 3, 1, 0.5), note: `US ${pc(Pr.rent.usAtSameMonth)}` },
+    { label: Pr.gas.label, v: Pr.gas.metro, unit: "$", dp: 2, d: Pr.gas.d, chg: Pr.gas.metroYoy, chgKind: "%", tone: toneRel(-(Pr.gas.metroYoy ?? 0), 1, 5), note: `US $${Pr.gas.us}; ${pc(Pr.gas.premium)} premium` },
     { label: "Regional price parity", v: Pr.rpp.v, unit: "", dp: 1, d: Pr.rpp.d, tone: "slate", note: "BEA, US = 100 — the metro's overall price level" },
   ].filter(r => r.v != null);
   const fmtV = r => (r.raw ? r.v : r.unit === "$" ? `$${num(r.v, r.dp ?? 0)}` : `${num(r.v, r.dp ?? (r.unit === "%" ? 1 : 0))}${r.unit}`);
@@ -181,7 +182,7 @@ export default function MunicipalitiesTab({ go }) {
         <div style={{ fontSize: 24, fontWeight: 800, color: H.color, fontFamily: fonts.heading, letterSpacing: -0.7, lineHeight: 1.1, marginTop: 4 }}>{H.label}</div>
         <div style={{ fontSize: 11, color: SLATE, fontFamily: fonts.mono, marginTop: 6, lineHeight: 1.5 }}>{H.why}</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>{chips.map(([t, v]) => <span key={t} style={{ fontSize: 10, fontFamily: fonts.mono, color: "#cbd5e1", background: "rgba(255,255,255,0.04)", borderRadius: 6, padding: "3px 8px" }}>{t} <strong style={{ color: "var(--text-primary)" }}>{v}</strong></span>)}</div>
-        <div style={{ ...note, marginTop: 8 }}>Labor through {ymd(U.msaD)} · housing through {ymd(I.d)} · postings through {J.d || "—"} · WARN archive {W.archived} notices since {W.since || "today"} · refreshed {new Date(d.updated).toLocaleString()}</div>
+        <div style={{ ...note, marginTop: 8 }}>Labor through {ymd(U.msaD)} · housing through {ymd(I.d)} · postings through {J.d || "—"} · {W ? `WARN archive ${W.archived} notices since ${W.since || "today"} · ` : ""}refreshed {new Date(d.updated).toLocaleString()}</div>
       </div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}><Score name="Labor" s={S.labor} /><Score name="Housing" s={S.housing} /><Score name="Cost of living" s={S.prices} /><Score name="Business" s={S.business} /></div>
     </div>
@@ -256,15 +257,15 @@ export default function MunicipalitiesTab({ go }) {
     <SH>Cost of Living — Local Prices Against the Nation</SH>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 1fr) minmax(280px, 0.8fr)", gap: 12, marginBottom: 14, alignItems: "start" }}>
       <Board rows={priceRows} title="Prices" />
-      {chartBox("CPI, all items — metro vs US, % yoy since 2000",
+      {chartBox(`CPI, all items — ${Pr.cpi.label.toLowerCase()} vs US, % yoy since 2000`,
         <ResponsiveContainer width="100%" height={180}><LineChart data={Pr.cpi.series} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
           {grid}<XA /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-          <Tooltip contentStyle={tip} labelFormatter={ymd} formatter={(v, n) => [`${v}%`, n === "metro" ? CT.name : "US"]} /><ReferenceLine y={2} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
+          <Tooltip contentStyle={tip} labelFormatter={ymd} formatter={(v, n) => [`${v}%`, n === "metro" ? Pr.cpi.label : "US"]} /><ReferenceLine y={2} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
           <Line type="monotone" dataKey="metro" stroke={accent} strokeWidth={1.8} dot={false} connectNulls isAnimationActive={false} /><Line type="monotone" dataKey="us" stroke={SLATE} strokeWidth={1.1} dot={false} connectNulls isAnimationActive={false} />
         </LineChart></ResponsiveContainer>,
         `${CT.name} ${pc(Pr.cpi.metro)} against US ${pc(Pr.cpi.usAtSameMonth)}. Shelter is about a third of the local basket, so the rent line usually explains the gap.`)}
       <div style={{ display: "grid", gap: 12 }}>
-        {chartBox("Rent CPI — metro vs US, % yoy",
+        {chartBox(`Rent CPI — ${Pr.rent.label.toLowerCase()} vs US, % yoy`,
           <ResponsiveContainer width="100%" height={120}><LineChart data={Pr.rent.series} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
             {grid}<XA /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
             <Tooltip contentStyle={tip} labelFormatter={ymd} formatter={(v, n) => [`${v}%`, n === "metro" ? CT.name : "US"]} /><ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
@@ -278,7 +279,7 @@ export default function MunicipalitiesTab({ go }) {
     <SH>Business Conditions — Layoffs, Insolvencies, Formation</SH>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 1fr)", gap: 12, marginBottom: 14, alignItems: "start" }}>
       <div style={{ display: "grid", gap: 12 }}>
-        <div style={{ ...card, padding: "8px 10px", overflowX: "auto" }}>
+        {W ? (<div style={{ ...card, padding: "8px 10px", overflowX: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={label}>WARN notices · {CT.stateName}</div>
@@ -295,8 +296,13 @@ export default function MunicipalitiesTab({ go }) {
                 {td(num(n.workers), "var(--text-primary)", { fontWeight: 700 })}{td(n.kind === "Closure" ? "closure" : "layoff", n.kind === "Closure" ? RED : SLATE, { textAlign: "left" })}{td(n.start || "—", DIM, { textAlign: "left" })}
               </tr>))}</tbody>
           </table>
-          <div style={{ ...note, marginTop: 6 }}>{W.source}. Archived here ({W.archived} notices so far){W.local90prev.notices ? ", so the 90-day comparisons sharpen as history builds" : ", and the source's own window is why the prior-90-day comparison is still empty"}. Showing {warnScope === "state" ? "every notice in the state" : CT.region + " notices only"}.</div>
-        </div>
+          <div style={{ ...note, marginTop: 6 }}>{W.source}. Archived here ({W.archived} notices so far){W.local90prev.notices ? ", so the 90-day comparisons sharpen as history builds" : ", and the source's own window is why the prior-90-day comparison is still empty"}. Showing {warnScope === "state" ? "every notice in the state" : CT.region + " notices only"}.{W.stale ? ` This feed last advanced ${W.lagDays} days ago (newest notice ${W.newest}), so the 90-day window is empty and does not feed the business score.` : ""}</div>
+        </div>) : (
+          <div style={{ ...card }}>
+            <div style={label}>WARN notices · {CT.stateName}</div>
+            <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 5, lineHeight: 1.55 }}>{CT.stateName} publishes no machine-readable WARN feed with worker counts — the labor department posts notices as web pages without headcounts, and its public listing has not advanced since 2024. Layoffs therefore do not feed this metro&apos;s business score; the other two inputs still do.</div>
+          </div>
+        )}
         {B.bk && (
           <div style={{ ...card }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -311,6 +317,12 @@ export default function MunicipalitiesTab({ go }) {
             <div style={{ ...note, marginTop: 6 }}>The district is wider than the metro — it is the bankruptcy court&apos;s territory, not the CBSA.</div>
           </div>
         )}
+        {!B.bk && (
+          <div style={{ ...card }}>
+            <div style={label}>Bankruptcies · {CT.court}</div>
+            <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 5, lineHeight: 1.55 }}>The bankruptcy tracker currently covers the seven West Coast districts, so {CT.court} filings are not wired in yet. Business formation below and, where a state publishes one, WARN notices carry this metro&apos;s business score on their own.</div>
+          </div>
+        )}
       </div>
       <div style={{ display: "grid", gap: 12 }}>
         {chartBox(`Business applications, ${CT.stateName} — monthly since 2010`,
@@ -320,9 +332,9 @@ export default function MunicipalitiesTab({ go }) {
             <Area type="monotone" dataKey="v" stroke={GREEN} fill={GREEN} fillOpacity={0.15} strokeWidth={1.4} isAnimationActive={false} />
           </AreaChart></ResponsiveContainer>,
           `Census Business Formation Statistics. ${num(B.apps.m12)}/month on a 12-month average, ${pc(B.apps.m12Yoy)} — the birth side of the ledger the bankruptcy tracker keeps the death side of.`)}
-        {W.monthly.length > 2 ? chartBox(`WARN-notice workers by month received — ${CT.region} vs rest of ${CT.stateName}`,
+        {W && W.monthly.length > 2 ? chartBox(`WARN-notice workers by month received — ${CT.region} vs rest of ${CT.stateName}`,
           <ResponsiveContainer width="100%" height={130}><BarChart data={W.monthly} margin={{ top: 6, right: 8, bottom: 0, left: -14 }}>
-            {grid}<XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(2, 7)} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={k} />
+            {grid}<XAxis dataKey="d" tick={axis} tickFormatter={x => (typeof x === "string" ? x.slice(2, 7) : "")} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={k} />
             <Tooltip contentStyle={tip} labelFormatter={ymd} formatter={(v, n) => [num(v), n === "local" ? CT.region : `Rest of ${CT.state}`]} />
             <Bar dataKey="local" stackId="w" fill={accent} fillOpacity={0.85} isAnimationActive={false} /><Bar dataKey="other" stackId="w" fill={SLATE} fillOpacity={0.5} isAnimationActive={false} />
           </BarChart></ResponsiveContainer>) : null}
@@ -366,7 +378,7 @@ export default function MunicipalitiesTab({ go }) {
         </div>
         {chartBox(`${CT.giantsName}, equal-weight, vs SPY — one year, rebased to 100`,
           <ResponsiveContainer width="100%" height={130}><LineChart data={G.index} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
-            {grid}<XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(2, 7)} minTickGap={30} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+            {grid}<XAxis dataKey="d" tick={axis} tickFormatter={x => (typeof x === "string" ? x.slice(2, 7) : "")} minTickGap={30} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
             <Tooltip contentStyle={tip} formatter={(v, n) => [v, n === "local" ? CT.giantsName : "SPY"]} /><ReferenceLine y={100} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 4" />
             <Line type="monotone" dataKey="local" stroke={accent} strokeWidth={1.8} dot={false} isAnimationActive={false} /><Line type="monotone" dataKey="spy" stroke={SLATE} strokeWidth={1.1} dot={false} isAnimationActive={false} />
           </LineChart></ResponsiveContainer>)}
@@ -374,7 +386,7 @@ export default function MunicipalitiesTab({ go }) {
     </div>
 
     <InfoBox color={accent}>
-      <strong style={{ color: "#cbd5e1" }}>Reading {CT.name}.</strong> {CT.blurb} The three fastest gauges on this page are Indeed postings (daily), WARN notices (filed weeks before the layoff takes effect) and the bankruptcy docket (same day); the BLS series arrive a month or two later and get revised; the BEA and Census annual series are already a year old on release. County unemployment rates are not seasonally adjusted, so compare them with the metro&apos;s NSA figure in the first row&apos;s note, not the headline. The {CT.region} flag on WARN rows is a name match on each notice&apos;s {CT.state === "CA" ? "county" : "location"} field, and the bankruptcy court covers a wider territory than the metro.
+      <strong style={{ color: "#cbd5e1" }}>Reading {CT.name}.</strong> {CT.blurb} The three fastest gauges on this page are Indeed postings (daily), WARN notices (filed weeks before the layoff takes effect) and the bankruptcy docket (same day); the BLS series arrive a month or two later and get revised; the BEA and Census annual series are already a year old on release. County unemployment rates are not seasonally adjusted, so compare them with the metro&apos;s NSA figure in the first row&apos;s note, not the headline. {W ? `The ${CT.region} flag on WARN rows is a name match on each notice's ${CT.state === "CA" ? "county" : CT.state === "TX" ? "county and city" : "location"} field. ` : ""}{B.bk ? "The bankruptcy court covers a wider territory than the metro." : ""}
     </InfoBox>
   </>);
 }
