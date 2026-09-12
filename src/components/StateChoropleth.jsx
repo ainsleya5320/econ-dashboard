@@ -14,22 +14,36 @@ import { fmtDate, SH } from "./shared.jsx";
 // able from a state with no reading at all. It also scaled on raw min→max, so
 // one outlier squashed the other forty-nine into a single indistinct shade.
 //
-// Now: one validated sequential ramp for magnitude (blue, five steps, monotone
-// lightness with visible gaps, low end clearing 2:1 against the dark surface),
-// a diverging blue↔red ramp with a neutral grey midpoint for the "vs national"
-// view, and QUANTILE bins so the whole ramp is always in use no matter how
-// skewed the distribution. The legend carries the real value breakpoints and a
-// count per bin, so binning never hides the shape of the data.
+// Now: a validated sequential ramp for magnitude and a diverging one for
+// distance from the national reading — both drawn from the Municipalities
+// page's palette so the two pages read as one dashboard — plus QUANTILE bins,
+// so the whole ramp is in use no matter how skewed the distribution. The
+// legend carries the real value breakpoints and a count per bin, so binning
+// never hides the shape of the data.
 // ============================================================================
 
-// Sequential — magnitude. Validated (dataviz --mode dark --ordinal): monotone
-// lightness, every adjacent gap ≥ 0.06, low end 2.15:1 against the surface.
-const SEQ = ["#184f95", "#256abf", "#3987e5", "#86b6ef", "#cde2fb"];
-// Diverging — polarity around the national reading. Neutral grey midpoint;
-// poles separate at ΔE 18.5 under deuteranopia (floor 8) and 25.1 normal.
-const DIV = ["#86b6ef", "#3987e5", "#1c5cab", "#3a3a38", "#8f3030", "#d03b3b", "#e66767"];
-const NO_DATA = "#242a36";   // deliberately grey-of-slate: no ramp step is near it
+// Both ramps are the Municipalities page's own colours — its lavender accent and
+// its red/orange/green score gradient — so the map reads as part of the same
+// dashboard. Each was run through the dataviz validator on this dark surface.
+//
+// Sequential (magnitude): indigo/lavender. ALL CHECKS PASS — monotone lightness,
+// every adjacent gap ≥ 0.06, low end 2.77:1 against the surface.
+const SEQ = ["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#e0e7ff"];
+// Diverging (distance from national), best → worst. Each arm is a one-hue ramp
+// that passes the ordinal gates on its own: green #15803d→#4ade80, and warm
+// #b45309→#ea580c→#f87171 carrying amber, orange and the page's red. Neutral
+// grey sits at the national reading.
+//
+// The poles measure ΔE 7.9 apart under deuteranopia — inside the method's 6–8
+// band, which is legal ONLY with secondary encoding. That encoding is the 45°
+// hatch applied to every worse-than-national state below: a red/green
+// colourblind reader reads solid-vs-hatched, not hue.
+const DIV = ["#4ade80", "#22c55e", "#15803d", "#5a5a55", "#b45309", "#ea580c", "#f87171"];
+const DIV_WORSE_FROM = 4;    // indices ≥ this are the worse-than-national arm, and get hatched
+const NO_DATA = "#242a36";   // grey-of-slate, ≥ ΔE 18 from every ramp step including the neutral midpoint
 const STROKE = "#0b1120";
+// the hatch, as CSS, for legend swatches and table chips
+const hatchCss = c => `repeating-linear-gradient(45deg, ${c}, ${c} 3px, rgba(0,0,0,0.45) 3px, rgba(0,0,0,0.45) 5px)`;
 
 const GOOD = "#4ade80", BAD = "#f87171", SLATE = "#94a3b8", DIM = "#475569", INDIGO = "#818cf8";
 const fin = v => v != null && isFinite(v);
@@ -71,13 +85,23 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
     const divOf = edge => {
       if (edge == null) return 3;
       const t = Math.max(-1, Math.min(1, edge / maxDev));      // −1 worst … +1 best
-      return Math.round((1 - (t + 1) / 2) * (DIV.length - 1)); // best → index 0 (blue)
+      return Math.round((1 - (t + 1) / 2) * (DIV.length - 1)); // best → index 0 (green)
     };
     const counts = SEQ.map((_, i) => rows.filter(r => binOf(r.v) === i).length);
     return { rows, values, natl, breaks, binOf, divOf, counts, maxDev, byState: Object.fromEntries(rows.map(r => [r.st, r])) };
   }, [data, cfg, national]);
 
-  const colourFor = r => (r == null ? NO_DATA : mode === "vs" ? (stats.natl == null ? NO_DATA : DIV[stats.divOf(r.edge)]) : SEQ[stats.binOf(r.v)]);
+  // → { fill, hatched }: the hatch is the secondary encoding on the worse arm
+  const paint = r => {
+    if (r == null) return { fill: NO_DATA, hatched: false };
+    if (mode === "vs") {
+      if (stats.natl == null) return { fill: NO_DATA, hatched: false };
+      const i = stats.divOf(r.edge);
+      return { fill: DIV[i], hatched: i >= DIV_WORSE_FROM };
+    }
+    return { fill: SEQ[stats.binOf(r.v)], hatched: false };
+  };
+  const swatch = r => { const { fill, hatched } = paint(r); return hatched ? { background: hatchCss(fill) } : { background: fill }; };
 
   const tableRows = useMemo(() => {
     const rows = [...stats.rows];
@@ -178,12 +202,21 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
       </div>
 
       <ComposableMap projection="geoAlbersUsa" style={{ width: "100%", height: "auto" }} projectionConfig={{ scale: 1000 }}>
+        <defs>
+          {DIV.slice(DIV_WORSE_FROM).map((c, i) => (
+            <pattern key={c} id={`sc-hatch-${i + DIV_WORSE_FROM}`} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
+              <rect width="5" height="5" fill={c} />
+              <line x1="0" y1="0" x2="0" y2="5" stroke="rgba(0,0,0,0.45)" strokeWidth="2" />
+            </pattern>
+          ))}
+        </defs>
         <Geographies geography={US_TOPO_URL}>
           {({ geographies }) => geographies.map(geo => {
             const st = FIPS_TO_STATE[geo.id];
             if (!st) return null;
             const r = stats.byState[st];
-            const fill = colourFor(r);
+            const { fill: base, hatched } = paint(r);
+            const fill = hatched ? `url(#sc-hatch-${stats.divOf(r.edge)})` : base;
             return (
               <Geography key={geo.rsmKey} geography={geo}
                 onMouseEnter={e => setTip({ st, x: e.clientX, y: e.clientY })}
@@ -231,20 +264,20 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
               );
             })}
           </div>
-          <div style={{ ...note, marginTop: 5 }}>Five equal-count bins, so the whole scale is used however skewed the spread is — the labels are the real value at each break, and the bars above show how many states land in each. Dark is low, light is high{cfg.sortAsc ? "; for this metric lower is better" : "; for this metric higher is better"}. Grey states have no reading.</div>
+          <div style={{ ...note, marginTop: 5 }}>Five equal-count bins, so the whole scale is used however skewed the spread is — the labels are the real value at each break, and the bars above show how many states land in each. Deep indigo is low, pale lavender is high{cfg.sortAsc ? "; for this metric lower is better" : "; for this metric higher is better"}. Grey states have no reading.</div>
         </div>
       )}
       {rows.length > 0 && mode === "vs" && natl != null && (
         <div style={{ marginTop: 8 }}>
           <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-            {DIV.map(c => <div key={c} style={{ flex: 1, height: 9, background: c, borderRadius: 2 }} />)}
+            {DIV.map((c, i) => <div key={c} style={{ flex: 1, height: 9, borderRadius: 2, ...(i >= DIV_WORSE_FROM ? { background: hatchCss(c) } : { background: c }) }} />)}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
             <span style={{ fontSize: 9, color: GOOD, fontFamily: fonts.mono }}>better than national</span>
             <span style={{ fontSize: 9, color: SLATE, fontFamily: fonts.mono }}>{fmt(natl)}</span>
-            <span style={{ fontSize: 9, color: BAD, fontFamily: fonts.mono }}>worse</span>
+            <span style={{ fontSize: 9, color: BAD, fontFamily: fonts.mono }}>worse (hatched)</span>
           </div>
-          <div style={{ ...note, marginTop: 5 }}>Distance from the national reading, scaled to the widest deviation ({cfg.fmt(stats.maxDev)}). Blue is better on this metric, red worse, grey at the national number — the direction follows the metric, so {cfg.sortAsc ? "lower" : "higher"} counts as better here.</div>
+          <div style={{ ...note, marginTop: 5 }}>Distance from the national reading, scaled to the widest deviation ({cfg.fmt(stats.maxDev)}). Green is better on this metric, amber through orange to red worse, grey at the national number — the direction follows the metric, so {cfg.sortAsc ? "lower" : "higher"} counts as better here. The worse arm is hatched as well as warm, so the split reads without relying on red against green.</div>
         </div>
       )}
       {!rows.length && !loading && <div style={{ ...note, textAlign: "center", padding: 12 }}>No state data yet for this metric — it loads state by state and fills in as it arrives.</div>}
@@ -262,7 +295,7 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
                 <tr key={r.st} style={{ borderBottom: "1px solid rgba(255,255,255,0.035)" }}>
                   <td style={{ padding: "4px 10px", fontSize: 10.5, fontFamily: fonts.mono, color: DIM }}>{r.rank}</td>
                   <td style={{ padding: "4px 10px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-                    <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: colourFor(r), marginRight: 8, verticalAlign: "middle", border: "1px solid rgba(255,255,255,0.12)" }} />
+                    <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, ...swatch(r), marginRight: 8, verticalAlign: "middle", border: "1px solid rgba(255,255,255,0.12)" }} />
                     {STATE_NAMES[r.st] || r.st}<span style={{ color: DIM, fontSize: 9, marginLeft: 6 }}>{r.st}</span>
                   </td>
                   <td style={{ padding: "4px 10px", fontSize: 11, fontFamily: fonts.mono, color: "var(--text-primary)", textAlign: "right", fontWeight: 700 }}>{fmt(r.v)}</td>
@@ -270,7 +303,7 @@ export default function StateChoropleth({ title, metrics, metric, setMetric, cac
                   <td style={{ padding: "4px 10px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div style={{ position: "relative", flex: 1, minWidth: 46, height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2 }}>
-                        <div style={{ position: "absolute", left: `calc(${pct}% - 2px)`, top: -2, width: 4, height: 8, borderRadius: 1, background: colourFor(r) }} />
+                        <div style={{ position: "absolute", left: `calc(${pct}% - 2px)`, top: -2, width: 4, height: 8, borderRadius: 1, background: paint(r).fill }} />
                       </div>
                       <span style={{ fontSize: 8.5, color: DIM, fontFamily: fonts.mono, width: 24, textAlign: "right" }}>p{pct}</span>
                     </div>
