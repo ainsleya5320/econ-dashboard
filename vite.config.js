@@ -3677,7 +3677,7 @@ const bankruptcy = createBankruptcy({ fetchFredSeries, UA, dir: __dirname })
 const municipalities = createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, unzipEntries, UA, dir: __dirname, reMetro: code => reFeeds.metro(code), bankruptcy: () => bankruptcy.get() })
 // Special situations (server/specialSituations.js): EDGAR sweeps for spinoffs, merger arb, restructurings,
 // rights offerings and recaps; FMP insider purchases and 13Ds. Joins the bankruptcy tracker for petitions.
-const specialSituations = createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get() })
+const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get() })
 
 export default defineConfig({
   plugins: [

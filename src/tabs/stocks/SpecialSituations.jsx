@@ -145,7 +145,7 @@ export default function SpecialSituations({ onSelectStock }) {
             Greenblatt&apos;s five situation types plus Suria&apos;s insider and activist signals, surfaced from filings as they land. The boards find candidates; the Deal Book is where the reading and the checklist happen.
           </div>
         </div>
-        <div style={{ ...note, textAlign: "right" }}>built {new Date(d.built).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} in {d.buildSecs}s · {d.docsCached} filings parsed to date · refreshes every {d.ttlHours}h</div>
+        <div style={{ ...note, textAlign: "right" }} title={d.timing ? Object.entries(d.timing).map(([k, v]) => `${k} ${v}s`).join(" · ") : undefined}>built {new Date(d.built).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} in {d.buildSecs}s{fin(d.docsRead) ? ` (${d.docsRead} filings read, ${d.quotesFetched} quotes)` : ""} · {d.docsCached} filings parsed to date · refreshes every {d.ttlHours}h</div>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
         {chip("spinoffs in pipe", P.spinoffs.n, INDIGO)}

@@ -211,7 +211,7 @@ function row(h) {
   }
 }
 
-export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, FMP_KEY, UA, dir, bankruptcy }) {
+export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir, bankruptcy }) {
   const file = n => path.join(dir, n)
   const load = n => { try { if (fs.existsSync(file(n))) return JSON.parse(fs.readFileSync(file(n), 'utf8')) } catch {} return null }
   const save = (n, o) => { try { fs.writeFileSync(file(n), JSON.stringify(o)) } catch (e) { console.error(`${n} save:`, e.message) } }
@@ -224,14 +224,16 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
   for (const k of Object.keys(archive.docs)) if (/^(13d|conf|eff):/.test(k)) delete archive.docs[k] // parsed under earlier rules
 
   const EH = { 'User-Agent': UA, Accept: 'application/json' }
-  let edgarAt = 0
-  // the full-text backend returns sporadic 500s even on queries that succeed a
-  // second later, so a 5xx or 429 is retried twice with a growing pause
+  let edgarNext = 0
+  // One request slot every 150 ms (EDGAR allows ten a second), claimed
+  // synchronously so concurrent callers queue behind each other instead of
+  // bursting. The full-text backend returns sporadic 500s even on queries that
+  // succeed a second later, so a 5xx or 429 is retried twice with a growing pause.
   async function edgar(url, asJson = true) {
     for (let attempt = 0; ; attempt++) {
-      const wait = 320 - (Date.now() - edgarAt)
+      const slot = Math.max(Date.now(), edgarNext); edgarNext = slot + 150
+      const wait = slot - Date.now()
       if (wait > 0) await sleep(wait)
-      edgarAt = Date.now()
       const r = await fetch(url, { headers: asJson ? EH : { 'User-Agent': UA } })
       if (r.ok) return asJson ? r.json() : r.text()
       if ((r.status >= 500 || r.status === 429) && attempt < 2) { await sleep(1500 * (attempt + 1)); continue }
@@ -252,6 +254,13 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       out.push(...hits.map(row))
       if (hits.length < 100) break
     }
+    return out
+  }
+
+  // a small worker pool: n items in flight, results in input order
+  async function pmap(items, n, fn) {
+    const out = new Array(items.length); let i = 0
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k) } }))
     return out
   }
 
@@ -278,19 +287,38 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     } catch (e) { console.warn(`special doc ${cat} ${r.doc}: ${e.message}`); return null }
   }
 
-  // ── quotes: one pass per build over every ticker any board needs ──────────
+  // read a board's documents three at a time before its row loop runs; cached ones cost nothing
+  const prefetchDocs = (cat, rows, rx, opts) => pmap(rows, 3, r => terms(cat, r, rx, opts))
+
+  // ── quotes: memoised per build, fetched four at a time ────────────────────
+  // The same chart request vite's fetchYahooQuote makes, made here so the
+  // status is visible: a 429 or 5xx is a rate limit and the pool slows down,
+  // while an unknown ticker (a SPAC whose units have not split) is just null.
+  let yahooGap = 120
+  async function yahooQuote(t) {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?range=1d&interval=1d`, { headers: { 'User-Agent': UA } })
+    if (r.status === 429 || r.status >= 500) { yahooGap = Math.min(yahooGap * 2, 1000); await sleep(3000); return null }
+    if (!r.ok) return null
+    const m = (await r.json())?.chart?.result?.[0]?.meta
+    if (!m || m.regularMarketPrice == null) return null
+    const prev = m.chartPreviousClose ?? m.previousClose ?? null, price = m.regularMarketPrice
+    return { price, change: prev != null ? price - prev : null, changePct: prev ? (price - prev) / prev : null, prevClose: prev, timestamp: m.regularMarketTime ?? null }
+  }
+  // the memo holds promises, so a ticker requested twice is fetched once
   const quotes = {}
-  async function quote(t) {
-    if (!t) return null
-    if (quotes[t] !== undefined) return quotes[t]
-    await sleep(120)
-    quotes[t] = await fetchYahooQuote(t).catch(() => null)
+  function quote(t) {
+    if (!t) return Promise.resolve(null)
+    if (quotes[t] === undefined) quotes[t] = (async () => { await sleep(yahooGap); return yahooQuote(t).catch(() => null) })()
     return quotes[t]
   }
+  const prefetchQuotes = tickers => pmap([...new Set(tickers.filter(Boolean))].filter(t => quotes[t] === undefined), 4, quote)
   async function spark(t) { if (!t) return []; await sleep(120); return (await fetchYahooSparkline(t, '3mo', '1d').catch(() => [])).map(p => r2(p.v)).filter(fin) }
 
+  let fmpNext = 0
   async function fmp(pathq) {
     if (!FMP_KEY) return null
+    const slot = Math.max(Date.now(), fmpNext); fmpNext = slot + 200
+    if (slot > Date.now()) await sleep(slot - Date.now())
     const sep = pathq.includes('?') ? '&' : '?'
     const r = await fetch(`https://financialmodelingprep.com/stable/${pathq}${sep}apikey=${FMP_KEY}`)
     if (!r.ok) throw new Error(`FMP HTTP ${r.status}`)
@@ -311,7 +339,7 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     if (c && Date.now() - c.ts < 7 * DAY) return c.v
     if (mcapBudget <= 0) return c?.v ?? null
     mcapBudget--
-    try { await sleep(150); const rows = await fmp(`profile?symbol=${encodeURIComponent(t)}`); const v = rows?.[0]?.marketCap; if (fin(v)) { archive.mcap[t] = { v, ts: Date.now() }; return v } } catch {}
+    try { const rows = await fmp(`profile?symbol=${encodeURIComponent(t)}`); const v = rows?.[0]?.marketCap; if (fin(v)) { archive.mcap[t] = { v, ts: Date.now() }; return v } } catch {}
     return c?.v ?? null
   }
   const amtM = v => { if (!v) return null; const [n, u] = Array.isArray(v) ? v : [v, 'million']; const x = num(n); return x == null ? null : /^b/i.test(u) ? x * 1000 : x }
@@ -321,8 +349,7 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
 
   // ── spinoffs ──────────────────────────────────────────────────────────────
   async function spinoffs() {
-    const f10 = newest(await fts({ forms: '10-12B,10-12B/A', days: 240, pages: 2 }))
-    const ann = newest(await fts({ q: '"spin-off" "separation"', forms: '8-K', days: 180, pages: 2 }))
+    const [f10, ann] = await Promise.all([fts({ forms: '10-12B,10-12B/A', days: 240, pages: 2 }).then(newest), fts({ q: '"spin-off" "separation"', forms: '8-K', days: 180, pages: 2 }).then(newest)])
     const byCik = new Map()
     for (const r of f10) {
       const g = byCik.get(r.cik) || { spinco: r.name, ticker: r.ticker, cik: r.cik, filings: [], first: r.date, latest: r.date }
@@ -331,6 +358,8 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       byCik.set(r.cik, g)
     }
     const out = []
+    await prefetchDocs('spin', [...byCik.values()].map(g => newest(g.filings)[0]), RX.spin)
+    await prefetchQuotes([...byCik.values()].map(g => g.ticker))
     for (const g of byCik.values()) {
       const latest = newest(g.filings)[0]
       const t = await terms('spin', latest, RX.spin)
@@ -355,7 +384,10 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     // parent announcements whose CIK has no Form 10 of its own
     const f10Ciks = new Set(byCik.keys())
     const corporate = r => !r.items.length || r.items.some(i => /^(1\.01|2\.01|7\.01|8\.01|3\.03|5\.03)/.test(i))
-    for (const r of dedupeBy(ann.filter(r => !f10Ciks.has(r.cik) && r.ticker && corporate(r)), r => r.cik)) {
+    const parents = dedupeBy(ann.filter(r => !f10Ciks.has(r.cik) && r.ticker && corporate(r)), r => r.cik)
+    await prefetchDocs('spinann', parents, RX.spin)
+    await prefetchQuotes(parents.map(r => r.ticker))
+    for (const r of parents) {
       const t = await terms('spinann', r, RX.spin)
       if (t && !t.spin) continue // read it, and it is not a separation of a business
       const dist = (d => (d && d >= ymd(Date.parse(r.date) - 30 * DAY) ? d : null))(t ? toIso(t.dist || (Array.isArray(t.distAlt) ? t.distAlt[0] : t.distAlt)) : null)
@@ -372,12 +404,14 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
 
   // ── merger arb ────────────────────────────────────────────────────────────
   async function mergers() {
-    const tot = newest(await fts({ forms: 'SC TO-T,SC TO-T/A', days: 180, pages: 2 })).filter(r => !SPAC.test(r.name))
-    const k8 = newest(await fts({ q: '"Agreement and Plan of Merger"', forms: '8-K', days: 120, pages: 3 }))
-      .filter(r => r.items.includes('1.01') && !r.items.includes('2.01') && !SPAC.test(r.name))
-    const proxies = (await proxiesAll()).filter(r => !SPAC.test(r.name))
-    const cvrs = newest(await fts({ q: '"contingent value right"', forms: '8-K', days: 180, pages: 1 }))
-    const fmpMa = await maList()
+    const [tot, k8, proxies, cvrs, fmpMa] = await Promise.all([
+      fts({ forms: 'SC TO-T,SC TO-T/A', days: 180, pages: 2 }).then(rows => newest(rows).filter(r => !SPAC.test(r.name))),
+      fts({ q: '"Agreement and Plan of Merger"', forms: '8-K', days: 120, pages: 3 }).then(rows => newest(rows).filter(r => r.items.includes('1.01') && !r.items.includes('2.01') && !SPAC.test(r.name))),
+      proxiesAll().then(rows => rows.filter(r => !SPAC.test(r.name))),
+      fts({ q: '"contingent value right"', forms: '8-K', days: 180, pages: 1 }).then(newest),
+      maList(),
+    ])
+    await Promise.all([prefetchDocs('tot', dedupeBy(tot, r => r.cik), RX.merger), prefetchDocs('m8k', dedupeBy(k8, r => r.cik), RX.merger), prefetchDocs('defm', dedupeBy(proxies, r => r.cik), RX.merger)])
     const byAcq = new Map(fmpMa.map(m => [+m.cik, m])), byTgt = new Map(fmpMa.map(m => [+m.targetedCik, m]))
 
     const deals = new Map() // key: target cik
@@ -434,10 +468,14 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     }
     for (const r of cvrs) { const d = deals.get(r.cik) || [...deals.values()].find(x => x.target && similar(x.target, r.name)); if (d) d.consideration.cvr = true }
 
+    // a quote only matters where there are terms to set against it
+    const priced = d => d.target && (fin(d.consideration.cash) || fin(d.consideration.stock))
+    const pricedDeals = [...deals.values()].filter(priced)
+    await prefetchQuotes([...pricedDeals.map(d => d.ticker), ...pricedDeals.filter(d => fin(d.consideration.stock)).map(d => d.acquirerTicker)])
     const out = []
     for (const d of deals.values()) {
       if (!d.target) continue
-      const q = await quote(d.ticker)
+      const q = priced(d) ? await quote(d.ticker) : null
       const aq = fin(d.consideration.stock) ? await quote(d.acquirerTicker) : null
       const price0 = q?.price ?? null
       const rawCash = d.consideration.cash
@@ -471,9 +509,12 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     // Item 1.03 is where plan confirmation and effectiveness get reported; an
     // 8-K without it and without a petition on file is an incentive-plan 8-K
     const bankrupt = r => r.items.includes('1.03') || petitionCiks.has(r.cik)
-    const eff = newest(await fts({ q: '"effective date of the plan" "reorganization"', forms: '8-K', days: 240, pages: 2 })).filter(bankrupt)
-    const conf = newest(await fts({ q: '"confirmation order" "plan of reorganization"', forms: '8-K', days: 240, pages: 2 })).filter(bankrupt)
-    const listings = newest(await fts({ forms: '8-A12B,8-A12B/A', days: 240, pages: 2 }))
+    const [eff, conf, listings] = await Promise.all([
+      fts({ q: '"effective date of the plan" "reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
+      fts({ q: '"confirmation order" "plan of reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
+      fts({ forms: '8-A12B,8-A12B/A', days: 240, pages: 2 }).then(newest),
+    ])
+    await Promise.all([prefetchDocs('conf2', dedupeBy(conf, r => r.cik), RX.reorg), prefetchDocs('eff2', dedupeBy(eff, r => r.cik), RX.reorg)])
     const byCik = new Map()
     const get = (cik, name, ticker) => { const g = byCik.get(cik) || { cik, name, ticker: ticker || null, tickers: new Set(), petition: null, confirmed: null, emerged: null, listed: null, filings: [] }; if (ticker) g.tickers.add(ticker); byCik.set(cik, g); return g }
     for (const p of petitions) if (p.cik) { const g = get(p.cik, String(p.name).replace(/\s*\([A-Z0-9.,\- ]+\)\s*$/, '').trim(), p.ticker); g.petition = g.petition && g.petition < p.date ? g.petition : p.date; g.filings.push({ form: '8-K 1.03', date: p.date, url: p.url }) }
@@ -508,12 +549,16 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
   // ── rights offerings ──────────────────────────────────────────────────────
   async function rights() {
     const hits = newest(await fts({ q: '"rights offering"', forms: '8-K', days: 150, pages: 2 })).filter(r => r.ticker && !SPAC.test(r.name))
+    const rows = dedupeBy(hits, r => r.cik)
+    await prefetchDocs('rights', rows, RX.rights)
+    const read = []
+    for (const [i, r] of rows.entries()) { const t = await terms('rights', r, RX.rights); read.push({ r, t, needs: (t != null && num(t.subPrice) != null) || i < 30 }) }
+    await prefetchQuotes(read.filter(x => x.needs).map(x => x.r.ticker))
     const out = []
-    for (const r of dedupeBy(hits, r => r.cik)) {
-      const t = await terms('rights', r, RX.rights)
+    for (const { r, t, needs } of read) {
       const sub = t ? num(t.subPrice) : null
       const record = t ? toIso(t.record) : null, expiry = t ? toIso(t.expiry) : null
-      const q = await quote(r.ticker)
+      const q = needs ? await quote(r.ticker) : null
       const disc = fin(sub) && q?.price ? (1 - sub / q.price) * 100 : null
       const stage = expiry && expiry < today() ? 'closed' : record && record <= today() ? 'open' : daysBetween(r.date, today()) > 60 && !expiry ? 'likely closed' : 'announced'
       const rr = t?.ratio ? (Array.isArray(t.ratio) ? t.ratio : [t.ratio, null]) : null
@@ -529,10 +574,17 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
 
   // ── recaps: self-tenders and special dividends ────────────────────────────
   async function recaps() {
-    const toi = newest(await fts({ forms: 'SC TO-I,SC TO-I/A', days: 90, pages: 4 })).filter(r => r.ticker && !INTERVAL.test(r.name) && !SPAC.test(r.name))
-    const divs = newest(await fts({ q: '"special dividend"', forms: '8-K', days: 150, pages: 2 })).filter(r => r.ticker)
+    const [toi, divs] = await Promise.all([
+      fts({ forms: 'SC TO-I,SC TO-I/A', days: 90, pages: 4 }).then(rows => newest(rows).filter(r => r.ticker && !INTERVAL.test(r.name) && !SPAC.test(r.name))),
+      fts({ q: '"special dividend"', forms: '8-K', days: 150, pages: 2 }).then(rows => newest(rows).filter(r => r.ticker)),
+    ])
+    const tenders = dedupeBy(toi, r => r.cik), dividends = dedupeBy(divs, r => r.cik)
+    await Promise.all([prefetchDocs('toi', tenders, RX.toi), prefetchDocs('div', dividends, RX.div)])
+    const divRead = []
+    for (const [i, r] of dividends.entries()) { const t = await terms('div', r, RX.div); divRead.push({ r, t, needs: (t != null && num(t.amount || t.amount2) != null) || i < 30 }) }
+    await prefetchQuotes([...tenders.map(r => r.ticker), ...divRead.filter(x => x.needs).map(x => x.r.ticker)])
     const out = []
-    for (const r of dedupeBy(toi, r => r.cik)) {
+    for (const r of tenders) {
       const t = await terms('toi', r, RX.toi)
       if (t && t.optionExchange) continue // an employee option repricing, not a buyback
       const range = t?.range ? [num(t.range[0]), num(t.range[1])] : null
@@ -547,10 +599,9 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
         oddLot: !!t?.oddLot, debtFunded: !!t?.recap, preferred: !!t?.preferredOnly, price: q?.price ?? null, premium: r1(premium), parsed: !!t, url: r.index, state: r.state,
       })
     }
-    for (const r of dedupeBy(divs, r => r.cik)) {
-      const t = await terms('div', r, RX.div)
+    for (const { r, t, needs } of divRead) {
       const amt = t ? num(t.amount || t.amount2) : null
-      const q = await quote(r.ticker)
+      const q = needs ? await quote(r.ticker) : null
       out.push({
         kind: 'special dividend', name: r.name, ticker: r.ticker, cik: r.cik, filed: r.date, stage: t?.payable && toIso(t.payable) < today() ? 'paid' : 'declared', amendments: 0,
         type: 'special dividend', size: fin(amt) ? `$${amt}/sh` : null, low: null, high: fin(amt) ? amt : null, expiry: t?.payable ? toIso(t.payable) : null, daysToExpiry: null,
@@ -592,6 +643,7 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       cluster: g.buyers30.size >= 3, ceoCfo: g.ceoCfo, tenPctOnly: g.tenPctOnly, last: g.last,
       top: [...g.names.values()].sort((a, b) => b.usd - a.usd).slice(0, 3).map(n => ({ name: n.name, title: n.title, usd: Math.round(n.usd) })),
     })).sort((a, b) => (b.cluster - a.cluster) || (b.dollars30 - a.dollars30) || (b.dollars90 - a.dollars90)).slice(0, 80)
+    await prefetchQuotes(list.slice(0, 40).map(g => g.symbol))
     for (const g of list.slice(0, 40)) { const q = await quote(g.symbol); g.price = q?.price ?? null; g.since = fin(g.avg90) && q?.price ? r1((q.price / g.avg90 - 1) * 100) : null }
     return { list, archived: Object.keys(archive.insider).length, window: { d30, d90 } }
   }
@@ -599,6 +651,9 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
   // ── activist 13Ds ─────────────────────────────────────────────────────────
   async function activist() {
     const hits = newest(await fts({ forms: 'SCHEDULE 13D', days: 60, pages: 3 }))
+    const cands = hits.filter(r => r.parties[0]?.ticker && r.parties.slice(1).some(f => FUNDLIKE.test(f.name) && !similar(f.name, r.parties[0].name))).slice(0, 80)
+    await prefetchDocs('13dx', cands, RX.d13, { xml: true })
+    await prefetchQuotes(cands.map(r => r.parties[0].ticker))
     const out = []
     for (const r of hits) {
       const subject = r.parties[0], filers = r.parties.slice(1)
@@ -623,24 +678,26 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     for (const o of out) {
       if (fin(o.pct) || filled >= 20) continue
       try { const rows = await fmp(`acquisition-of-beneficial-ownership?symbol=${encodeURIComponent(o.ticker)}&limit=5`); const m = (rows || []).find(x => o.filer.split(' / ').some(f => similar(x.nameOfReportingPerson, f))); if (m && num(m.percentOfClass) != null) { o.pct = num(m.percentOfClass); o.pctSource = 'FMP' } filled++ } catch {}
-      await sleep(150)
     }
     return out
   }
 
   // ── SPACs ─────────────────────────────────────────────────────────────────
   async function spacs() {
-    const ipos = newest(await fts({ q: '"blank check company" "trust account"', forms: '424B4', days: 720, pages: 4 }))
-    const bcaAll = newest(await fts({ q: '"business combination agreement"', forms: '8-K', days: 150, pages: 3 })).filter(r => SPACISH.test(r.name))
+    const [ipos, bcaAll, votes, exts, liqs] = await Promise.all([
+      fts({ q: '"blank check company" "trust account"', forms: '424B4', days: 720, pages: 4 }).then(rows => newest(rows).filter(r => SPACISH.test(r.name))),
+      fts({ q: '"business combination agreement"', forms: '8-K', days: 150, pages: 3 }).then(rows => newest(rows).filter(r => SPACISH.test(r.name))),
+      proxiesAll().then(rows => rows.filter(r => SPAC.test(r.name))),
+      fts({ q: '"extend the date by which"', forms: 'DEF 14A,DEFA14A', days: 120, pages: 1 }).then(newest),
+      fts({ q: '"redeem all of its outstanding public shares"', forms: '8-K', days: 150, pages: 1 }).then(newest),
+    ])
     const bcas = bcaAll.filter(r => r.items.includes('1.01') && !r.items.includes('2.01'))
     const completed = new Map(bcaAll.filter(r => r.items.includes('2.01')).map(r => [r.cik, r.date]))
-    const votes = (await proxiesAll()).filter(r => SPAC.test(r.name))
-    const exts = newest(await fts({ q: '"extend the date by which"', forms: 'DEF 14A,DEFA14A', days: 120, pages: 1 }))
-    const liqs = newest(await fts({ q: '"redeem all of its outstanding public shares"', forms: '8-K', days: 150, pages: 1 }))
+    await Promise.all([prefetchDocs('spac', dedupeBy(ipos, r => r.cik), RX.spac), prefetchDocs('defm', dedupeBy(votes, r => r.cik), RX.merger)])
     const byAcq = new Map((await maList()).map(m => [+m.cik, m]))
     const bySpac = new Map()
     const get = r => { const g = bySpac.get(r.cik) || { name: r.name, ticker: r.ticker, tickers: r.parties[0]?.tickers || [], cik: r.cik, ipo: null, trust: null, months: null, units: null, warrant: null, stage: 'searching', target: null, targetTicker: null, ev: null, pipe: false, deal: null, vote: null, ext: null, liq: null, parsed: false, filings: [] }; if (!g.ticker && r.ticker) g.ticker = r.ticker; if (!g.tickers.length && r.parties[0]?.tickers?.length) g.tickers = r.parties[0].tickers; bySpac.set(r.cik, g); return g }
-    for (const r of dedupeBy(ipos.filter(r => SPACISH.test(r.name)), r => r.cik)) {
+    for (const r of dedupeBy(ipos, r => r.cik)) {
       const g = get(r); g.ipo = r.date
       const t = await terms('spac', r, RX.spac)
       if (t) { g.parsed = true; g.trust = num(t.trust || t.trust2); g.months = num(t.months || t.months2); g.units = t.units ? num(t.units) : null; g.warrant = t.warrant || null }
@@ -673,6 +730,7 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     // deals and votes first, then the newest IPOs — quotes are the cost here
     const all = [...bySpac.values()].filter(g => g.ticker && g.stage !== 'completed').sort((a, b) => ((b.deal || b.vote) ? 1 : 0) - ((a.deal || a.vote) ? 1 : 0) || (b.ipo || '').localeCompare(a.ipo || ''))
     const out = []
+    await prefetchQuotes(all.slice(0, 160).map(g => g.ticker))
     for (const g of all.slice(0, 160)) {
       const trustIpo = g.trust ?? 10, trustAssumed = g.trust == null
       const yrs = g.ipo ? Math.max(daysBetween(g.ipo, today()), 0) / 365 : 0
@@ -705,12 +763,17 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     const hits = newest(await fts({ q: '"share repurchase program" authorized', forms: '8-K', days: 60, pages: 3 }))
       .filter(r => r.ticker && r.items.some(i => /^(8\.01|7\.01|2\.02|1\.01)/.test(i)) && !SPAC.test(r.name) && !INTERVAL.test(r.name))
     const insiders = new Map((insiderList || []).map(i => [i.symbol, i]))
+    const rows = dedupeBy(hits, r => r.cik)
+    await prefetchDocs('bb', rows, RX.bb)
+    const read = []
+    for (const [i, r] of rows.entries()) { const t = await terms('bb', r, RX.bb); const usdM = t ? amtM(t.usd || t.usd2 || t.usd3) : null; const shares = t?.shares ? num(t.shares) : null; read.push({ r, t, usdM, shares, needs: usdM != null || shares != null || i < 40 }) }
+    await Promise.all([
+      prefetchQuotes(read.filter(x => x.needs).map(x => x.r.ticker)),
+      pmap(read.filter(x => x.usdM != null || x.shares != null).map(x => x.r.ticker), 2, marketCap),
+    ])
     const out = []
-    for (const r of dedupeBy(hits, r => r.cik)) {
-      const t = await terms('bb', r, RX.bb)
-      const usdM = t ? amtM(t.usd || t.usd2 || t.usd3) : null
-      const shares = t?.shares ? num(t.shares) : null
-      const q = await quote(r.ticker)
+    for (const { r, t, usdM, shares, needs } of read) {
+      const q = needs ? await quote(r.ticker) : null
       const mcap = usdM != null || shares != null ? await marketCap(r.ticker) : null
       const usd = usdM != null ? usdM * 1e6 : fin(shares) && q?.price ? shares * q.price : null
       const pctCap = fin(usd) && fin(mcap) && mcap > 0 ? usd / mcap * 100 : null
@@ -723,7 +786,8 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
         parsed: !!t, url: r.index, state: r.state,
       })
     }
-    return out.sort((a, b) => (fin(b.pctCap) ? 1 : 0) - (fin(a.pctCap) ? 1 : 0) || (b.pctCap ?? 0) - (a.pctCap ?? 0) || b.filed.localeCompare(a.filed))
+    // flagged sizes sort after the real ones, so the top of the board is the signal and not the parse errors
+    return out.sort((a, b) => (a.verify ? 1 : 0) - (b.verify ? 1 : 0) || (fin(b.pctCap) ? 1 : 0) - (fin(a.pctCap) ? 1 : 0) || (b.pctCap ?? 0) - (a.pctCap ?? 0) || b.filed.localeCompare(a.filed))
   }
 
   // ── build ─────────────────────────────────────────────────────────────────
@@ -732,8 +796,9 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     budget = { ...BUDGET }
     memo = {}; mcapBudget = 60
     for (const k of Object.keys(quotes)) delete quotes[k]
-    const status = {}
-    const run = async (name, fn, empty) => { try { const v = await fn(); status[name] = 'ok'; return v } catch (e) { status[name] = e.message; console.warn(`special ${name}:`, e.message); return empty } }
+    yahooGap = 120
+    const status = {}, timing = {}
+    const run = async (name, fn, empty) => { const t1 = Date.now(); try { const v = await fn(); status[name] = 'ok'; return v } catch (e) { status[name] = e.message; console.warn(`special ${name}:`, e.message); return empty } finally { timing[name] = r1((Date.now() - t1) / 1000) } }
     const sp = await run('spinoffs', spinoffs, [])
     const mg = await run('mergers', mergers, [])
     const rg = await run('reorg', reorg, [])
@@ -771,7 +836,8 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     ].sort((a, b) => b.date.localeCompare(a.date))
 
     return {
-      ts: Date.now(), built: new Date().toISOString(), buildSecs: Math.round((Date.now() - t0) / 1000), ttlHours: TTL / H, status,
+      ts: Date.now(), built: new Date().toISOString(), buildSecs: Math.round((Date.now() - t0) / 1000), ttlHours: TTL / H, status, timing,
+      docsRead: Object.values(BUDGET).reduce((a, b) => a + b, 0) - Object.values(budget).reduce((a, b) => a + b, 0), quotesFetched: Object.keys(quotes).length,
       pipeline, newThisWeek, spinoffs: sp, mergers: mg, securities, reorg: rg, rights: rt, recaps: rc, insider: ins.list, insiderWindow: ins.window || null, activist: act, spacs: sq, buybacks: bb,
       docsCached: Object.keys(archive.docs).length,
       source: 'SEC EDGAR full-text search (Form 10-12B, SC TO-T, SC TO-I, DEFM14A, SCHEDULE 13D, 8-A12B, and 8-K phrase sweeps), with deal terms parsed from the primary document of each filing; FMP mergers-acquisitions, insider-trading (Form 4 open-market purchases) and beneficial-ownership endpoints; Yahoo Finance quotes; the bankruptcy tracker’s 8-K Item 1.03 list. SPAC trust values assume $10.00 a unit and a 24-month deadline until the prospectus is read, and accrete at an assumed 4% a year. Buyback sizes are set against FMP market cap. Every parsed field is a regex match on filing text and is labelled as such.',
