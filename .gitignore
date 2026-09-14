@@ -49,3 +49,5 @@ seattle-postings.json
 # Special situations: 6h feed cache and the personal Deal Book (per machine, like tickers.json); special-archive.json is a tracked archive
 special-situations.json
 special-dealbook.json
+# FX fundamentals: 6h feed cache (data/fx/*.json are tracked reference tables)
+fx-fundamentals.json

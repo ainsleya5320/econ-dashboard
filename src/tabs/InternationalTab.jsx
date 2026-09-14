@@ -7,6 +7,7 @@ import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../compo
 import WorldBankSubTab from "./intl/WorldBankSubTab.jsx";
 import LiquiditySubTab from "./intl/LiquiditySubTab.jsx";
 import IntlPulseTab from "./intl/IntlPulseTab.jsx";
+import ForexFundamentals from "./intl/ForexTab.jsx";
 
 const INTL_ETFS = [
   { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "INTL", color: "#818cf8" },
@@ -629,7 +630,7 @@ function InternationalTab({ fmpKey, fredKey, gd }) {
     {/* ===== LIQUIDITY & DEBT SUB-TAB ===== */}
     {intlSub === "liquidity" && <LiquiditySubTab />}
 
-    {intlSub === "forex" && (<>
+    {intlSub === "forex" && (<ForexFundamentals prices={<>
       {/* ── Trade-Weighted Dollar Index ───────────────────────── */}
       <SH>Trade-Weighted U.S. Dollar Index</SH>
       <InfoBox color="#E8553A">
@@ -774,7 +775,7 @@ function InternationalTab({ fmpKey, fredKey, gd }) {
           </table>
         </div>
       </>)}
-    </>)}
+    </>} />)}
   </>);
 }
 

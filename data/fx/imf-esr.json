@@ -1,0 +1,31 @@
+{
+  "_about": "IMF External Sector Report 2026, Annex Table 1.1.2 (Summary of External Assessment Indicators, 2025 data). Published 2026-07-30. reerGap: IMF staff-assessed real effective exchange rate gap, percent, positive = REER above the level consistent with fundamentals (overvalued), with the staff range. caGap: staff-assessed current account gap, percent of GDP. ca: actual 2025 current account, percent of GDP. Multilateral (effective) gaps, not bilateral vs USD. Refresh each July from the new report.",
+  "report": "2026 External Sector Report: Amid Rising Imbalances, the Case for Rebalancing",
+  "dataYear": 2025,
+  "published": "2026-07-30",
+  "url": "https://www.imf.org/en/publications/esr/issues/2026/07/30/external-sector-report-2026",
+  "economies": {
+    "USA": { "name": "United States",  "assessment": "Weaker",                "ca": -3.6, "caGap": -2.2, "caRange": 0.7, "reerGap": 19.9,  "reerRange": 6.3 },
+    "EUZ": { "name": "Euro Area",      "assessment": "Broadly in line",       "ca": 1.7,  "caGap": 0.9,  "caRange": 0.8, "reerGap": -2.6,  "reerRange": 2.3 },
+    "DEU": { "name": "Germany",        "assessment": "Stronger",              "ca": 4.5,  "caGap": 2.1,  "caRange": 0.5, "reerGap": -6.6,  "reerRange": 1.6 },
+    "GBR": { "name": "United Kingdom", "assessment": "Weaker",                "ca": -2.4, "caGap": -2.2, "caRange": 0.3, "reerGap": 8.2,   "reerRange": 1.0 },
+    "JPN": { "name": "Japan",          "assessment": "Moderately stronger",   "ca": 4.9,  "caGap": 1.3,  "caRange": 1.0, "reerGap": -7.2,  "reerRange": 5.4 },
+    "CHE": { "name": "Switzerland",    "assessment": "Broadly in line",       "ca": 7.1,  "caGap": -0.1, "caRange": 0.7, "reerGap": 0.3,   "reerRange": 1.3 },
+    "AUS": { "name": "Australia",      "assessment": "Weaker",                "ca": -2.6, "caGap": -3.0, "caRange": 0.5, "reerGap": 16.8,  "reerRange": 2.8 },
+    "CAN": { "name": "Canada",         "assessment": "Weaker",                "ca": -0.9, "caGap": -2.8, "caRange": 0.4, "reerGap": 10.9,  "reerRange": 1.6 },
+    "SWE": { "name": "Sweden",         "assessment": "Stronger",              "ca": 6.1,  "caGap": 4.0,  "caRange": 0.4, "reerGap": -12.4, "reerRange": 6.4 },
+    "CHN": { "name": "China",          "assessment": "Stronger",              "ca": 3.8,  "caGap": 3.0,  "caRange": 0.6, "reerGap": -21.3, "reerRange": 4.0 },
+    "IND": { "name": "India",          "assessment": "Moderately stronger",   "ca": -0.9, "caGap": 1.6,  "caRange": 0.6, "reerGap": -8.4,  "reerRange": 3.3 },
+    "KOR": { "name": "Korea",          "assessment": "Stronger",              "ca": 6.6,  "caGap": 2.5,  "caRange": 0.6, "reerGap": -7.5,  "reerRange": 1.7 },
+    "BRA": { "name": "Brazil",         "assessment": "Moderately weaker",     "ca": -2.9, "caGap": -1.5, "caRange": 0.5, "reerGap": 11.2,  "reerRange": 3.5 },
+    "MEX": { "name": "Mexico",         "assessment": "Broadly in line",       "ca": -0.4, "caGap": 0.1,  "caRange": 0.4, "reerGap": -0.4,  "reerRange": 1.3 },
+    "FRA": { "name": "France",         "assessment": "Broadly in line",       "ca": -0.3, "caGap": -0.5, "caRange": 0.4, "reerGap": 2.0,   "reerRange": 1.4 },
+    "ITA": { "name": "Italy",          "assessment": "Moderately weaker",     "ca": 1.1,  "caGap": -1.2, "caRange": 0.5, "reerGap": 4.8,   "reerRange": 2.1 },
+    "ESP": { "name": "Spain",          "assessment": "Stronger",              "ca": 2.9,  "caGap": 2.4,  "caRange": 0.6, "reerGap": -8.7,  "reerRange": 2.1 },
+    "NLD": { "name": "The Netherlands","assessment": "Stronger",              "ca": 7.9,  "caGap": 3.6,  "caRange": 0.5, "reerGap": -5.6,  "reerRange": 0.8 },
+    "SGP": { "name": "Singapore",      "assessment": "Substantially stronger","ca": 16.7, "caGap": 7.6,  "caRange": 2.0, "reerGap": -15.2, "reerRange": 4.0 },
+    "TUR": { "name": "Türkiye",        "assessment": "Weaker",                "ca": -1.9, "caGap": -2.9, "caRange": 0.5, "reerGap": 12.1,  "reerRange": 2.3 },
+    "ZAF": { "name": "South Africa",   "assessment": "Broadly in line",       "ca": -0.5, "caGap": -0.3, "caRange": 0.7, "reerGap": 1.2,   "reerRange": 3.4 }
+  },
+  "notCovered": ["NOR", "NZL"]
+}

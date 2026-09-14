@@ -17,6 +17,7 @@ import { createAiPulse } from './server/aiPulse.js'
 import { createSfcModel } from './server/sfcModel.js'
 import { createBankruptcy } from './server/bankruptcy.js'
 import { createSpecialSituations } from './server/specialSituations.js'
+import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -379,10 +380,15 @@ const CB_EVENTS = [
   { id: 'JP', pattern: /boj interest rate/i },
   { id: 'CA', pattern: /boc interest rate/i },
   { id: 'CH', pattern: /snb interest rate/i },
-  { id: 'AU', pattern: /rba interest rate/i },
-  { id: 'KR', pattern: /(bok|bank of korea) interest rate/i },
-  { id: 'MX', pattern: /banxico|mexico.*interest rate/i },
-  { id: 'BR', pattern: /copom|bcb.*interest rate/i },
+  { id: 'AU', pattern: /rba interest rate|interest rate decision/i },
+  { id: 'KR', pattern: /(bok|bank of korea) interest rate|interest rate decision/i },
+  { id: 'MX', pattern: /banxico|mexico.*interest rate|interest rate decision/i },
+  { id: 'BR', pattern: /copom|bcb.*interest rate|interest rate decision/i },
+  { id: 'NZ', pattern: /rbnz interest rate/i },
+  { id: 'SE', pattern: /riksbank|interest rate decision/i },
+  { id: 'NO', pattern: /norges|interest rate decision/i },
+  { id: 'IN', pattern: /rbi interest rate|interest rate decision/i },
+  { id: 'CN', pattern: /loan prime rate 1y/i },
 ]
 
 // FRED series that are reliably/frequently updated (override FMP for these)
@@ -390,8 +396,7 @@ const CB_FRED_SUPPLEMENTS = [
   { id: 'US', series: 'DFF' },            // Federal Funds Rate (daily)
   { id: 'EU', series: 'ECBDFR' },         // ECB Deposit Facility Rate (daily)
   { id: 'GB', series: 'IUDSOIA' },        // UK SONIA → BoE base rate (daily)
-  { id: 'KR', series: 'INTDSRKRM193N' },  // South Korea (IMF, monthly, current)
-  { id: 'BR', series: 'INTDSRBRM193N' },  // Brazil (IMF, monthly, current)
+  { id: 'NO', series: 'IRSTCI01NOM156N', fill: true },  // Norway (OECD immediate rate, monthly) -- only if the calendar has no decision
 ]
 
 async function fetchCbRates() {
@@ -420,6 +425,7 @@ async function fetchCbRates() {
 
   // Step 2: FRED direct fetches override FMP for countries with live series
   for (const f of CB_FRED_SUPPLEMENTS) {
+    if (f.fill && result[f.id]) continue // a real decision from the calendar beats a monthly proxy
     try {
       const r = await fetch(
         `https://api.stlouisfed.org/fred/series/observations?series_id=${f.series}&api_key=${FRED_KEY}&limit=1&sort_order=desc&file_type=json`,
@@ -3678,6 +3684,9 @@ const municipalities = createMunicipalities({ fetchFredSeries, fetchYahooQuote, 
 // Special situations (server/specialSituations.js): EDGAR sweeps for spinoffs, merger arb, restructurings,
 // rights offerings and recaps; FMP insider purchases and 13Ds. Joins the bankruptcy tracker for petitions.
 const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get() })
+// FX fundamentals (server/fxFundamentals.js): Donnelly's valuation lenses and drivers, fourteen currencies vs USD.
+// Joins the International pulse feed (Big Mac, equity in dollars) and the central-bank rates route.
+const fxFundamentals = createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse: () => intlPulse.get(), UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3833,6 +3842,7 @@ export default defineConfig({
         reRoute('/api/municipality', req => municipalities.get(new URL(req.url || '/', 'http://x').searchParams.get('city') || undefined))
         reRoute('/api/municipality-status', () => ({ cities: municipalities.status() }))
         reRoute('/api/special-situations', () => specialSituations.get())
+        reRoute('/api/fx-fundamentals', () => fxFundamentals.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3867,6 +3877,7 @@ export default defineConfig({
         setTimeout(() => { aiPulse.get().catch(() => {}) }, 420 * 1000)
         setTimeout(() => { bankruptcy.get().catch(() => {}) }, 20 * 1000)
         setTimeout(() => { specialSituations.get().catch(() => {}) }, 150 * 1000)
+        setTimeout(() => { fxFundamentals.get().catch(() => {}) }, 330 * 1000) // after the intl pulse it joins
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         // the remaining metros warm after the other feeds have had the throttle,
         // so switching cities is instant instead of a three-minute cold build
