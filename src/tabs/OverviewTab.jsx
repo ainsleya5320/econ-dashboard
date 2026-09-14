@@ -13,7 +13,8 @@ import { ValuationLensesCard, useDamodaranMonthly, damPct, damColor } from "../c
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
 // Market on the left, my book on the right:
 //   LEFT   Today hero (SPY + regime + every asset on one bar scale) → a KPI
-//          band (ERP · Damodaran · earnings yield by index · yield curve) →
+//          band (ERP · Damodaran · earnings yield by index · yield curve ·
+//          real yield) →
 //          rates strip → Fear & Greed meter → implied move → commodities,
 //          with the full charts folded away at the bottom.
 //   RIGHT  a sticky rail: the watchlist (shared with Stocks & Options), its
@@ -410,6 +411,58 @@ function YieldCurve({ rates }) {
   );
 }
 
+// ── Real yield: what bonds pay after inflation — the band's third number ────
+// The 10-year TIPS yield and the 10-year breakeven from FRED, the real yield's
+// percentile across the whole TIPS record (2003 on), and the earnings yield set
+// against it. The Valuation card compares the earnings yield with the nominal
+// 10-year; this is the same comparison after inflation, which is the one that
+// decides whether "bonds win" survives.
+const ord = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`; };
+function RealYieldCard({ ey }) {
+  const [s, setS] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = id => fetch(`/api/fred?series_id=${id}&limit=6500`).then(r => r.json())
+      .then(j => (j.observations || []).filter(o => o.value !== ".").map(o => ({ d: o.date, v: parseFloat(o.value) })).reverse())
+      .catch(() => []);
+    Promise.all([load("DFII10"), load("T10YIE")]).then(([real, be]) => { if (alive) setS({ real, be }); });
+    return () => { alive = false; };
+  }, []);
+  const real = s?.real || [], be = s?.be || [];
+  const last = real[real.length - 1], monthAgo = real[Math.max(0, real.length - 22)];
+  const ry = last?.v ?? null, bev = be[be.length - 1]?.v ?? null;
+  const chg = ry != null && monthAgo && real.length > 22 ? (ry - monthAgo.v) * 100 : null;
+  const pct = ry != null && real.length > 250 ? Math.round((real.filter(o => o.v < ry).length / real.length) * 100) : null;
+  const gap = ey != null && ry != null ? ey - ry : null;
+  const c = chg == null ? INDIGO : chg >= 0 ? "#10b981" : RED;
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span style={cardTitle}>Real yield — 10y TIPS</span>
+        <span style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono }}>after inflation</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.6, lineHeight: 1.1 }}>{ry != null ? `${ry.toFixed(2)}%` : s ? "—" : "…"}</div>
+          <div style={{ fontSize: 9, color: c, fontFamily: fonts.mono, marginTop: 2, whiteSpace: "nowrap" }}>
+            {chg != null ? `${chg >= 0 ? "+" : ""}${chg.toFixed(0)} bp · ~1mo` : ""}{pct != null ? ` · ${ord(pct)} pct since 2003` : ""}
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 56 }}>{real.length > 1 && <Sparkline data={real.slice(-250).map(o => o.v)} color={c} height={30} />}</div>
+      </div>
+      <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: fonts.mono, marginTop: 6 }}>
+        breakeven {bev != null ? `${bev.toFixed(2)}%` : "—"}{ry != null && bev != null ? ` · nominal ${(ry + bev).toFixed(2)}% implied` : ""}
+      </div>
+      {gap != null && (
+        <div style={{ fontSize: 10, color: gap >= 0 ? GREEN : RED, fontFamily: fonts.mono, marginTop: 3 }}>
+          EY {ey.toFixed(2)}% − real {ry.toFixed(2)}% = {gap >= 0 ? "+" : ""}{gap.toFixed(2)}pp · {gap >= 0 ? "stocks pay more after inflation" : "bonds pay more after inflation"}
+        </div>
+      )}
+      <div style={{ fontSize: 8.5, color: "#475569", fontFamily: fonts.mono, marginTop: 5 }}>FRED DFII10 · T10YIE · sparkline 1 yr · pct = share of days since 2003 below today</div>
+    </div>
+  );
+}
+
 // ── Fear & Greed as a meter (the gauge lives in the fold) ───────────────────
 const FG_PARTS = [["vix", "VIX"], ["momentum", "Momentum"], ["safeHaven", "Safe haven"], ["junkBond", "Junk demand"], ["breadth", "Breadth"]];
 function FgMeter({ fg }) {
@@ -677,6 +730,7 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
           </div>
 
           <YieldCurve rates={rates} />
+          <RealYieldCard ey={(indexYields.find(i => /s&p/i.test(i.name || "")) || indexYields[0])?.earningsYield ?? null} />
         </div>
 
         {/* Rates strip */}
