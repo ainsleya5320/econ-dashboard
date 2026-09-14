@@ -9,19 +9,21 @@ import SubViews from "../../components/SubViews.jsx";
 //   Boards   candidates surfaced from filings: spinoffs, merger arb (with the
 //            merger-securities corner Greenblatt actually likes), post-reorg
 //            equity, rights offerings, self-tenders and special dividends,
-//            insider clusters, activist 13Ds. Every number pulled from a filing
+//            insider clusters, activist 13Ds, pre-deal SPACs priced against
+//            trust, buyback authorisations sized against market cap. Every number pulled from a filing
 //            is a regex match and is labelled parsed.
 //   Deal Book  the pins: thesis, notes, key dates and the per-type checklist,
 //            persisted server-side. The boards find; the book decides.
 // Data: /api/special-situations and /api/special-dealbook (server/specialSituations.js).
 // ============================================================================
 
-const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8", SLATE = "#94a3b8", DIM = "#475569", CYAN = "#22d3ee", ORANGE = "#fb923c", VIOLET = "#a78bfa", PINK = "#f472b6";
+const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8", SLATE = "#94a3b8", DIM = "#475569", CYAN = "#22d3ee", ORANGE = "#fb923c", VIOLET = "#a78bfa", PINK = "#f472b6", SKY = "#38bdf8", YELLOW = "#facc15";
 const CAT = {
   spinoff: { label: "Spinoff", color: INDIGO }, merger: { label: "Merger arb", color: CYAN }, reorg: { label: "Post-reorg", color: ORANGE },
   rights: { label: "Rights", color: GREEN }, recap: { label: "Recap", color: AMBER }, insider: { label: "Insider", color: VIOLET }, "13D": { label: "13D", color: PINK },
+  spac: { label: "SPAC", color: SKY }, buyback: { label: "Buyback", color: YELLOW },
 };
-const VIEW_ACCENT = { book: INDIGO, spinoffs: INDIGO, mergers: CYAN, reorg: ORANGE, rights: GREEN, recaps: AMBER, insider: VIOLET, activist: PINK };
+const VIEW_ACCENT = { book: INDIGO, spinoffs: INDIGO, mergers: CYAN, reorg: ORANGE, rights: GREEN, recaps: AMBER, insider: VIOLET, activist: PINK, spacs: SKY, buybacks: YELLOW };
 const fin = v => v != null && isFinite(v);
 const card = { background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px" };
 const label = { fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" };
@@ -64,6 +66,8 @@ const CHECKLIST = {
   recap: ["Post-recap Debt/EBITDA and interest coverage?", "Stub math: what does the leveraged equity earn on a normal year?", "Are insiders tendering, or staying in?", "Is the tender funded by cash on hand or new debt?", "What is the odd-lot angle, if any?"],
   insider: ["Open-market purchases only — no option exercises, no plan buys?", "Cluster or lone buyer? CEO/CFO or a 10% holder averaging down?", "Size relative to the buyer's holdings and pay?", "What weakness are they buying into, and do they know something structural?", "Any 10b5-1 plan disclosed?"],
   "13D": ["The filer's track record — do they win, and how?", "Item 4 purpose: board seats, sale process, capital return?", "Is the stake still being built (amendments) or complete?", "What is the valuation gap they cite, and is it real?", "Who else is in the register — allies or defenders?"],
+  spac: ["Price below trust — what is the yield to the deadline, and is the trust really $10 (read the 10-Q)?", "Deadline and extension votes: will the sponsor extend, and does the trust get topped up or drained?", "If a target is announced — would you own the de-SPAC? Most trade down; redeem unless you would.", "Warrant and founder-share dilution on the pro forma?", "Sponsor track record on prior vehicles?"],
+  buyback: ["New authorisation, or a re-announcement of an old one in an earnings release?", "Size against market cap and against free cash flow — can they actually execute it?", "Funded from cash or from new debt?", "Are insiders buying alongside, or selling into it?", "Is the share count actually falling, net of stock comp (check the 10-Q cover)?"],
 };
 
 export default function SpecialSituations({ onSelectStock }) {
@@ -91,6 +95,7 @@ export default function SpecialSituations({ onSelectStock }) {
     for (const r of d.reorg) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     for (const r of [...d.rights, ...d.recaps, ...d.activist]) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     for (const r of d.insider) if (r.symbol && fin(r.price)) q[r.symbol] = r.price;
+    for (const r of [...(d.spacs || []), ...(d.buybacks || [])]) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     return q;
   }, [d]);
 
@@ -123,6 +128,8 @@ export default function SpecialSituations({ onSelectStock }) {
   }
 
   const P = d.pipeline;
+  const SQ = d.spacs || [], BB = d.buybacks || [];
+  const PS = P.spacs || {}, PB = P.buybacks || {};
   const errs = Object.entries(d.status || {}).filter(([, v]) => v !== "ok");
 
   // ── header: the pipeline ──────────────────────────────────────────────────
@@ -132,7 +139,7 @@ export default function SpecialSituations({ onSelectStock }) {
         <div>
           <div style={label}>Special situations · pipeline</div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.3, marginTop: 3 }}>
-            {P.mergers.live} live spreads · {P.spinoffs.pending} spinoffs pending · {P.reorg.emerged90} emerged in 90d · {P.rights.open} rights open · {P.insider.clusters} insider clusters
+            {P.mergers.live} live spreads · {P.spinoffs.pending} spinoffs pending · {P.reorg.emerged90} emerged in 90d · {P.rights.open} rights open · {P.insider.clusters} insider clusters · {PS.belowTrust ?? 0} SPACs below trust · {PB.big ?? 0} buybacks ≥5% of cap
           </div>
           <div style={{ fontSize: 10.5, color: SLATE, fontFamily: fonts.mono, marginTop: 4, lineHeight: 1.5 }}>
             Greenblatt&apos;s five situation types plus Suria&apos;s insider and activist signals, surfaced from filings as they land. The boards find candidates; the Deal Book is where the reading and the checklist happen.
@@ -151,6 +158,8 @@ export default function SpecialSituations({ onSelectStock }) {
         {chip("self-tenders open", `${P.recaps.tenders} · ${P.recaps.dutch} Dutch`, AMBER)}
         {chip("insider clusters", `${P.insider.clusters} of ${P.insider.symbols}`, VIOLET)}
         {chip("13Ds, 30d", `${P.activist.n30} · ${P.activist.board} seek board`, PINK)}
+        {chip("SPACs below trust", `${PS.belowTrust ?? 0} of ${PS.searching ?? 0}${fin(PS.medianYield) ? ` · median ${pc(PS.medianYield, 1)} to trust` : ""}`, SKY)}
+        {chip("buybacks ≥5% of cap", `${PB.big ?? 0} · ${PB.withInsiders ?? 0} with insiders buying`, YELLOW)}
       </div>
       {d.newThisWeek.length > 0 && (
         <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -407,6 +416,75 @@ export default function SpecialSituations({ onSelectStock }) {
     );
   };
 
+  // ── SPACs ─────────────────────────────────────────────────────────────────
+  const spacs = () => {
+    const cols = [["", "left"], ["SPAC", "left"], ["Stage", "left"], ["IPO", "right"], ["Trust / unit", "right"], ["Trust now", "right"], ["Price", "right"], ["vs trust", "right"], ["Deadline", "right"], ["Months", "right"], ["Yield to trust", "right"], ["Target", "left"], ["Warrant", "left"], ["Filing", "right"]];
+    const vs = v => (!fin(v) ? "—" : v >= 0 ? `${v.toFixed(1)}% below` : `${(-v).toFixed(1)}% above`);
+    return (
+      <Board cols={cols}
+        intro={<>Suria&apos;s SPAC trade is the pre-deal vehicle below trust: a T-bill with a free option, because every public share can be redeemed for its share of the trust at the deadline or at the deal vote. The trap is holding through a de-SPAC you would not have bought. Trust per unit and the deadline come from the prospectus; until it is read they are assumed at $10.00 and 24 months, and trust accretes at an assumed 4% a year.</>}
+        foot={`424B4 SPAC prospectuses, two years, SPAC-named filers only; 8-K business-combination agreements, DEFM14A votes, extension proxies and liquidation notices for the stage; ${PS.completed ?? 0} vehicles whose merger has closed are dropped. A pre-deal SPAC more than 15% below the assumed trust is flagged rather than celebrated: the trust is not $10, or the vehicle is no longer a SPAC. Common-share quotes; where the shares have not yet split from the units the unit price is shown, which includes the warrant. Yield to trust annualises the discount over the months to the assumed deadline.`}>
+        {SQ.length === 0 && empty(cols.length, "No SPACs in the window.")}
+        {SQ.map(r => {
+          const key = String(r.cik);
+          const pre = r.stage === "searching" || r.stage === "extension vote";
+          const tone = r.verify ? AMBER : r.stage === "liquidating" ? RED : pre ? (fin(r.discount) && r.discount > 0 ? GREEN : SLATE) : CYAN;
+          return (
+            <tr key={key} style={rowStyle}>
+              {td(<PinBtn cat="spac" k={key} fields={{ name: r.name, ticker: r.ticker, url: r.url, dates: [{ label: "deadline (est.)", date: r.deadline }, { label: "vote", date: r.vote }] }} />, DIM, { textAlign: "left" })}
+              {td(<><Dot color={tone} /><Tk t={r.ticker} /><span style={{ marginLeft: 6, color: "#cbd5e1" }}>{r.name.slice(0, 30)}</span></>, "#cbd5e1", { textAlign: "left" })}
+              {td(r.stage, tone, { textAlign: "left" })}
+              {td(fd(r.ipo))}
+              {td(<>{px(r.trustIpo)}{r.trustAssumed && <Pill>assumed</Pill>}</>)}
+              {td(px(r.trustNow))}
+              {td(<>{px(r.price)}{r.priceOf === "unit" && <Pill color={AMBER}>unit</Pill>}</>)}
+              {td(<>{vs(r.discount)}{r.verify && <Pill color={AMBER}>verify trust</Pill>}</>, r.verify ? AMBER : fin(r.discount) && r.discount > 0 ? GREEN : fin(r.discount) ? SLATE : SLATE)}
+              {td(<>{fd(r.deadline)}{r.monthsAssumed && <Pill>assumed</Pill>}</>)}
+              {td(fin(r.monthsLeft) ? r.monthsLeft.toFixed(1) : "—", fin(r.monthsLeft) && r.monthsLeft < 3 ? AMBER : SLATE)}
+              {td(r.verify ? "—" : pc(r.yieldToTrust, 1), fin(r.yieldToTrust) && r.yieldToTrust > 0 && !r.verify ? GREEN : SLATE)}
+              {td(<>{r.targetTicker ? <Tk t={r.targetTicker} color="#cbd5e1" /> : null}<span style={{ marginLeft: r.targetTicker ? 6 : 0, color: r.target ? "#cbd5e1" : DIM }}>{r.target ? r.target.slice(0, 26) : "—"}</span>{r.ev && <Pill>{r.ev}</Pill>}{r.pipe && <Pill color={CYAN}>PIPE</Pill>}</>, "#cbd5e1", { textAlign: "left" })}
+              {td(<>{r.warrantTicker ? <Tk t={r.warrantTicker} color={SLATE} /> : <span style={{ color: DIM }}>—</span>}{fin(r.warrantPrice) && <span style={{ color: SLATE, marginLeft: 6 }}>{px(r.warrantPrice)}</span>}{r.warrant && <Pill>{r.warrant} / unit</Pill>}<Parsed ok={r.parsed} /></>, SLATE, { textAlign: "left" })}
+              {td(<A href={r.url}>{fd(r.filings?.[0]?.date)} ↗</A>)}
+            </tr>
+          );
+        })}
+      </Board>
+    );
+  };
+
+  // ── buybacks ──────────────────────────────────────────────────────────────
+  const buybacks = () => {
+    const cols = [["", "left"], ["Company", "left"], ["Filed", "right"], ["Authorisation", "right"], ["% of mkt cap", "right"], ["Mkt cap", "right"], ["Stated", "right"], ["Through", "right"], ["Type", "left"], ["Price", "right"], ["Day", "right"], ["Insiders, 30d", "left"], ["Filing", "right"]];
+    return (
+      <Board cols={cols}
+        intro={<>Suria: a fresh authorisation worth five to ten percent of the market cap is a signal, and one that lands alongside insider buying is a stronger one. Announced is not executed — most programmes run for years and many never finish — so the check is the share count on the next 10-Q cover, net of stock comp.</>}
+        foot="8-Ks announcing an authorised share repurchase programme, 60 days, listed operating companies, Items 8.01 / 7.01 / 2.02 / 1.01. Size parsed from the filing and set against FMP market cap (a week old at most). Insider figures are the same open-market purchases as the Insider board.">
+        {BB.length === 0 && empty(cols.length, "No authorisations in the window.")}
+        {BB.map(r => {
+          const key = String(r.cik);
+          const tone = r.verify ? AMBER : fin(r.pctCap) && r.pctCap >= 10 ? GREEN : fin(r.pctCap) && r.pctCap >= 5 ? AMBER : SLATE;
+          return (
+            <tr key={key} style={rowStyle}>
+              {td(<PinBtn cat="buyback" k={key} fields={{ name: r.name, ticker: r.ticker, url: r.url, dates: [{ label: "through", date: r.expiry }] }} />, DIM, { textAlign: "left" })}
+              {td(<><Dot color={tone} /><Tk t={r.ticker} /><span style={{ marginLeft: 6, color: "#cbd5e1" }}>{r.name.slice(0, 30)}</span></>, "#cbd5e1", { textAlign: "left" })}
+              {td(fd(r.filed))}
+              {td(fin(r.usd) ? usd(r.usd) : fin(r.shares) ? `${(r.shares / 1e6).toFixed(1)}M sh` : "—")}
+              {td(<>{fin(r.pctCap) ? `${r.pctCap.toFixed(1)}%` : "—"}{r.verify && <Pill color={AMBER}>verify</Pill>}</>, tone)}
+              {td(usd(r.mcap))}
+              {td(fin(r.statedPct) ? `${r.statedPct}%` : "—")}
+              {td(fd(r.expiry))}
+              {td(<span style={{ display: "inline-flex", gap: 4 }}><Flag on={r.asr} color={CYAN}>ASR</Flag><Flag on={r.additional} color={SLATE}>additional</Flag><Flag on={r.debtFunded} color={AMBER}>debt-funded</Flag><Flag on={r.inEarnings} color={DIM}>in earnings 8-K</Flag><Parsed ok={r.parsed} /></span>, SLATE, { textAlign: "left" })}
+              {td(px(r.price))}
+              {td(pc(r.changePct, 1), upGood(r.changePct))}
+              {td(r.insiders ? <span style={{ color: r.insiders.cluster ? GREEN : VIOLET }}>{r.insiders.buyers30} buyer{r.insiders.buyers30 === 1 ? "" : "s"} · {usd(r.insiders.dollars30)}{r.insiders.ceoCfo ? " · CEO/CFO" : ""}</span> : <span style={{ color: DIM }}>—</span>, SLATE, { textAlign: "left" })}
+              {td(<A href={r.url}>↗</A>)}
+            </tr>
+          );
+        })}
+      </Board>
+    );
+  };
+
   // ── the Deal Book ─────────────────────────────────────────────────────────
   const dealBook = () => {
     const entries = book.entries;
@@ -464,6 +542,8 @@ export default function SpecialSituations({ onSelectStock }) {
     { id: "recaps", label: `Recaps · ${d.recaps.length}`, render: recaps },
     { id: "insider", label: `Insider buying · ${d.insider.length}`, render: insider },
     { id: "activist", label: `13Ds · ${d.activist.length}`, render: activist },
+    { id: "spacs", label: `SPACs · ${SQ.length}`, render: spacs },
+    { id: "buybacks", label: `Buybacks · ${BB.length}`, render: buybacks },
   ];
 
   return (<>

@@ -22,6 +22,14 @@
 //   insider    FMP open-market purchases (Form 4 code P), archived so clusters
 //              build over 30 and 90 days.
 //   activist   SCHEDULE 13D initial filings by fund-like filers.
+//   spacs      424B4 SPAC prospectuses for the universe (trust per unit and the
+//              deadline parsed; $10.00 and 24 months assumed until read), then
+//              business-combination 8-Ks, DEFM14A votes, extension proxies and
+//              liquidations for the stage. Suria's trade is the pre-deal SPAC
+//              below trust: discount and yield-to-trust from the live quote,
+//              with trust accreted at an assumed 4% a year since the IPO.
+//   buybacks   8-K repurchase authorisations: size parsed, set against FMP
+//              market cap, and flagged where insiders are buying alongside.
 // Every parsed term is flagged as parsed: the boards surface candidates, the
 // Deal Book is where the reading happens. EDGAR full-text search is free and
 // keyless; FMP is the dashboard's existing key. Documents are fetched once and
@@ -52,6 +60,8 @@ const cleanName = s => (s == null ? null : String(s).replace(/\s*,?\s+an?\s+[A-Z
 const FUNDLIKE = /\b(L\.?P\.?|Partners?|Capital|Management|Advisors?|Advisers?|Fund|Investments?|Asset|Master|Opportunit\w+|Value|Ventures|Holdings|Group|Associates|Equity|Activist|LLC)\b/i
 const INTERVAL = /\bfund\b|\btrust\b|\bbdc\b|\bportfolio\b|private credit|infrastructure|\bincome\b|\breit\b|\bcapital corp/i
 const SPAC = /acquisition corp|acquisition co\b|acquisition company|\bSPAC\b|capital corp\b|blank check/i
+// the universe filter is a little wider: numbered vehicles ("Churchill Capital Corp XIII", "Cohen Circle Acquisition Corp. II")
+const SPACISH = /acquisition|\bSPAC\b|blank check|capital corp\b|\b(?:corp|corporation|ltd|limited|inc|co)\.?\s+(?:I{1,3}|IV|VI{0,3}|IX|XI{0,3}|XIV|XV)\b\s*$/i
 
 // ── regex sets — every match is a candidate value, flagged parsed ────────────
 const RX = {
@@ -125,6 +135,32 @@ const RX = {
     payable: new RegExp(`(?:payable|paid) on[^.]{0,60}?(${MON})`, 'i'),
     record: new RegExp(`record[^.]{0,80}?(${MON})`, 'i'),
     recap: /recapitalization|term loan|notes offering|senior notes|credit facility|borrow/i,
+  },
+  spac: {
+    trust: /\$\s?(10\.\d{2}|10)\s+per (?:unit|public share|share)[^.]{0,80}?(?:trust|deposited)/i,
+    trust2: /(?:trust account|held in trust)[^.]{0,120}?\$\s?(10\.\d{2}|10)\s+per (?:unit|public share|share)/i,
+    months: /(\d{1,2})\s+months?\s+(?:from|after|following)\s+the\s+(?:closing|consummation|effective(?:ness)?)/i,
+    months2: /(?:within|have|has|of)\s+(\d{1,2})\s+months?[^.]{0,60}?(?:closing|consummation) of (?:this|the|our) (?:initial public )?offering/i,
+    units: /([\d,]{9,})\s+units/i,
+    warrant: /(one-(?:half|third|fourth|fifth|sixth|eighth|tenth)|one)\s+(?:of one\s+)?(?:redeemable\s+)?warrant/i,
+  },
+  bca: {
+    targetDef: /([A-Z][A-Za-z0-9&.,'’\- ]{2,70}?)\s*\(\s*(?:the\s+)?["“”']?(?:Target|Company)["“”']?\s*\)/g,
+    withName: /Business Combination Agreement[^.]{0,220}?(?:with|among)\s+(?:the Company,\s*)?([A-Z][A-Za-z0-9&.,'’\- ]{2,60}?)(?:,| \(| and )/,
+    among: /by and among\s+([^.]{10,340})/i,
+    ev: /(?:pro forma )?(?:enterprise|equity) value[^.]{0,80}?\$\s?([\d.]+)\s*(million|billion)/i,
+    pipe: /\bPIPE\b/,
+  },
+  bb: {
+    usd: /(?:repurchase|buyback|buy back)[^.]{0,120}?up to\s+\$\s?([\d.]+)\s*(million|billion)/i,
+    usd2: /\$\s?([\d.]+)\s*(million|billion)\s+(?:share |stock |common stock )?(?:repurchase|buyback)/i,
+    usd3: /(?:authoriz\w+|approv\w+)[^.]{0,80}?\$\s?([\d.]+)\s*(million|billion)/i,
+    shares: /(?:repurchase|buyback)[^.]{0,80}?up to\s+([\d,]{6,})\s+shares/i,
+    pct: /(?:approximately|representing|about)\s+([\d.]+)%\s+of (?:its|the company['’]s|the)[^.]{0,40}?outstanding/i,
+    additional: /additional|increas\w+|new (?:share )?repurchase|replaces?|expand/i,
+    expiry: new RegExp(`(?:through|until|expir\\w+|remains? in effect|valid)[^.]{0,40}?(${MON})`, 'i'),
+    asr: /accelerated share repurchase/i,
+    debt: /term loan|notes offering|senior notes|borrow|credit facility/i,
   },
   d13: {
     pct: /percent of class represented[^0-9]{0,120}?([\d.]+)\s*%?/i,
@@ -222,9 +258,9 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
   // fetch-and-parse once per filing per category. Budgeted per category per
   // build, newest first, so a cold start spends about a minute on documents and
   // the archive fills in over the following builds.
-  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, conf2: 8, eff2: 10, rights: 16, toi: 10, div: 12, '13dx': 16 }
+  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, conf2: 8, eff2: 10, rights: 16, toi: 10, div: 12, '13dx': 16, spac: 16, bca: 14, bb: 40 }
   let budget = {}
-  async function terms(cat, r, rx, { xml = false } = {}) {
+  async function terms(cat, r, rx, { xml = false, post = null } = {}) {
     const key = `${cat}:${r.adsh}`
     if (archive.docs[key]) return archive.docs[key]
     if (!r.doc || (budget[cat] ?? 0) <= 0) return null
@@ -235,6 +271,7 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       const text = strip(raw)
       const t = parse(text, rx)
       if (xml) { const px = raw.match(RX.d13.pctXml); if (px) t.pct = px[1]; const pu = raw.match(RX.d13.purposeXml); if (pu) t.purpose = strip(pu[1]) }
+      if (post) post(text, t)
       t.len = text.length
       archive.docs[key] = t
       return t
@@ -260,6 +297,24 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     const j = await r.json()
     return Array.isArray(j) ? j : null
   }
+
+  // fetched once per build, shared by the merger and SPAC boards
+  let memo = {}
+  const proxiesAll = () => (memo.proxies ??= fts({ forms: 'DEFM14A', days: 180, pages: 1 }).then(newest))
+  const maList = () => (memo.ma ??= (async () => { try { return [...(await fmp('mergers-acquisitions-latest?page=0&limit=100') || []), ...(await fmp('mergers-acquisitions-latest?page=1&limit=100') || [])] } catch (e) { console.warn('special M&A:', e.message); return [] } })())
+  // FMP market cap, kept a week in the archive; a build reads at most forty fresh ones
+  archive.mcap = archive.mcap || {}
+  let mcapBudget = 0
+  async function marketCap(t) {
+    if (!t) return null
+    const c = archive.mcap[t]
+    if (c && Date.now() - c.ts < 7 * DAY) return c.v
+    if (mcapBudget <= 0) return c?.v ?? null
+    mcapBudget--
+    try { await sleep(150); const rows = await fmp(`profile?symbol=${encodeURIComponent(t)}`); const v = rows?.[0]?.marketCap; if (fin(v)) { archive.mcap[t] = { v, ts: Date.now() }; return v } } catch {}
+    return c?.v ?? null
+  }
+  const amtM = v => { if (!v) return null; const [n, u] = Array.isArray(v) ? v : [v, 'million']; const x = num(n); return x == null ? null : /^b/i.test(u) ? x * 1000 : x }
 
   const dedupeBy = (rows, keyOf) => { const m = new Map(); for (const r of rows) { const k = keyOf(r); if (!m.has(k)) m.set(k, r) } return [...m.values()] }
   const newest = rows => [...rows].sort((a, b) => b.date.localeCompare(a.date))
@@ -320,10 +375,9 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     const tot = newest(await fts({ forms: 'SC TO-T,SC TO-T/A', days: 180, pages: 2 })).filter(r => !SPAC.test(r.name))
     const k8 = newest(await fts({ q: '"Agreement and Plan of Merger"', forms: '8-K', days: 120, pages: 3 }))
       .filter(r => r.items.includes('1.01') && !r.items.includes('2.01') && !SPAC.test(r.name))
-    const proxies = newest(await fts({ forms: 'DEFM14A', days: 180, pages: 1 })).filter(r => !SPAC.test(r.name))
+    const proxies = (await proxiesAll()).filter(r => !SPAC.test(r.name))
     const cvrs = newest(await fts({ q: '"contingent value right"', forms: '8-K', days: 180, pages: 1 }))
-    let fmpMa = []
-    try { fmpMa = [...(await fmp('mergers-acquisitions-latest?page=0&limit=100') || []), ...(await fmp('mergers-acquisitions-latest?page=1&limit=100') || [])] } catch (e) { console.warn('special M&A:', e.message) }
+    const fmpMa = await maList()
     const byAcq = new Map(fmpMa.map(m => [+m.cik, m])), byTgt = new Map(fmpMa.map(m => [+m.targetedCik, m]))
 
     const deals = new Map() // key: target cik
@@ -574,10 +628,109 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     return out
   }
 
+  // ── SPACs ─────────────────────────────────────────────────────────────────
+  async function spacs() {
+    const ipos = newest(await fts({ q: '"blank check company" "trust account"', forms: '424B4', days: 720, pages: 4 }))
+    const bcaAll = newest(await fts({ q: '"business combination agreement"', forms: '8-K', days: 150, pages: 3 })).filter(r => SPACISH.test(r.name))
+    const bcas = bcaAll.filter(r => r.items.includes('1.01') && !r.items.includes('2.01'))
+    const completed = new Map(bcaAll.filter(r => r.items.includes('2.01')).map(r => [r.cik, r.date]))
+    const votes = (await proxiesAll()).filter(r => SPAC.test(r.name))
+    const exts = newest(await fts({ q: '"extend the date by which"', forms: 'DEF 14A,DEFA14A', days: 120, pages: 1 }))
+    const liqs = newest(await fts({ q: '"redeem all of its outstanding public shares"', forms: '8-K', days: 150, pages: 1 }))
+    const byAcq = new Map((await maList()).map(m => [+m.cik, m]))
+    const bySpac = new Map()
+    const get = r => { const g = bySpac.get(r.cik) || { name: r.name, ticker: r.ticker, tickers: r.parties[0]?.tickers || [], cik: r.cik, ipo: null, trust: null, months: null, units: null, warrant: null, stage: 'searching', target: null, targetTicker: null, ev: null, pipe: false, deal: null, vote: null, ext: null, liq: null, parsed: false, filings: [] }; if (!g.ticker && r.ticker) g.ticker = r.ticker; if (!g.tickers.length && r.parties[0]?.tickers?.length) g.tickers = r.parties[0].tickers; bySpac.set(r.cik, g); return g }
+    for (const r of dedupeBy(ipos.filter(r => SPACISH.test(r.name)), r => r.cik)) {
+      const g = get(r); g.ipo = r.date
+      const t = await terms('spac', r, RX.spac)
+      if (t) { g.parsed = true; g.trust = num(t.trust || t.trust2); g.months = num(t.months || t.months2); g.units = t.units ? num(t.units) : null; g.warrant = t.warrant || null }
+      g.filings.push({ form: '424B4', date: r.date, url: r.index })
+    }
+    for (const r of dedupeBy(bcas, r => r.cik)) {
+      const g = get(r)
+      const t = await terms('bca', r, RX.bca, { post: (text, t) => {
+        t.targets = [...text.matchAll(RX.bca.targetDef)].map(m => cleanName(m[1])).filter(Boolean).slice(0, 6)
+        // "by and among SPAC Corp, Merger Sub Inc., a wholly owned subsidiary, and Target Ltd" — the target is the last real party
+        const among = text.match(RX.bca.among)
+        t.parties = among ? among[1].replace(/\([^)]*\)/g, '').split(/,\s*|\s+and\s+/).map(x => cleanName(x)).filter(x => x && x.length > 3 && !/merger sub|sponsor|representative|holder|subsidiary|each of|collectively|together/i.test(x)).slice(0, 8) : []
+      } })
+      const fm = byAcq.get(r.cik)
+      const notSpac = n => n && !similar(n, r.name) && !SPAC.test(n)
+      // FMP sometimes names the vehicle itself as the target, so every candidate goes through the same filter
+      g.target = [fm?.targetedCompanyName, ...(t?.targets || []), ...[...(t?.parties || [])].reverse(), cleanName(t?.withName)].find(notSpac) || null
+      g.targetTicker = fm?.targetedSymbol || null
+      g.ev = t?.ev ? `$${t.ev[0]}${t.ev[1][0].toLowerCase() === 'b' ? 'B' : 'M'}` : null; g.pipe = !!t?.pipe
+      g.deal = g.deal && g.deal < r.date ? g.deal : r.date; g.stage = 'deal announced'
+      g.filings.push({ form: '8-K BCA', date: r.date, url: r.index })
+    }
+    for (const r of dedupeBy(votes, r => r.cik)) { const g = bySpac.get(r.cik); if (!g) continue; const t = await terms('defm', r, RX.merger); g.vote = (t && toIso(t.meeting)) || null; g.stage = 'vote'; g.filings.push({ form: 'DEFM14A', date: r.date, url: r.index }) }
+    for (const r of dedupeBy(exts.filter(r => SPACISH.test(r.name)), r => r.cik)) { const g = get(r); g.ext = r.date; if (g.stage === 'searching') g.stage = 'extension vote'; g.filings.push({ form: r.form, date: r.date, url: r.index }) }
+    for (const r of dedupeBy(liqs, r => r.cik)) { const g = bySpac.get(r.cik); if (!g) continue; g.liq = r.date; g.stage = 'liquidating'; g.filings.push({ form: '8-K', date: r.date, url: r.index }) }
+    const stale = ymd(Date.now() - 45 * DAY)
+    let done = 0
+    for (const g of bySpac.values()) { if (completed.has(g.cik) || (g.vote && g.vote < stale)) { g.stage = 'completed'; done++ } }
+
+    // deals and votes first, then the newest IPOs — quotes are the cost here
+    const all = [...bySpac.values()].filter(g => g.ticker && g.stage !== 'completed').sort((a, b) => ((b.deal || b.vote) ? 1 : 0) - ((a.deal || a.vote) ? 1 : 0) || (b.ipo || '').localeCompare(a.ipo || ''))
+    const out = []
+    for (const g of all.slice(0, 160)) {
+      const trustIpo = g.trust ?? 10, trustAssumed = g.trust == null
+      const yrs = g.ipo ? Math.max(daysBetween(g.ipo, today()), 0) / 365 : 0
+      const trustNow = trustIpo * Math.pow(1.04, yrs) // interest accretes; 4% a year assumed
+      const months = g.months ?? 24, monthsAssumed = g.months == null
+      const dl = g.ipo ? new Date(`${g.ipo}T00:00:00Z`) : null; if (dl) dl.setUTCMonth(dl.getUTCMonth() + months)
+      const deadline = dl ? ymd(dl) : null
+      const monthsLeft = deadline ? daysBetween(today(), deadline) / 30.4 : null
+      const unit = g.tickers.find(t => /U$|-UN$/.test(t)) || null, wt = g.tickers.find(t => /W$|-WT$/.test(t)) || null
+      let q = await quote(g.ticker), priceOf = 'common'
+      if (!q && unit) { q = await quote(unit); priceOf = q ? 'unit' : 'common' }
+      const price = q?.price ?? null
+      const disc = fin(price) && price > 0 ? (1 - price / trustNow) * 100 : null
+      const ytt = fin(disc) && fin(monthsLeft) && monthsLeft > 0.5 ? (trustNow / price - 1) * 100 * (12 / monthsLeft) : null
+      const verify = fin(disc) && (disc > 15 || disc < -40) // trust is not $10, or this is no longer a SPAC
+      const wq = wt && (g.deal || g.vote) ? await quote(wt) : null
+      out.push({
+        name: g.name, ticker: g.ticker, cik: g.cik, stage: g.stage, ipo: g.ipo, trustIpo, trustAssumed, trustNow: r2(trustNow), months, monthsAssumed, deadline, monthsLeft: r1(monthsLeft),
+        price, priceOf, discount: r2(disc), yieldToTrust: r1(ytt), verify, target: g.target, targetTicker: g.targetTicker, ev: g.ev, pipe: g.pipe, deal: g.deal, vote: g.vote, ext: g.ext, liq: g.liq,
+        units: g.units, warrant: g.warrant, warrantTicker: wt, warrantPrice: wq?.price ?? null, parsed: g.parsed,
+        filings: g.filings.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6), url: g.filings[0]?.url || null,
+      })
+    }
+    out.completed = done
+    return out.sort((a, b) => (a.verify ? 1 : 0) - (b.verify ? 1 : 0) || (fin(b.discount) ? 1 : 0) - (fin(a.discount) ? 1 : 0) || (b.discount ?? -99) - (a.discount ?? -99))
+  }
+
+  // ── buybacks ──────────────────────────────────────────────────────────────
+  async function buybacks(insiderList) {
+    const hits = newest(await fts({ q: '"share repurchase program" authorized', forms: '8-K', days: 60, pages: 3 }))
+      .filter(r => r.ticker && r.items.some(i => /^(8\.01|7\.01|2\.02|1\.01)/.test(i)) && !SPAC.test(r.name) && !INTERVAL.test(r.name))
+    const insiders = new Map((insiderList || []).map(i => [i.symbol, i]))
+    const out = []
+    for (const r of dedupeBy(hits, r => r.cik)) {
+      const t = await terms('bb', r, RX.bb)
+      const usdM = t ? amtM(t.usd || t.usd2 || t.usd3) : null
+      const shares = t?.shares ? num(t.shares) : null
+      const q = await quote(r.ticker)
+      const mcap = usdM != null || shares != null ? await marketCap(r.ticker) : null
+      const usd = usdM != null ? usdM * 1e6 : fin(shares) && q?.price ? shares * q.price : null
+      const pctCap = fin(usd) && fin(mcap) && mcap > 0 ? usd / mcap * 100 : null
+      const ins = insiders.get(r.ticker) || null
+      out.push({
+        name: r.name, ticker: r.ticker, cik: r.cik, filed: r.date, usd: fin(usd) ? Math.round(usd) : null, shares, statedPct: t?.pct ? num(t.pct) : null, pctCap: r1(pctCap), mcap: fin(mcap) ? mcap : null,
+        expiry: (e => (e && e >= r.date ? e : null))(t ? toIso(t.expiry) : null), verify: fin(pctCap) && pctCap > 50, asr: !!t?.asr, additional: !!t?.additional, debtFunded: !!t?.debt, inEarnings: r.items.includes('2.02') && !r.items.includes('8.01'),
+        price: q?.price ?? null, changePct: fin(q?.changePct) ? r2(q.changePct * 100) : null,
+        insiders: ins ? { buyers30: ins.buyers30, dollars30: ins.dollars30, cluster: ins.cluster, ceoCfo: ins.ceoCfo } : null,
+        parsed: !!t, url: r.index, state: r.state,
+      })
+    }
+    return out.sort((a, b) => (fin(b.pctCap) ? 1 : 0) - (fin(a.pctCap) ? 1 : 0) || (b.pctCap ?? 0) - (a.pctCap ?? 0) || b.filed.localeCompare(a.filed))
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
   async function build() {
     const t0 = Date.now()
     budget = { ...BUDGET }
+    memo = {}; mcapBudget = 60
     for (const k of Object.keys(quotes)) delete quotes[k]
     const status = {}
     const run = async (name, fn, empty) => { try { const v = await fn(); status[name] = 'ok'; return v } catch (e) { status[name] = e.message; console.warn(`special ${name}:`, e.message); return empty } }
@@ -588,6 +741,8 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
     const rc = await run('recaps', recaps, [])
     const ins = await run('insider', insider, { list: [], archived: 0 })
     const act = await run('activist', activist, [])
+    const sq = await run('spacs', spacs, [])
+    const bb = await run('buybacks', () => buybacks(ins.list), [])
     save(ARCHIVE, archive)
 
     const wk = ymd(Date.now() - 7 * DAY)
@@ -601,6 +756,8 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       recaps: { n: rc.length, tenders: rc.filter(r => r.kind === 'self-tender' && r.stage === 'open').length, dutch: rc.filter(r => r.type === 'Dutch auction').length, dividends: rc.filter(r => r.kind === 'special dividend').length },
       insider: { clusters: ins.list.filter(i => i.cluster).length, symbols: ins.list.length, ceoCfo: ins.list.filter(i => i.ceoCfo).length, archived: ins.archived },
       activist: { n: act.length, n30: act.filter(a => a.filed >= ymd(Date.now() - 30 * DAY)).length, board: act.filter(a => a.board).length },
+      spacs: { n: sq.length, searching: sq.filter(x => x.stage === 'searching' || x.stage === 'extension vote').length, belowTrust: sq.filter(x => fin(x.discount) && x.discount > 0 && !x.verify && (x.stage === 'searching' || x.stage === 'extension vote')).length, medianYield: r1(median(sq.filter(x => fin(x.discount) && x.discount > 0 && !x.verify && x.stage === 'searching').map(x => x.yieldToTrust))), deals: sq.filter(x => x.stage === 'deal announced' || x.stage === 'vote').length, liquidating: sq.filter(x => x.stage === 'liquidating').length, completed: sq.completed || 0 },
+      buybacks: { n: bb.length, big: bb.filter(x => fin(x.pctCap) && x.pctCap >= 5 && !x.verify).length, withInsiders: bb.filter(x => x.insiders && x.insiders.buyers30 >= 2).length, asr: bb.filter(x => x.asr).length },
     }
     const newThisWeek = [
       ...sp.filter(s => s.latestFiled >= wk).map(s => ({ cat: 'spinoff', name: s.spinco || s.parent, ticker: s.ticker || s.parentTicker, date: s.latestFiled, note: s.stage })),
@@ -609,13 +766,15 @@ export function createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, 
       ...rt.filter(r => r.filed >= wk).map(r => ({ cat: 'rights', name: r.name, ticker: r.ticker, date: r.filed, note: fin(r.subPrice) ? `$${r.subPrice} sub` : r.stage })),
       ...rc.filter(r => r.filed >= wk).map(r => ({ cat: 'recap', name: r.name, ticker: r.ticker, date: r.filed, note: r.type })),
       ...act.filter(a => a.filed >= wk).map(a => ({ cat: '13D', name: a.name, ticker: a.ticker, date: a.filed, note: a.filer })),
+      ...sq.filter(x => x.deal && x.deal >= wk).map(x => ({ cat: 'spac', name: x.name, ticker: x.ticker, date: x.deal, note: x.target ? `→ ${x.target}` : 'deal' })),
+      ...bb.filter(x => x.filed >= wk && fin(x.pctCap) && x.pctCap >= 3 && !x.verify).map(x => ({ cat: 'buyback', name: x.name, ticker: x.ticker, date: x.filed, note: `${x.pctCap}% of cap` })),
     ].sort((a, b) => b.date.localeCompare(a.date))
 
     return {
       ts: Date.now(), built: new Date().toISOString(), buildSecs: Math.round((Date.now() - t0) / 1000), ttlHours: TTL / H, status,
-      pipeline, newThisWeek, spinoffs: sp, mergers: mg, securities, reorg: rg, rights: rt, recaps: rc, insider: ins.list, insiderWindow: ins.window || null, activist: act,
+      pipeline, newThisWeek, spinoffs: sp, mergers: mg, securities, reorg: rg, rights: rt, recaps: rc, insider: ins.list, insiderWindow: ins.window || null, activist: act, spacs: sq, buybacks: bb,
       docsCached: Object.keys(archive.docs).length,
-      source: 'SEC EDGAR full-text search (Form 10-12B, SC TO-T, SC TO-I, DEFM14A, SCHEDULE 13D, 8-A12B, and 8-K phrase sweeps), with deal terms parsed from the primary document of each filing; FMP mergers-acquisitions, insider-trading (Form 4 open-market purchases) and beneficial-ownership endpoints; Yahoo Finance quotes; the bankruptcy tracker’s 8-K Item 1.03 list. Every parsed field is a regex match on filing text and is labelled as such.',
+      source: 'SEC EDGAR full-text search (Form 10-12B, SC TO-T, SC TO-I, DEFM14A, SCHEDULE 13D, 8-A12B, and 8-K phrase sweeps), with deal terms parsed from the primary document of each filing; FMP mergers-acquisitions, insider-trading (Form 4 open-market purchases) and beneficial-ownership endpoints; Yahoo Finance quotes; the bankruptcy tracker’s 8-K Item 1.03 list. SPAC trust values assume $10.00 a unit and a 24-month deadline until the prospectus is read, and accrete at an assumed 4% a year. Buyback sizes are set against FMP market cap. Every parsed field is a regex match on filing text and is labelled as such.',
     }
   }
 
