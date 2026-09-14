@@ -46,3 +46,6 @@ municipality-nyc.json
 metro-postings.json
 seattle.json
 seattle-postings.json
+# Special situations: 6h feed cache and the personal Deal Book (per machine, like tickers.json); special-archive.json is a tracked archive
+special-situations.json
+special-dealbook.json

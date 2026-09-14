@@ -16,6 +16,7 @@ import { createCommodityPulse } from './server/commodityPulse.js'
 import { createAiPulse } from './server/aiPulse.js'
 import { createSfcModel } from './server/sfcModel.js'
 import { createBankruptcy } from './server/bankruptcy.js'
+import { createSpecialSituations } from './server/specialSituations.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3674,6 +3675,9 @@ const bankruptcy = createBankruptcy({ fetchFredSeries, UA, dir: __dirname })
 // Municipalities (server/municipalities.js): one metro at a time — labor, housing, prices, business, growth, the local majors.
 // Reuses the Real Estate metro feed, the bankruptcy tracker and the zip reader.
 const municipalities = createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, unzipEntries, UA, dir: __dirname, reMetro: code => reFeeds.metro(code), bankruptcy: () => bankruptcy.get() })
+// Special situations (server/specialSituations.js): EDGAR sweeps for spinoffs, merger arb, restructurings,
+// rights offerings and recaps; FMP insider purchases and 13Ds. Joins the bankruptcy tracker for petitions.
+const specialSituations = createSpecialSituations({ fetchYahooQuote, fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get() })
 
 export default defineConfig({
   plugins: [
@@ -3828,6 +3832,17 @@ export default defineConfig({
         reRoute('/api/bankruptcy', () => bankruptcy.get())
         reRoute('/api/municipality', req => municipalities.get(new URL(req.url || '/', 'http://x').searchParams.get('city') || undefined))
         reRoute('/api/municipality-status', () => ({ cities: municipalities.status() }))
+        reRoute('/api/special-situations', () => specialSituations.get())
+        // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
+        server.middlewares.use('/api/special-dealbook', (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          if (req.method === 'GET') { res.end(JSON.stringify(specialSituations.dealBook.list())); return }
+          if (req.method !== 'POST') { res.statusCode = 405; res.end('{"error":"GET or POST"}'); return }
+          let body = ''
+          req.on('data', chunk => { body += chunk })
+          req.on('end', () => { try { res.end(JSON.stringify(specialSituations.dealBook.save(JSON.parse(body || '{}')))) } catch (e) { res.statusCode = 400; res.end(JSON.stringify({ error: e.message })) } })
+        })
         // Artificial Analysis key check — reports whether the key in .env works, never the key itself
         reRoute('/api/aa-check', async () => {
           if (!AA_KEY) return { configured: false, reason: 'ARTIFICIAL_ANALYSIS_KEY is not set in .env (restart the server after adding it)' }
@@ -3851,6 +3866,7 @@ export default defineConfig({
         setTimeout(() => { commodityPulse.get().catch(() => {}) }, 360 * 1000)
         setTimeout(() => { aiPulse.get().catch(() => {}) }, 420 * 1000)
         setTimeout(() => { bankruptcy.get().catch(() => {}) }, 20 * 1000)
+        setTimeout(() => { specialSituations.get().catch(() => {}) }, 150 * 1000)
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         // the remaining metros warm after the other feeds have had the throttle,
         // so switching cities is instant instead of a three-minute cold build
