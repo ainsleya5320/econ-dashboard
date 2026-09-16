@@ -6,6 +6,7 @@ import ForecastPanel from "../components/ForecastPanel.jsx";
 import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker.jsx";
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
+import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
 
 function SubTab({ id, label, active, onClick }) {
   return (
@@ -2096,6 +2097,7 @@ function ComputeTab() {
       pace, and the silicon and memory supply behind it.
     </div>
     <GpuRentalsPanel />
+    <GpuEconomicsPanel />
     <ComputePowerTab />
     <SupplyCeilingPanel />
     <MemoryPricesPanel />

@@ -51,3 +51,5 @@ special-situations.json
 special-dealbook.json
 # FX fundamentals: 6h feed cache (data/fx/*.json are tracked reference tables)
 fx-fundamentals.json
+# GPU unit economics: 6h feed cache (data/ai/gpu-econ.json is the tracked assumption table)
+gpu-economics.json
