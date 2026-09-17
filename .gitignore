@@ -53,3 +53,5 @@ special-dealbook.json
 fx-fundamentals.json
 # GPU unit economics: 6h feed cache (data/ai/gpu-econ.json is the tracked assumption table)
 gpu-economics.json
+# Token estimates: 12h feed cache (data/ai/token-estimates.json is the tracked input table)
+token-estimates-out.json

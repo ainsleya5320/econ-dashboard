@@ -1,0 +1,248 @@
+{
+  "_about": "Inputs to the OpenAI / Anthropic token-volume estimator that cannot be fetched. Every value carries a source, an as-of date and a confidence. They are the argument, so the panel prints them and you can correct them — nothing here is measured, and the panel says so. `confidence`: high = named figure from a filing or an on-record executive statement; medium = reported by a credible outlet and corroborated; low = my inference, treat as a placeholder and replace. Written 2026-09-17 against a model whose knowledge runs to May 2026, so anything dated after that is explicitly marked stale-risk and should be the first thing you refresh.",
+  "reviewed": "2026-09-17",
+  "knowledgeCutoffWarning": "Seeded by a model with a May 2026 cutoff. Revenue run-rates and fleet sizes move fast; treat every 2026 figure below as a placeholder until you have replaced it from a primary source.",
+  "labs": {
+    "openai": {
+      "name": "OpenAI",
+      "color": "#10B981",
+      "revenue": [
+        {
+          "asOf": "2025-12-31",
+          "annualRunRateUsd": 20000000000,
+          "apiShare": 0.27,
+          "source": "widely reported year-end 2025 ARR; API share is the low-confidence part",
+          "confidence": "medium"
+        },
+        {
+          "asOf": "2026-06-30",
+          "annualRunRateUsd": 35000000000,
+          "apiShare": 0.27,
+          "source": "PLACEHOLDER — replace with a sourced mid-2026 figure",
+          "confidence": "low"
+        }
+      ],
+      "fleet": [
+        {
+          "asOf": "2026-06-30",
+          "h100Equivalents": 1500000,
+          "inferenceShare": 0.6,
+          "source": "PLACEHOLDER — derive from Azure + Stargate + Oracle capacity disclosures",
+          "confidence": "low",
+          "note": "h100Equivalents means the fleet expressed in H100-throughput units: a B200 counts as ~4.7 H100s on the InferenceX gpt-oss-120B curve. inferenceShare is the fraction serving rather than training."
+        }
+      ],
+      "disclosures": [
+        {
+          "date": "2025-05-19",
+          "tokensPerMonth": 100000000000000,
+          "scope": "azure-only",
+          "source": "Microsoft Build 2025: 100T tokens processed via Azure OpenAI in Q1 2025",
+          "confidence": "high",
+          "note": "Azure rail only — not all of OpenAI. Useful as a floor and as a calibration point for the Azure share."
+        }
+      ],
+      "computeCounterparties": [
+        "MSFT",
+        "ORCL",
+        "CRWV"
+      ]
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "color": "#E8553A",
+      "revenue": [
+        {
+          "asOf": "2025-12-31",
+          "annualRunRateUsd": 9000000000,
+          "apiShare": 0.7,
+          "source": "reported year-end 2025 run-rate; Anthropic skews enterprise/API far more than OpenAI",
+          "confidence": "medium"
+        },
+        {
+          "asOf": "2026-06-30",
+          "annualRunRateUsd": 20000000000,
+          "apiShare": 0.7,
+          "source": "PLACEHOLDER — replace with a sourced mid-2026 figure",
+          "confidence": "low"
+        }
+      ],
+      "fleet": [
+        {
+          "asOf": "2026-06-30",
+          "h100Equivalents": 700000,
+          "inferenceShare": 0.6,
+          "source": "PLACEHOLDER — derive from AWS Rainier + Google TPU commitments; note much of Anthropic's fleet is Trainium/TPU, not GPU",
+          "confidence": "low"
+        }
+      ],
+      "disclosures": [],
+      "computeCounterparties": [
+        "AMZN",
+        "GOOGL",
+        "CRWV"
+      ],
+      "note": "Anthropic has never published a token count. Its bar on any such chart is inferred by everyone, including Altimeter."
+    },
+    "google": {
+      "name": "Google / Gemini",
+      "color": "#4285F4",
+      "revenue": [],
+      "fleet": [],
+      "disclosures": [
+        {
+          "date": "2025-05-20",
+          "tokensPerMonth": 480000000000000,
+          "scope": "all-surfaces",
+          "source": "Sundar Pichai, Google I/O 2025",
+          "confidence": "high"
+        },
+        {
+          "date": "2025-07-23",
+          "tokensPerMonth": 980000000000000,
+          "scope": "all-surfaces",
+          "source": "Alphabet Q2 2025 earnings call",
+          "confidence": "high"
+        }
+      ],
+      "computeCounterparties": [
+        "GOOGL"
+      ],
+      "note": "The only lab that publishes a token series, and its scope is every surface including Search AI Overviews — which is a supply-side decision by Google, not measured demand. Present for calibration and contrast; not comparable to an API number."
+    }
+  },
+  "counterparties": {
+    "MSFT": {
+      "cik": "0000789019",
+      "name": "Microsoft",
+      "serves": [
+        "openai"
+      ],
+      "concepts": [
+        "RevenueRemainingPerformanceObligation",
+        "PaymentsToAcquirePropertyPlantAndEquipment"
+      ],
+      "rpoShare": {
+        "openai": {
+          "value": null,
+          "source": "Microsoft's RPO is overwhelmingly Azure commercial bookings unrelated to OpenAI; no disclosed split exists, so it contributes nothing to method A rather than a guess",
+          "confidence": "n/a"
+        }
+      }
+    },
+    "ORCL": {
+      "cik": "0001341439",
+      "name": "Oracle",
+      "serves": [
+        "openai"
+      ],
+      "concepts": [
+        "RevenueRemainingPerformanceObligation",
+        "PaymentsToAcquirePropertyPlantAndEquipment"
+      ],
+      "rpoShare": {
+        "openai": {
+          "value": 0.5,
+          "source": "PLACEHOLDER — Oracle's RPO surge is widely attributed to a small number of very large AI contracts, OpenAI the largest; Oracle has not disclosed a customer split. Replace with a sourced share or set to null.",
+          "confidence": "low"
+        }
+      }
+    },
+    "CRWV": {
+      "cik": "0001769628",
+      "name": "CoreWeave",
+      "serves": [
+        "openai",
+        "anthropic"
+      ],
+      "concepts": [
+        "RevenueRemainingPerformanceObligation",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "PaymentsToAcquirePropertyPlantAndEquipment"
+      ],
+      "rpoShare": {
+        "openai": {
+          "value": 0.25,
+          "source": "PLACEHOLDER — CoreWeave discloses heavy customer concentration in its 10-Q (text, not XBRL); read the actual percentages and replace.",
+          "confidence": "low"
+        },
+        "anthropic": {
+          "value": 0.05,
+          "source": "PLACEHOLDER — replace or null",
+          "confidence": "low"
+        }
+      }
+    },
+    "AMZN": {
+      "cik": "0001018724",
+      "name": "Amazon",
+      "serves": [
+        "anthropic"
+      ],
+      "concepts": [
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        "IncomeLossFromEquityMethodInvestments"
+      ],
+      "rpoShare": {
+        "anthropic": {
+          "value": null,
+          "source": "Amazon does not tag RPO for this concept and does not split AWS backlog by customer",
+          "confidence": "n/a"
+        }
+      }
+    },
+    "GOOGL": {
+      "cik": "0001652044",
+      "name": "Alphabet",
+      "serves": [
+        "google",
+        "anthropic"
+      ],
+      "concepts": [
+        "PaymentsToAcquirePropertyPlantAndEquipment"
+      ],
+      "rpoShare": {
+        "anthropic": {
+          "value": null,
+          "source": "no disclosed split",
+          "confidence": "n/a"
+        }
+      }
+    },
+    "NVDA": {
+      "cik": "0001045810",
+      "name": "Nvidia",
+      "serves": [],
+      "concepts": [
+        "RevenueFromContractWithCustomerExcludingAssessedTax"
+      ]
+    }
+  },
+  "assumptions": {
+    "openRouterAnchor": {
+      "note": "Method C calibrates OpenRouter's share of each lab's API volume at a disclosure event, then carries the multiplier forward. With no usable anchor for a lab, the multiplier is left null and method C reports nothing rather than guessing.",
+      "multipliers": {
+        "openai": {
+          "value": null,
+          "fittedAt": null,
+          "source": "no usable anchor: the only OpenAI disclosure is Azure-scoped"
+        },
+        "anthropic": {
+          "value": null,
+          "fittedAt": null,
+          "source": "no disclosure has ever been made"
+        }
+      }
+    },
+    "utilization": 0.7,
+    "h100TokensPerSecond": null,
+    "h100TokensPerSecondNote": "left null on purpose — read live from the GPU economics feed (InferenceX, gpt-oss-120B at the 50 tok/s/user floor) so the ceiling moves as software improves.",
+    "consumerApiSplitNote": "ChatGPT and Claude.ai token volume is not visible to any method here except the physics ceiling. Panel reports an API series (defensible) and a total band (wide).",
+    "quarterlyRecognitionOfRpo": 0.2,
+    "quarterlyRecognitionNote": "fraction of remaining performance obligation recognised per year, used to turn a backlog into an annual compute-spend rate. 0.2 is a placeholder for a ~5-year weighted contract; Oracle and CoreWeave both disclose expected recognition windows in their 10-Qs — replace with the disclosed figure.",
+    "inferenceShareOfCloudSpend": 0.5,
+    "inferenceShareNote": "fraction of a lab's cloud compute spend that serves inference rather than training. The single largest swing factor in method A and almost certainly the least knowable; the panel shows the estimate across a 0.3–0.7 range.",
+    "attributionNote": "Method A only counts a counterparty's backlog where data/ai/token-estimates.json states what share of it belongs to the lab. An unset share contributes nothing — the method reports a smaller number and says which counterparties it had to leave out, rather than silently attributing someone else's bookings.",
+    "disagreementFlagX": 5
+  }
+}

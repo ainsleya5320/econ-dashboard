@@ -19,6 +19,7 @@ import { createBankruptcy } from './server/bankruptcy.js'
 import { createSpecialSituations } from './server/specialSituations.js'
 import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createGpuEconomics } from './server/gpuEconomics.js'
+import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3690,6 +3691,9 @@ const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY
 const fxFundamentals = createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse: () => intlPulse.get(), UA, dir: __dirname })
 // GPU unit economics (server/gpuEconomics.js): InferenceX throughput per generation against the AI pulse's rentals and data/ai/gpu-econ.json cost lines
 const gpuEconomics = createGpuEconomics({ aiPulse: () => aiPulse.get(), UA, dir: __dirname })
+// Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
+// measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
+const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3847,6 +3851,7 @@ export default defineConfig({
         reRoute('/api/special-situations', () => specialSituations.get())
         reRoute('/api/fx-fundamentals', () => fxFundamentals.get())
         reRoute('/api/gpu-economics', () => gpuEconomics.get())
+        reRoute('/api/token-estimates', () => tokenEstimates.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3883,6 +3888,7 @@ export default defineConfig({
         setTimeout(() => { specialSituations.get().catch(() => {}) }, 150 * 1000)
         setTimeout(() => { fxFundamentals.get().catch(() => {}) }, 330 * 1000) // after the intl pulse it joins
         setTimeout(() => { gpuEconomics.get().catch(() => {}) }, 540 * 1000) // after the AI pulse it joins
+        setTimeout(() => { tokenEstimates.get().catch(() => {}) }, 660 * 1000) // after the GPU economics it joins
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         // the remaining metros warm after the other feeds have had the throttle,
         // so switching cities is instant instead of a three-minute cold build

@@ -7,6 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
+import TokenEstimatesPanel from "./ai/TokenEstimates.jsx";
 
 function SubTab({ id, label, active, onClick }) {
   return (
@@ -2061,6 +2062,8 @@ function TokenDemandTab() {
       costs; Census adoption breadth and the developer signals lead it.
     </div>
     <ApiUsagePanels />
+    <SH>How Many Tokens Do OpenAI and Anthropic Actually Process?</SH>
+    <TokenEstimatesPanel />
     <SH>Intelligence, Price and Speed — Artificial Analysis</SH>
     <AaModelsPanel />
     <BtosAdoptionPanel />
