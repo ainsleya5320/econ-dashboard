@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from "recharts";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
+import OwnerWealthPanel from "./consumer/OwnerWealth.jsx";
 
 /*
  * ConsumerTab — is the American household healthy?
@@ -178,6 +179,9 @@ function ConsumerTab() {
     </div>
 
     {/* K-shape panel */}
+    <SH>Where Private Business Wealth Is — The Everywhere Millionaire, Tested</SH>
+    <OwnerWealthPanel />
+
     <SH>The K-Shaped Consumer — Whose Strength?</SH>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 16px" }}>

@@ -20,6 +20,7 @@ import { createSpecialSituations } from './server/specialSituations.js'
 import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createGpuEconomics } from './server/gpuEconomics.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
+import { createOwnerWealth } from './server/ownerWealth.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3764,6 +3765,9 @@ const gpuEconomics = createGpuEconomics({ aiPulse: () => aiPulse.get(), UA, dir:
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
+// Owner wealth (server/ownerWealth.js): IRS SOI returns by state and county and AGI bracket,
+// against BEA state proprietors' income -- the public read on where pass-through wealth lives
+const ownerWealth = createOwnerWealth({ fetchFredSeries, UA, dir: __dirname, homeState: 'WA' })
 
 export default defineConfig({
   plugins: [
@@ -3919,6 +3923,7 @@ export default defineConfig({
         reRoute('/api/gpu-economics', () => gpuEconomics.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
+        reRoute('/api/owner-wealth', () => ownerWealth.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3956,6 +3961,7 @@ export default defineConfig({
         setTimeout(() => { fxFundamentals.get().catch(() => {}) }, 330 * 1000) // after the intl pulse it joins
         setTimeout(() => { gpuEconomics.get().catch(() => {}) }, 540 * 1000) // after the AI pulse it joins
         setTimeout(() => { tokenEstimates.get().catch(() => {}) }, 660 * 1000) // after the GPU economics it joins
+        setTimeout(() => { ownerWealth.get().catch(() => {}) }, 780 * 1000)
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         // the remaining metros warm after the other feeds have had the throttle,
         // so switching cities is instant instead of a three-minute cold build

@@ -57,3 +57,6 @@ gpu-economics.json
 token-estimates-out.json
 # The shared FRED observation cache (re-derivable; keyed by series, cadence-aware TTL)
 fred-cache.json
+# Owner wealth: 24h feed cache and the permanent SOI tax-year extracts (re-derivable)
+owner-wealth.json
+soi-archive.json
