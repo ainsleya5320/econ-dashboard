@@ -140,7 +140,7 @@ export function createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse,
     const pulseRow = code => pulseRows.find(r => r.code === code) || null
 
     // globals (FRED throttles itself)
-    const [spx, wti, vix, hy, copper, us10, usReer, usBs] = [await F('SP500', 800), await F('DCOILWTICO', 800), await F('VIXCLS', 800), await F('BAMLH0A0HYM2', 800), await F('PCOPPUSDM', 36), await F('DGS10', 60), await F('RBUSBIS', 300), await F('WALCL', 120)]
+    const [spx, wti, vix, hy, copper, us10, usReer, usBs] = await Promise.all([F('SP500', 800), F('DCOILWTICO', 800), F('VIXCLS', 800), F('BAMLH0A0HYM2', 800), F('PCOPPUSDM', 36), F('DGS10', 60), F('RBUSBIS', 300), F('WALCL', 120)])
     const dates = spx.filter((_, i) => (spx.length - 1 - i) % 5 === 0).map(p => p.d).slice(-105) // ~2 years of weekly points ending on the last trading day
     const spxW = weeklyReturns(spx, dates), wtiW = weeklyReturns(wti, dates)
     const lastN = (s, n) => (s.length > n ? s[s.length - 1 - n] : null)
@@ -172,7 +172,7 @@ export function createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse,
 
     const out = []
     for (const c of CURRENCIES) {
-      const [fxRaw, reerRaw, y10Raw, cbFredRaw, bsRaw] = [await F(c.fred, 800), await F(c.reer, 300), await F(c.y10, 60), await F(c.cbFred, 24), await F(c.bs, 120)]
+      const [fxRaw, reerRaw, y10Raw, cbFredRaw, bsRaw] = await Promise.all([F(c.fred, 800), F(c.reer, 300), F(c.y10, 60), F(c.cbFred, 24), F(c.bs, 120)])
       // everything is expressed as dollars per unit, so up = the currency strengthening
       const fx = asc(fxRaw).map(p => ({ d: p.d, v: c.usdPer ? p.v : 1 / p.v })).filter(p => fin(p.v) && p.v > 0)
       const spot = last(fx)

@@ -102,8 +102,7 @@ export function createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahooSp
     const fred = {}
     for (const c of COUNTRIES) {
       fred[c.code] = {
-        y10: await F(c.y10, 150), unemp: await F(c.unemp, 150), cpi: c.cpi && c.cpi !== 'CPIAUCSL' ? await F(c.cpi, 30) : [],
-        reer: await F(c.reer, 150), gdp: await F(c.gdp?.id, 60), cbF: await F(c.cbFred, 24),
+        ...(await (async () => { const [y10, unemp, cpi, reer, gdp, cbF] = await Promise.all([F(c.y10, 150), F(c.unemp, 150), c.cpi && c.cpi !== 'CPIAUCSL' ? F(c.cpi, 30) : [], F(c.reer, 150), F(c.gdp?.id, 60), F(c.cbFred, 24)]); return { y10, unemp, cpi, reer, gdp, cbF } })()),
       }
     }
     // Yahoo: index + FX weekly sparks (1y), in parallel batches

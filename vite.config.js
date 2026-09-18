@@ -287,10 +287,80 @@ function fredThrottle() {
   fredChain = p.catch(() => {})
   return p
 }
-// Per-series response cache for the /api/fred relay (id:limit → body)
-const fredRelayCache = new Map()
-
+// ── One FRED cache, shared by every caller ───────────────────────────────────
+// Before this existed the server feeds had no cache at all — each rebuild paid
+// 550 ms of throttle per series, and the /api/fred relay kept its own 30-minute
+// copy in memory that a dev-server restart threw away. One series is now fetched
+// once and serves the feeds, the relay and every browser tab.
+//   keyed by series id, storing the longest observation array seen, so a caller
+//     asking for 24 points is served from the 5,200-point entry
+//   TTL inferred from the series' own cadence — a monthly series cannot change
+//     every thirty minutes, and reading the gap between its last two
+//     observations costs nothing (no metadata request)
+//   stale-while-revalidate — an expired entry is returned immediately and
+//     refreshed behind the caller, so nothing waits on FRED for data it has
+//   in-flight dedupe — two feeds asking at once make one request
+const FRED_CACHE_FILE = path.join(__dirname, 'fred-cache.json')
+const FRED_DAY = 86400000, FRED_HARD_STALE = 14 * FRED_DAY, FRED_MAX_OBS = 6000
+let fredCache = {}
+try { if (fs.existsSync(FRED_CACHE_FILE)) fredCache = JSON.parse(fs.readFileSync(FRED_CACHE_FILE, 'utf8')) || {} } catch { fredCache = {} }
+let fredDirty = false, fredSaveTimer = null
+function fredCacheSave() {
+  fredDirty = true
+  if (fredSaveTimer) return
+  fredSaveTimer = setTimeout(() => {
+    fredSaveTimer = null
+    if (!fredDirty) return
+    fredDirty = false
+    try { fs.writeFileSync(FRED_CACHE_FILE, JSON.stringify(fredCache)) } catch (e) { console.error('FRED cache save:', e.message) }
+  }, 4000)
+}
+// a series cannot change faster than it is published
+function fredTtl(obs) {
+  if (!obs || obs.length < 2) return 6 * 3600e3
+  const gap = (Date.parse(obs[obs.length - 1].d) - Date.parse(obs[obs.length - 2].d)) / FRED_DAY
+  if (!Number.isFinite(gap) || gap <= 1.6) return 6 * 3600e3   // daily
+  if (gap <= 8) return 18 * 3600e3                              // weekly
+  if (gap <= 36) return 24 * 3600e3                             // monthly
+  return 72 * 3600e3                                            // quarterly or annual
+}
+const fredInflight = new Map()
+function fredFetch(id, limit) {
+  const key = `${id}:${limit}`
+  const running = fredInflight.get(key)
+  if (running) return running
+  const p = fredFetchRaw(id, limit)
+    .then(obs => {
+      if (obs.length) {
+        const keep = obs.length > FRED_MAX_OBS ? obs.slice(-FRED_MAX_OBS) : obs
+        fredCache[id] = { ts: Date.now(), limit: Math.min(limit, FRED_MAX_OBS), ttl: fredTtl(keep), obs: keep }
+        fredCacheSave()
+      }
+      return obs
+    })
+    .finally(() => fredInflight.delete(key))
+  fredInflight.set(key, p)
+  return p
+}
 async function fetchFredSeries(id, limit) {
+  const hit = fredCache[id]
+  const wide = hit && hit.limit >= limit
+  const age = hit ? Date.now() - hit.ts : Infinity
+  if (wide && age < hit.ttl) return hit.obs.slice(-limit)
+  // present and long enough but stale: hand back what we have and refresh behind
+  // the caller. A page never blocks on FRED for a series it already had.
+  if (wide && age < FRED_HARD_STALE) { fredFetch(id, Math.max(limit, hit.limit)).catch(() => {}); return hit.obs.slice(-limit) }
+  const obs = await fredFetch(id, Math.max(limit, hit?.limit || 0))
+  return obs.length > limit ? obs.slice(-limit) : obs
+}
+function fredCacheStats() {
+  const now = Date.now(), e = Object.values(fredCache)
+  return { series: e.length, fresh: e.filter(x => now - x.ts < x.ttl).length, observations: e.reduce((s, x) => s + x.obs.length, 0),
+    oldestHours: e.length ? Math.round(Math.max(...e.map(x => now - x.ts)) / 3600e3) : null, inflight: fredInflight.size,
+    bytes: (() => { try { return fs.existsSync(FRED_CACHE_FILE) ? fs.statSync(FRED_CACHE_FILE).size : 0 } catch { return 0 } })() }
+}
+
+async function fredFetchRaw(id, limit) {
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${FRED_KEY}&limit=${limit}&sort_order=desc&file_type=json`
   await fredThrottle()
   // Retry on 429 — a short backoff beats returning empty and (worse) getting
@@ -3720,7 +3790,8 @@ export default defineConfig({
         // FRED relay — ALL client-side FRED traffic routes through here so it
         // shares the global throttle + retry + UA (the browser's ~40 direct
         // calls per reload are what helped trip FRED's Akamai IP block).
-        // Per-series 30-min cache means page reloads cost zero FRED requests.
+        // Serves the shared disk-backed cache, so reloads cost no FRED requests
+        // and survive a dev-server restart.
         server.middlewares.use('/api/fred', async (req, res) => {
           res.setHeader('Content-Type', 'application/json')
           res.setHeader('Access-Control-Allow-Origin', '*')
@@ -3729,14 +3800,9 @@ export default defineConfig({
             const id = (u.searchParams.get('series_id') || '').trim()
             const limit = Math.max(1, Math.min(100000, parseInt(u.searchParams.get('limit') || '100', 10) || 100))
             if (!/^[A-Za-z0-9_.-]{1,64}$/.test(id)) { res.statusCode = 400; res.end('{"error":"bad series_id"}'); return }
-            const key = `${id}:${limit}`
-            const hit = fredRelayCache.get(key)
-            if (hit && Date.now() - hit.ts < 30 * 60 * 1000) { res.end(hit.body); return }
-            const obs = await fetchFredSeries(id, limit) // throttled + 429-retried
+            const obs = await fetchFredSeries(id, limit) // shared cache, throttled, 429-retried
             // client expects FRED's native shape in DESC order (it reverses)
-            const body = JSON.stringify({ observations: obs.slice().reverse().map(o => ({ date: o.d, value: String(o.v) })) })
-            if (obs.length) fredRelayCache.set(key, { ts: Date.now(), body })
-            res.end(body)
+            res.end(JSON.stringify({ observations: obs.slice().reverse().map(o => ({ date: o.d, value: String(o.v) })) }))
           } catch (e) {
             res.statusCode = 500
             res.end(JSON.stringify({ error: e.message }))
@@ -3852,6 +3918,7 @@ export default defineConfig({
         reRoute('/api/fx-fundamentals', () => fxFundamentals.get())
         reRoute('/api/gpu-economics', () => gpuEconomics.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
+        reRoute('/api/fred-cache', () => fredCacheStats())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')

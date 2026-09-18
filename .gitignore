@@ -55,3 +55,5 @@ fx-fundamentals.json
 gpu-economics.json
 # Token estimates: 12h feed cache (data/ai/token-estimates.json is the tracked input table)
 token-estimates-out.json
+# The shared FRED observation cache (re-derivable; keyed by series, cadence-aware TTL)
+fred-cache.json
