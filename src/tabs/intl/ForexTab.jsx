@@ -162,6 +162,22 @@ export default function ForexFundamentals({ prices }) {
     </>);
   };
 
+  // Recharts renders an empty tooltip box for a scatter driven by `formatter`,
+  // because the payload carries no named series — so the card is built here.
+  const SensHover = ({ active, payload, rows: rs }) => {
+    const p = active && payload?.length ? payload[0].payload : null;
+    const c = p ? (rs || []).find(x => x.ccy === p.ccy) : null;
+    if (!c) return null;
+    return (
+      <div style={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 10px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+        <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 12 }}>{c.flag} {c.ccy}<span style={{ color: SLATE, fontWeight: 400, marginLeft: 6 }}>{c.name}</span></div>
+        <div style={{ fontSize: 10.5, marginTop: 3 }}>risk: corr {num(c.sensitivity.riskCorr)} · β {num(c.sensitivity.riskBeta)}</div>
+        <div style={{ fontSize: 10.5 }}>commodities: corr {num(c.sensitivity.cmdtyCorr)} · β {num(c.sensitivity.cmdtyBeta)}</div>
+        <div style={{ fontSize: 10.5, color: toneUnder(c.valuation.under), marginTop: 3 }}>{pc(c.valuation.under, 0)} vs the dollar · {c.valuation.verdict}</div>
+      </div>
+    );
+  };
+
   // ── global drivers ────────────────────────────────────────────────────────
   const globalView = () => {
     const cols = [["Currency", "left"], ["Risk corr", "right"], ["Risk β", "right"], ["Cmdty corr", "right"], ["Cmdty β", "right"], ["Growth", "right"], ["Commodities", "right"], ["Risk aversion", "right"], ["Geopolitics", "right"], ["Global tilt", "right"]];
@@ -191,7 +207,7 @@ export default function ForexFundamentals({ prices }) {
               <YAxis type="number" dataKey="y" domain={[-0.6, 0.6]} tick={{ fontSize: 9, fill: "#64748b", fontFamily: fonts.mono }} label={{ value: "corr with WTI", angle: -90, position: "insideLeft", offset: 22, fontSize: 9, fill: "#64748b" }} />
               <ZAxis dataKey="z" range={[40, 40]} />
               <ReferenceLine x={0} stroke="rgba(255,255,255,0.15)" /><ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" />
-              <Tooltip cursor={false} contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 10 }} formatter={(v, n) => [num(v, 2), n === "x" ? "risk corr" : "commodity corr"]} labelFormatter={() => ""} />
+              <Tooltip cursor={false} content={<SensHover rows={rows} />} />
               <Scatter data={scatter} fill={INDIGO}><LabelList dataKey="ccy" position="top" style={{ fontSize: 9, fill: "#cbd5e1", fontFamily: fonts.mono }} /></Scatter>
             </ScatterChart>
           </ResponsiveContainer>

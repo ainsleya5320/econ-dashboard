@@ -67,6 +67,24 @@ export default function OwnerWealthPanel() {
     const pts = states.map(s => ({ st: s.st, x: s.shareOfAll, y: s.shareOfTop, index: s.index, home: s.st === d.homeState }));
     const max = Math.max(...pts.map(p => Math.max(p.x, p.y))) * 1.08;
     const ranked = [...states].sort((a, b) => b.index - a.index);
+    // a scatter tooltip driven by `formatter` renders an empty box, because the
+    // payload carries no named series — so build the contents directly
+    const Hover = ({ active, payload }) => {
+      const p = active && payload?.length ? payload[0].payload : null;
+      const s = p ? states.find(x => x.st === p.st) : null;
+      if (!s) return null;
+      return (
+        <div style={{ ...tip, padding: "8px 10px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+          <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 12 }}>{s.st}
+            <span style={{ color: s.index >= 1 ? GREEN : AMBER, marginLeft: 8 }}>{s.index.toFixed(2)}× its share of filers</span>
+          </div>
+          <div style={{ fontSize: 10.5, marginTop: 3 }}>{n0(s.topReturns)} returns at $1M or more</div>
+          <div style={{ fontSize: 10.5 }}>{pct(s.shareOfTop, 2)} of the nation&apos;s million-dollar filers</div>
+          <div style={{ fontSize: 10.5 }}>{pct(s.shareOfAll, 2)} of all filers · {s.perThousand} per 1,000</div>
+          <div style={{ fontSize: 10.5, color: VIOLET, marginTop: 3 }}>{pct(s.pshipShare)} of them own the business</div>
+        </div>
+      );
+    };
     return (<>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(330px, 1fr) minmax(320px, 1fr)", gap: 12 }}>
         <div style={{ ...card, padding: "10px 10px 4px" }}>
@@ -78,7 +96,7 @@ export default function OwnerWealthPanel() {
               <YAxis type="number" dataKey="y" domain={[0, max]} tick={axis} tickFormatter={v => `${v.toFixed(0)}%`} label={{ value: "share of $1M+ filers", angle: -90, position: "insideLeft", offset: 20, fontSize: 9, fill: "#64748b" }} />
               <ZAxis range={[36, 36]} />
               <ReferenceLine segment={[{ x: 0, y: 0 }, { x: max, y: max }]} stroke="rgba(255,255,255,0.25)" strokeDasharray="4 3" />
-              <Tooltip cursor={false} contentStyle={tip} formatter={(v, n) => [pct(v, 2), n === "x" ? "of all filers" : "of $1M+ filers"]} labelFormatter={() => ""} />
+              <Tooltip cursor={false} content={<Hover />} />
               <Scatter data={pts.filter(p => !p.home)} fill={INDIGO} />
               <Scatter data={pts.filter(p => p.home)} fill={AMBER}><LabelList dataKey="st" position="right" style={{ fontSize: 10, fill: AMBER, fontFamily: fonts.mono, fontWeight: 700 }} /></Scatter>
             </ScatterChart>
@@ -228,7 +246,7 @@ export default function OwnerWealthPanel() {
                 <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="year" tick={axis} />
                 <YAxis tick={axis} tickFormatter={v => `${v}%`} />
-                <Tooltip contentStyle={tip} formatter={(v, n) => [pct(v), n]} />
+                <Tooltip contentStyle={tip} labelStyle={{ color: "#e2e8f0", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} formatter={(v, n) => [pct(v), n]} />
                 <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono }} />
                 <Line type="monotone" dataKey="top1" name="Top 1%" stroke={INDIGO} strokeWidth={1.8} dot={false} />
                 <Line type="monotone" dataKey="top01" name="Top 0.1%" stroke={CYAN} strokeWidth={1.6} dot={false} />
