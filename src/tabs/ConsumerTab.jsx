@@ -3,6 +3,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import OwnerWealthPanel from "./consumer/OwnerWealth.jsx";
+import HouseholdWealthPanel from "./consumer/HouseholdWealth.jsx";
 
 /*
  * ConsumerTab — is the American household healthy?
@@ -179,6 +180,9 @@ function ConsumerTab() {
     </div>
 
     {/* K-shape panel */}
+    <SH>Household Net Worth — The Survey of Consumer Finances</SH>
+    <HouseholdWealthPanel />
+
     <SH>Where Private Business Wealth Is — The Everywhere Millionaire, Tested</SH>
     <OwnerWealthPanel />
 

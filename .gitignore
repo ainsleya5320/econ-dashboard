@@ -62,3 +62,5 @@ owner-wealth.json
 soi-archive.json
 # Capex returns: 24h feed cache (re-derivable from SEC XBRL)
 capex-returns.json
+household-wealth.json
+scf-archive.json
