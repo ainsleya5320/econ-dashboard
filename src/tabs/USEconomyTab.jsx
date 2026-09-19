@@ -122,7 +122,7 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
     {/* Rates & Fed — the price of money and the balance sheet behind it */}
     {econSubTab === "rates" && (
       <SubViews view={views.rates} onChange={setView("rates")} views={[
-        { id: "treasuries", label: "Treasuries & mortgages", render: () => <RatesTab md={md} td={td} fmpKey={fmpKey} /> },
+        { id: "treasuries", label: "Treasuries & mortgages", render: () => <RatesTab md={md} td={td} fmpKey={fmpKey} fredKey={fredKey} /> },
         { id: "fed", label: "Fed balance sheet", render: () => <FedSubTab fredKey={fredKey} /> },
       ]} />
     )}

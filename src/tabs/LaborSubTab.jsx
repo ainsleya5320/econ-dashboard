@@ -1,368 +1,463 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
-  Area, AreaChart, BarChart, Bar, Cell, ReferenceLine,
-  ScatterChart, Scatter, CartesianGrid, ZAxis, LineChart, Line,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Area, AreaChart, BarChart, Bar, Cell,
+  ReferenceLine, ScatterChart, Scatter, CartesianGrid, ZAxis, LineChart, Line, ComposedChart,
 } from "recharts";
-import { fonts, cardBg, cardBorder } from "../lib/styles.js";
+import { fonts } from "../lib/styles.js";
 import { fetchFred } from "../lib/api.js";
-import { fmtDate, fmtAxisDate, RateCard, ChartCard, SH, InfoBox } from "../components/shared.jsx";
+import {
+  GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, BLUE, ORANGE, PINK, TEAL,
+  fin, card, label, note, tip, axis, pc, pp, kk, fmtMon, fmtDay, th, td, tdL, tableStyle,
+  chip, DenseHeader, Panel, Note, RangeBar, pctile, lastV, lastD, backV,
+} from "../components/dense.jsx";
 
-/* ═══════════════════════════════════════════════════════════
-   FRED Series used
-   ───────────────────────────────────────────────────────────
-   UNRATE      Unemployment Rate (U-3), monthly, %
-   U6RATE      U-6 Unemployment (broad), monthly, %
-   PAYEMS      Total Nonfarm Payrolls, monthly, thousands
-   ICSA        Initial Jobless Claims, weekly, persons
-   CCSA        Continued Claims, weekly, persons
-   JTSJOL      JOLTS Job Openings, monthly, thousands
-   JTSQUR      JOLTS Quits Rate, monthly, %
-   CIVPART     Labor Force Participation Rate, monthly, %
-   LNS11300060 Prime-Age (25-54) LFPR, monthly, %
-   CES0500000003 Avg Hourly Earnings (Private), monthly, $/hr
-   SAHMREALTIME Sahm Rule Recession Indicator, monthly, pp
-   ═══════════════════════════════════════════════════════════ */
+// ============================================================================
+// LABOR — a headline payroll print is one number with a ±120k confidence
+// interval, so the useful reading is breadth and direction: which industries
+// are actually adding, how much slack there is on the six official measures
+// rather than the one everybody quotes, and what the fast-moving series that
+// historically turn first (temp help, weekly hours, quits) are doing.
+// ============================================================================
 
-const SERIES = {
-  UNRATE:         { label: "Unemployment (U-3)",     color: "#E8553A", limit: 600 },
-  U6RATE:         { label: "U-6 Unemployment",        color: "#F97316", limit: 300 },
-  PAYEMS:         { label: "Nonfarm Payrolls",        color: "#3B82F6", limit: 600 },
-  ICSA:           { label: "Initial Claims",          color: "#8B5CF6", limit: 200 },
-  CCSA:           { label: "Continued Claims",        color: "#EC4899", limit: 200 },
-  JTSJOL:         { label: "JOLTS Openings",          color: "#10B981", limit: 300 },
-  JTSQUR:         { label: "JOLTS Quits Rate",        color: "#F59E0B", limit: 300 },
-  CIVPART:        { label: "LFPR (Total)",            color: "#6366F1", limit: 600 },
-  LNS11300060:    { label: "Prime-Age LFPR",          color: "#14B8A6", limit: 600 },
-  CES0500000003:  { label: "Avg Hourly Earnings",     color: "#818cf8", limit: 300 },
-  SAHMREALTIME:   { label: "Sahm Rule",              color: "#EF4444", limit: 200 },
+const HEAD = {
+  UNRATE:       { label: "Unemployment (U-3)", color: RED, lim: 720 },
+  PAYEMS:       { label: "Nonfarm payrolls", color: BLUE, lim: 720 },
+  UNEMPLOY:     { label: "Unemployed persons", color: RED, lim: 720 },
+  CIVPART:      { label: "Participation rate", color: INDIGO, lim: 720 },
+  LNS11300060:  { label: "Prime-age participation", color: TEAL, lim: 720 },
+  LNS12300060:  { label: "Prime-age employment rate", color: CYAN, lim: 720 },
+  CES0500000003: { label: "Average hourly earnings", color: VIOLET, lim: 400 },
+  SAHMREALTIME: { label: "Sahm rule", color: RED, lim: 400 },
+  UEMPMED:      { label: "Median weeks unemployed", color: ORANGE, lim: 720 },
 };
 
-const BATCH = 4;
+// the full slack ladder, U-1 through U-6
+const LADDER = [
+  { id: "U1RATE", label: "U-1", what: "unemployed 15 weeks or longer", color: "#1e40af" },
+  { id: "U2RATE", label: "U-2", what: "lost a job or finished a temp one", color: "#2563eb" },
+  { id: "UNRATE", label: "U-3", what: "the headline — jobless and looking", color: RED },
+  { id: "U4RATE", label: "U-4", what: "U-3 plus discouraged workers", color: ORANGE },
+  { id: "U5RATE", label: "U-5", what: "U-4 plus everyone marginally attached", color: AMBER },
+  { id: "U6RATE", label: "U-6", what: "U-5 plus part-time for economic reasons", color: "#facc15" },
+];
+
+// series that historically turn before the headline does
+const LEADING = [
+  { id: "TEMPHELPS", label: "Temporary help employment", unit: "k", invert: false, note: "firms shed temps before staff" },
+  { id: "AWHAETP", label: "Average weekly hours, private", unit: "hr", invert: false, note: "hours get cut before heads" },
+  { id: "JTSQUR", label: "Quits rate", unit: "%", invert: false, note: "confidence to walk out" },
+  { id: "JTSHIR", label: "Hires rate", unit: "%", invert: false, note: "gross hiring, not net" },
+  { id: "JTSLDR", label: "Layoffs & discharges rate", unit: "%", invert: true, note: "still historically low is the point" },
+  { id: "IC4WSA", label: "Initial claims, 4-week average", unit: "k", invert: true, note: "the only weekly reading" },
+  { id: "UEMPMED", label: "Median weeks unemployed", unit: "wk", invert: true, note: "how hard it is to get rehired" },
+];
+
+const INDUSTRY = [
+  { id: "USEHS", label: "Private education & health", color: GREEN },
+  { id: "USPBS", label: "Professional & business services", color: INDIGO },
+  { id: "USLAH", label: "Leisure & hospitality", color: PINK },
+  { id: "USGOVT", label: "Government", color: SLATE },
+  { id: "USTRADE", label: "Retail trade", color: AMBER },
+  { id: "MANEMP", label: "Manufacturing", color: ORANGE },
+  { id: "USCONS", label: "Construction", color: TEAL },
+  { id: "CES4300000001", label: "Transportation & warehousing", color: CYAN },
+  { id: "USFIRE", label: "Financial activities", color: BLUE },
+  { id: "USINFO", label: "Information", color: VIOLET },
+  { id: "USMINE", label: "Mining & logging", color: "#a16207" },
+];
+
+const OTHER = [
+  ["U6RATE", 400], ["ICSA", 300], ["CCSA", 300], ["JTSJOL", 400], ["JTSQUR", 400],
+  ["JTSHIR", 400], ["JTSLDR", 400], ["IC4WSA", 300], ["TEMPHELPS", 720], ["AWHAETP", 720],
+  ["U1RATE", 400], ["U2RATE", 400], ["U4RATE", 400], ["U5RATE", 400], ["USPRIV", 720],
+];
+
+const IDS = [
+  ...Object.entries(HEAD).map(([id, m]) => [id, m.lim]),
+  ...OTHER,
+  ...INDUSTRY.map(i => [i.id, 400]),
+];
+
+const mom = (arr, n = 1) => { const a = backV(arr, n), b = lastV(arr); return fin(a) && fin(b) ? b - a : null; };
+const avgMom = (arr, n) => { const d = mom(arr, n); return fin(d) ? d / n : null; };
 
 function LaborSubTab({ fredKey }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [range, setRange] = useState("10Y");
+  const [f, setF] = useState(null);
+  const [range, setRange] = useState("5Y");
 
   useEffect(() => {
-    if (!fredKey || data) return;
-    setLoading(true);
+    if (f) return;
     (async () => {
-      const result = {};
-      const entries = Object.entries(SERIES);
-      for (let b = 0; b < entries.length; b += BATCH) {
-        const batch = entries.slice(b, b + BATCH);
-        const fetched = await Promise.all(
-          batch.map(async ([id, meta]) => {
-            try {
-              const obs = await fetchFred(id, fredKey, meta.limit);
-              return [id, obs];
-            } catch { return [id, []]; }
-          })
-        );
-        fetched.forEach(([id, obs]) => { result[id] = obs; });
-        if (b + BATCH < entries.length) await new Promise(r => setTimeout(r, 400));
+      const out = {};
+      for (let i = 0; i < IDS.length; i += 6) {
+        const got = await Promise.all(IDS.slice(i, i + 6).map(async ([id, lim]) => {
+          try { return [id, await fetchFred(id, fredKey, lim)]; }
+          catch (e) { console.warn(`Labor: ${id} —`, e.message); return [id, []]; }
+        }));
+        got.forEach(([id, obs]) => { out[id] = obs; });
       }
-      setData(result);
-      setLoading(false);
+      setF(out);
     })();
-  }, [fredKey, data]);
+  }, [fredKey, f]);
 
-  // ── Derived data ──
-  const latest = (id) => {
-    const arr = data?.[id];
-    return arr?.length ? arr[arr.length - 1] : null;
-  };
-  const latestVal = (id) => latest(id)?.v ?? null;
-  const latestDate = (id) => latest(id)?.d ?? null;
+  const months = range === "5Y" ? 60 : range === "10Y" ? 120 : range === "20Y" ? 240 : 9999;
+  const cutoff = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); }, [months]);
+  const clip = arr => (arr || []).filter(p => p.d >= cutoff);
 
-  // Range filter helper
-  const rangeMonths = range === "5Y" ? 60 : range === "10Y" ? 120 : range === "20Y" ? 240 : range === "MAX" ? 9999 : 120;
-  const cutoff = useMemo(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - rangeMonths);
-    return d.toISOString().slice(0, 10);
-  }, [rangeMonths]);
-  const filterRange = (arr) => (arr || []).filter(p => p.d >= cutoff);
-
-  // Payroll monthly change (MoM)
   const payrollChange = useMemo(() => {
-    const raw = filterRange(data?.PAYEMS || []);
+    const raw = clip(f?.PAYEMS);
     if (raw.length < 2) return [];
-    return raw.slice(1).map((p, i) => ({
-      d: p.d,
-      v: p.v - raw[i].v,
-    }));
-  }, [data, cutoff]);
+    return raw.slice(1).map((p, i) => ({ d: p.d, v: p.v - raw[i].v }));
+  }, [f, cutoff]);
 
-  // Average hourly earnings YoY %
+  // April 2020 lost 20.5 million jobs, which flattens every other bar in the
+  // chart to nothing. Scale to the 97th percentile of absolute moves and let the
+  // pandemic clip off the bottom rather than dictate the axis.
+  const payDomain = useMemo(() => {
+    const xs = payrollChange.map(p => Math.abs(p.v)).filter(fin).sort((a, b) => a - b);
+    if (!xs.length) return ["auto", "auto"];
+    const m = Math.max((xs[Math.floor(xs.length * 0.97)] || xs[xs.length - 1]) * 1.2, 400);
+    return [-m, m];
+  }, [payrollChange]);
+  const payClipped = payrollChange.some(p => Math.abs(p.v) > (fin(payDomain[1]) ? payDomain[1] : Infinity));
+
   const earningsYoY = useMemo(() => {
-    const raw = data?.CES0500000003 || [];
-    if (raw.length < 13) return [];
-    const hist = [];
+    const raw = f?.CES0500000003 || [];
+    const out = [];
     for (let i = 12; i < raw.length; i++) {
       const prev = raw[i - 12].v;
-      if (prev > 0) hist.push({ d: raw[i].d, v: parseFloat((((raw[i].v - prev) / prev) * 100).toFixed(1)) });
+      if (prev > 0) out.push({ d: raw[i].d, v: ((raw[i].v - prev) / prev) * 100 });
     }
-    return hist.filter(p => p.d >= cutoff);
-  }, [data, cutoff]);
+    return out.filter(p => p.d >= cutoff);
+  }, [f, cutoff]);
 
-  // Beveridge Curve: JOLTS openings rate (openings/labor force proxy) vs Unemployment
-  const beveridge = useMemo(() => {
-    const unr = data?.UNRATE || [];
-    const jolts = data?.JTSJOL || [];
-    if (!unr.length || !jolts.length) return [];
-    // Match by month (both monthly)
-    const jMap = {};
-    jolts.forEach(j => { jMap[j.d.slice(0, 7)] = j.v; });
-    return unr
-      .filter(u => u.d >= cutoff)
-      .map(u => {
-        const openings = jMap[u.d.slice(0, 7)];
-        if (openings == null) return null;
-        return { unemployment: u.v, openings: openings / 1000, date: u.d };
-      })
-      .filter(Boolean);
-  }, [data, cutoff]);
+  // openings per unemployed person — the ratio the Fed actually cites
+  const vu = useMemo(() => {
+    if (!f?.JTSJOL?.length || !f?.UNEMPLOY?.length) return [];
+    const u = new Map(f.UNEMPLOY.map(o => [o.d, o.v]));
+    const un = new Map((f.UNRATE || []).map(o => [o.d, o.v]));
+    return f.JTSJOL.map(o => {
+      const un_ = u.get(o.d);
+      return un_ ? { d: o.d, ratio: o.v / un_, openings: o.v / 1000, unemployment: un.get(o.d) ?? null } : null;
+    }).filter(Boolean);
+  }, [f]);
 
-  // Latest payroll change
-  const lastPayrollChg = payrollChange.length ? payrollChange[payrollChange.length - 1].v : null;
+  const beveridge = useMemo(() => vu.filter(p => p.d >= cutoff && fin(p.unemployment)), [vu, cutoff]);
 
-  // Range toggle
-  const rangeBtn = (r) => ({
-    padding: "4px 12px", border: "1px solid " + (range === r ? "#818cf8" : "rgba(255,255,255,0.08)"),
+  if (!f) return <div style={{ ...card, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>Loading payrolls, the slack ladder, JOLTS and the industry detail…</div>;
+
+  const V = id => lastV(f[id]);
+  const D = id => lastD(f[id]);
+
+  const payroll1 = payrollChange.length ? payrollChange[payrollChange.length - 1].v : null;
+  const payroll3 = avgMom(f.PAYEMS, 3);
+  const payroll12 = avgMom(f.PAYEMS, 12);
+  const totalEmp = V("PAYEMS");
+  const u3 = V("UNRATE"), u6 = V("U6RATE"), sahm = V("SAHMREALTIME");
+  const claims4 = V("IC4WSA");
+  const ratio = vu.length ? vu[vu.length - 1].ratio : null;
+  const quits = V("JTSQUR");
+  const primeEpop = V("LNS12300060");
+  const wage = earningsYoY.length ? earningsYoY[earningsYoY.length - 1].v : null;
+  const asOf = D("PAYEMS");
+
+  const hiring = !fin(payroll3) ? "unclear" : payroll3 > 150 ? "solid" : payroll3 > 75 ? "slowing but positive" : payroll3 > 0 ? "close to stall speed" : "shrinking";
+  const u3Up = fin(u3) && fin(backV(f.UNRATE, 12)) ? u3 - backV(f.UNRATE, 12) : null;
+
+  const rangeBtn = r => ({
+    padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontSize: 9.5, fontFamily: fonts.mono,
+    border: `1px solid ${range === r ? "#818cf8" : "var(--border-subtle)"}`,
     background: range === r ? "rgba(129,140,248,0.15)" : "transparent",
-    color: range === r ? "#c7d2fe" : "#94a3b8",
-    fontSize: 10, fontWeight: range === r ? 600 : 400, fontFamily: fonts.mono,
-    borderRadius: 6, cursor: "pointer",
+    color: range === r ? "#c7d2fe" : SLATE, fontWeight: range === r ? 600 : 400,
   });
 
-  if (loading || !data) {
+  const PayrollHover = ({ active, label: l }) => {
+    if (!active) return null;
+    const r = payrollChange.find(x => x.d === l);
+    if (!r) return null;
+    const i = payrollChange.findIndex(x => x.d === l);
+    const t3 = i >= 2 ? (payrollChange[i].v + payrollChange[i - 1].v + payrollChange[i - 2].v) / 3 : null;
     return (
-      <div style={{ textAlign: "center", padding: 60, color: "#94a3b8", fontFamily: fonts.heading }}>
-        <div style={{ fontSize: 16, marginBottom: 8 }}>Loading labor market data…</div>
-        <div style={{ fontSize: 11, color: "#475569" }}>Fetching {Object.keys(SERIES).length} FRED series</div>
+      <div style={{ ...tip, padding: "8px 10px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+        <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 12 }}>{fmtMon(l)}</div>
+        <div style={{ fontSize: 10.5, marginTop: 3 }}>{r.v >= 0 ? "+" : "−"}{Math.abs(r.v).toFixed(0)}k jobs{fin(t3) ? ` · three-month average ${t3 >= 0 ? "+" : "−"}${Math.abs(t3).toFixed(0)}k` : ""}</div>
       </div>
     );
-  }
+  };
+
+  const industryRows = INDUSTRY.map(ind => {
+    const arr = f[ind.id], v = lastV(arr);
+    if (!fin(v)) return null;
+    const m1 = mom(arr, 1), m3 = avgMom(arr, 3), m12 = mom(arr, 12);
+    return { ...ind, v, m1, m3, m12, share: fin(totalEmp) ? (v / totalEmp) * 100 : null };
+  }).filter(Boolean).sort((a, b) => (b.m3 ?? -1e9) - (a.m3 ?? -1e9));
+
+  const adding = industryRows.filter(r => fin(r.m3) && r.m3 > 0).length;
 
   return (<>
-    <SH>Labor Market Overview</SH>
+    <DenseHeader
+      eyebrow="Labor market · breadth, slack and what turns first"
+      headline={<>Hiring is {hiring} at {fin(payroll3) ? `${payroll3 >= 0 ? "+" : "−"}${Math.abs(payroll3).toFixed(0)}k a month` : "an unclear pace"} over three months, with {adding} of {industryRows.length} industries still adding and unemployment at {pc(u3, 1)}{fin(u3Up) ? `, ${pp(u3Up, 1)}pp on a year ago` : ""}</>}
+      blurb="One payroll print has a 90% confidence interval of roughly ±120,000 and gets revised twice, so a single month is close to noise. Breadth across industries, the direction of the fast-turning series, and the gap between the narrow and broad unemployment rates carry more signal than any headline number does."
+      meta={<>establishment survey through {fmtMon(asOf)} · JOLTS through {fmtMon(D("JTSJOL"))}<br />claims through {fmtDay(D("IC4WSA"))} · BLS via FRED</>}
+      chips={[
+        chip("payrolls, 3-month avg", fin(payroll3) ? `${payroll3 >= 0 ? "+" : "−"}${Math.abs(payroll3).toFixed(0)}k` : "—", payroll3 > 100 ? GREEN : payroll3 > 0 ? AMBER : RED, fin(payroll1) ? `latest month ${payroll1 >= 0 ? "+" : "−"}${Math.abs(payroll1).toFixed(0)}k` : null),
+        chip("unemployment", pc(u3, 1), u3 > 4.5 ? AMBER : GREEN, `U-6 ${pc(u6, 1)}`),
+        chip("Sahm rule", fin(sahm) ? sahm.toFixed(2) : "—", sahm >= 0.5 ? RED : GREEN, sahm >= 0.5 ? "recession signal triggered" : "below the 0.50 threshold"),
+        chip("initial claims", fin(claims4) ? `${(claims4 / 1000).toFixed(0)}k` : "—", claims4 > 260000 ? AMBER : GREEN, "four-week average"),
+        chip("openings per unemployed", fin(ratio) ? `${ratio.toFixed(2)}×` : "—", ratio < 0.9 ? AMBER : GREEN, "the Fed's slack gauge"),
+        chip("quits rate", pc(quits, 1), quits < 2 ? AMBER : GREEN, "workers confident enough to leave"),
+        chip("prime-age employed", pc(primeEpop, 1), GREEN, "25–54, employment-to-population"),
+        chip("wage growth", pc(wage, 1), wage > 4 ? AMBER : GREEN, "average hourly earnings, year over year"),
+      ]}
+    />
 
-    {/* KPI tiles */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 10, marginBottom: 14 }}>
-      <RateCard label="Unemployment (U-3)" value={latestVal("UNRATE")} color="#E8553A" subtitle="Headline rate" date={latestDate("UNRATE")} small />
-      <RateCard label="U-6 Unemployment" value={latestVal("U6RATE")} color="#F97316" subtitle="Incl. underemployed" date={latestDate("U6RATE")} small />
-      <RateCard label="Monthly Payrolls" value={lastPayrollChg} color={lastPayrollChg >= 0 ? "#4ade80" : "#f87171"} format="plain" subtitle={lastPayrollChg != null ? `${lastPayrollChg > 0 ? "+" : ""}${lastPayrollChg.toFixed(0)}K jobs` : null} date={payrollChange.length ? payrollChange[payrollChange.length - 1].d : null} small />
-      <RateCard label="Initial Claims" value={latestVal("ICSA")} color="#8B5CF6" format="plain" subtitle={latestVal("ICSA") != null ? `${(latestVal("ICSA") / 1000).toFixed(0)}K weekly` : null} date={latestDate("ICSA")} small />
-      <RateCard label="JOLTS Openings" value={latestVal("JTSJOL")} color="#10B981" format="plain" subtitle={latestVal("JTSJOL") != null ? `${(latestVal("JTSJOL") / 1000).toFixed(1)}M` : null} date={latestDate("JTSJOL")} small />
-      <RateCard label="Sahm Rule" value={latestVal("SAHMREALTIME")} color={latestVal("SAHMREALTIME") >= 0.5 ? "#EF4444" : "#4ade80"} subtitle={latestVal("SAHMREALTIME") >= 0.5 ? "⚠ Recession signal" : "Below 0.50 threshold"} date={latestDate("SAHMREALTIME")} small />
+    <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+      {["5Y", "10Y", "20Y", "MAX"].map(r => <button key={r} onClick={() => setRange(r)} style={rangeBtn(r)}>{r}</button>)}
     </div>
 
-    {/* Range selector */}
-    <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
-      {["5Y", "10Y", "20Y", "MAX"].map(r => (
-        <button key={r} onClick={() => setRange(r)} style={rangeBtn(r)}>{r}</button>
-      ))}
-    </div>
-
-    {/* Unemployment Rate chart */}
-    <SH>Unemployment Rate</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={filterRange(data.UNRATE || []).map(p => {
-          const u6 = (data.U6RATE || []).find(x => x.d === p.d);
-          return { d: p.d, UNRATE: p.v, U6RATE: u6?.v };
-        })} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-unrate" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#E8553A" stopOpacity={0.25} /><stop offset="95%" stopColor="#E8553A" stopOpacity={0} /></linearGradient>
-            <linearGradient id="g-u6" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#F97316" stopOpacity={0.15} /><stop offset="95%" stopColor="#F97316" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(filterRange(data.UNRATE || []).length / 8) - 1)} tickFormatter={fmtAxisDate} />
-          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-          <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`${v.toFixed(1)}%`]} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-          <Area type="monotone" dataKey="U6RATE" name="U-6 (Broad)" stroke="#F97316" fill="url(#g-u6)" strokeWidth={1.5} dot={false} />
-          <Area type="monotone" dataKey="UNRATE" name="U-3 (Headline)" stroke="#E8553A" fill="url(#g-unrate)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-
-    <InfoBox color="#E8553A">
-      <strong style={{ color: "var(--text-primary)" }}>U-3 vs U-6:</strong> U-3 is the headline unemployment rate (people actively looking for work). U-6 adds discouraged workers and those working part-time who want full-time jobs — a broader measure of labor market slack.
-    </InfoBox>
-
-    {/* Nonfarm Payrolls monthly change */}
-    <SH>Nonfarm Payrolls — Monthly Change</SH>
-    {payrollChange.length > 0 && (
-      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={payrollChange} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-            <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(payrollChange.length / 8) - 1)} tickFormatter={fmtAxisDate} />
-            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}K`} />
-            <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`${v > 0 ? "+" : ""}${v.toFixed(0)}K`, "Jobs Added"]} />
-            <ReferenceLine y={0} stroke="var(--border-subtle)" />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+      <Panel title="Payrolls, monthly change" right="bars are months; the line is the three-month average" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={236}>
+          <ComposedChart data={payrollChange.map((p, i, a) => ({ ...p, avg3: i >= 2 ? (a[i].v + a[i - 1].v + a[i - 2].v) / 3 : null }))} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis tick={axis} axisLine={false} tickLine={false} domain={payDomain} allowDataOverflow tickFormatter={v => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}M` : `${v.toFixed(0)}k`)} />
+            <Tooltip content={<PayrollHover />} />
+            <ReferenceLine y={0} stroke="var(--text-muted)" />
             <Bar dataKey="v" radius={[2, 2, 0, 0]}>
-              {payrollChange.map((p, i) => (
-                <Cell key={i} fill={p.v >= 0 ? "#4ade80" : "#f87171"} fillOpacity={0.8} />
-              ))}
+              {payrollChange.map((p, i) => <Cell key={i} fill={p.v >= 0 ? GREEN : RED} fillOpacity={0.55} />)}
             </Bar>
-          </BarChart>
+            <Line type="monotone" dataKey="avg3" stroke={INDIGO} strokeWidth={2} dot={false} />
+          </ComposedChart>
         </ResponsiveContainer>
-      </div>
-    )}
+        <Note>Roughly 80–100k a month is the level that holds unemployment steady given current labour-force growth — below that, the rate drifts up even with positive prints.{payClipped ? " The 2020 collapse and rebound run off the scale; the axis is set to the 97th percentile of monthly moves so the rest stays readable." : ""}</Note>
+      </Panel>
 
-    {/* Jobless Claims */}
-    <SH>Jobless Claims</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={filterRange(data.ICSA || []).map(p => {
-          const cc = (data.CCSA || []).find(x => x.d === p.d);
-          return { d: p.d, ICSA: p.v / 1000, CCSA: cc ? cc.v / 1000 : null };
-        })} margin={{ top: 5, right: 8, left: -5, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-icsa" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.25} /><stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} /></linearGradient>
-            <linearGradient id="g-ccsa" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#EC4899" stopOpacity={0.15} /><stop offset="95%" stopColor="#EC4899" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(filterRange(data.ICSA || []).length / 8) - 1)} tickFormatter={fmtAxisDate} />
-          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}K`} />
-          <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v, n) => [`${v.toFixed(0)}K`, n]} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-          <Area type="monotone" dataKey="CCSA" name="Continued Claims" stroke="#EC4899" fill="url(#g-ccsa)" strokeWidth={1.5} dot={false} />
-          <Area type="monotone" dataKey="ICSA" name="Initial Claims" stroke="#8B5CF6" fill="url(#g-icsa)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-        </AreaChart>
-      </ResponsiveContainer>
+      <Panel title="Where the jobs are coming from" right={`three-month average, ${fmtMon(asOf)}`} style={{ marginBottom: 0 }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={tableStyle}>
+            <thead><tr>{th("industry", "left")}{th("employed")}{th("share")}{th("1m")}{th("3m avg")}{th("12m")}</tr></thead>
+            <tbody>
+              {industryRows.map(r => (
+                <tr key={r.id} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                  <td style={{ padding: "3.5px 6px", fontSize: 10, fontFamily: fonts.mono, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: r.color, marginRight: 6 }} />{r.label}
+                  </td>
+                  {td(`${(r.v / 1000).toFixed(1)}M`, "var(--text-primary)", { fontSize: 10 })}
+                  {td(pc(r.share, 1), DIM, { fontSize: 10 })}
+                  {td(fin(r.m1) ? `${r.m1 >= 0 ? "+" : "−"}${Math.abs(r.m1).toFixed(0)}k` : "—", !fin(r.m1) ? DIM : r.m1 > 0 ? GREEN : RED, { fontSize: 10 })}
+                  {td(fin(r.m3) ? `${r.m3 >= 0 ? "+" : "−"}${Math.abs(r.m3).toFixed(0)}k` : "—", !fin(r.m3) ? DIM : r.m3 > 0 ? GREEN : RED, { fontSize: 10, fontWeight: 600 })}
+                  {td(fin(r.m12) ? `${r.m12 >= 0 ? "+" : "−"}${Math.abs(r.m12).toFixed(0)}k` : "—", !fin(r.m12) ? DIM : r.m12 > 0 ? GREEN : RED, { fontSize: 10 })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Note>
+          {adding} of {industryRows.length} industries are adding on a three-month basis. When that count falls below about half, the headline is being carried by one or two sectors — historically health care and government — and the expansion is narrower than it looks.
+        </Note>
+      </Panel>
     </div>
 
-    <InfoBox color="#8B5CF6">
-      <strong style={{ color: "var(--text-primary)" }}>Jobless Claims</strong> are weekly, making them the most timely labor indicator. Initial claims measure new layoffs; continued claims track ongoing unemployment. Spikes above 300K initial claims often signal economic stress.
-    </InfoBox>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+      <Panel title="The full slack ladder, U-1 to U-6" right={fmtMon(D("UNRATE"))} style={{ marginBottom: 0 }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={tableStyle}>
+            <thead><tr>{th("measure", "left")}{th("counts", "left")}{th("rate")}{th("1y chg")}{th("20y range")}</tr></thead>
+            <tbody>
+              {LADDER.map(m => {
+                const arr = f[m.id], v = lastV(arr);
+                if (!fin(v)) return null;
+                const d12 = mom(arr, 12);
+                return (
+                  <tr key={m.id} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                    <td style={{ padding: "3.5px 6px", fontSize: 10.5, fontFamily: fonts.mono, color: "var(--text-primary)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: m.color, marginRight: 6 }} />{m.label}
+                    </td>
+                    {tdL(m.what, DIM, { fontSize: 9.5 })}
+                    {td(pc(v, 1), m.color, { fontWeight: 600 })}
+                    {td(fin(d12) ? `${pp(d12, 1)}pp` : "—", !fin(d12) ? DIM : d12 > 0 ? RED : GREEN)}
+                    <td style={{ padding: "3.5px 6px", textAlign: "right" }}><RangeBar pct={pctile((arr || []).slice(-240).map(o => o.v), v)} color={m.color} /></td>
+                  </tr>
+                );
+              })}
+              <tr style={{ borderTop: "1.5px solid var(--text-muted)" }}>
+                {tdL("U-6 minus U-3", SLATE)}{tdL("hidden slack", DIM, { fontSize: 9.5 })}
+                {td(fin(u6) && fin(u3) ? `${(u6 - u3).toFixed(1)}pp` : "—", AMBER, { fontWeight: 600 })}
+                {td("", DIM)}{td("", DIM)}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <Note>The gap between U-6 and U-3 is the part of the labour market that wants more work but does not show up in the headline. It has averaged close to 4pp in expansions and widens first when conditions soften.</Note>
+      </Panel>
 
-    {/* JOLTS: Job Openings */}
-    <SH>JOLTS — Job Openings & Quits Rate</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={filterRange(data.JTSJOL || []).map(p => {
-          const qr = (data.JTSQUR || []).find(x => x.d === p.d);
-          return { d: p.d, openings: p.v / 1000, quits: qr?.v };
-        })} margin={{ top: 5, right: 40, left: -5, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-jolts" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10B981" stopOpacity={0.25} /><stop offset="95%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(filterRange(data.JTSJOL || []).length / 8) - 1)} tickFormatter={fmtAxisDate} />
-          <YAxis yAxisId="left" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}M`} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-          <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v, n) => [n === "Job Openings" ? `${v.toFixed(1)}M` : `${v.toFixed(1)}%`, n]} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-          <Area yAxisId="left" type="monotone" dataKey="openings" name="Job Openings" stroke="#10B981" fill="url(#g-jolts)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-          <Area yAxisId="right" type="monotone" dataKey="quits" name="Quits Rate" stroke="#F59E0B" fill="none" strokeWidth={2} dot={false} strokeDasharray="6 3" />
-        </AreaChart>
-      </ResponsiveContainer>
+      <Panel title="The series that turn first" right="direction against six months ago" style={{ marginBottom: 0 }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={tableStyle}>
+            <thead><tr>{th("indicator", "left")}{th("now")}{th("6m ago")}{th("change")}{th("reading", "left")}</tr></thead>
+            <tbody>
+              {LEADING.map(m => {
+                const arr = f[m.id], v = lastV(arr);
+                if (!fin(v)) return null;
+                const prev = backV(arr, m.id === "IC4WSA" ? 26 : 6);   // claims are weekly
+                const d = fin(prev) ? v - prev : null;
+                const fmt = x => !fin(x) ? "—" : m.unit === "k" ? (m.id === "IC4WSA" ? `${(x / 1000).toFixed(0)}k` : `${(x / 1000).toFixed(2)}M`) : m.unit === "%" ? pc(x, 1) : m.unit === "hr" ? x.toFixed(1) : x.toFixed(1);
+                const good = fin(d) && d !== 0 ? ((d > 0) !== m.invert) : null;
+                return (
+                  <tr key={m.id} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                    {tdL(m.label, "var(--text-secondary)", { fontSize: 10 })}
+                    {td(fmt(v), "var(--text-primary)", { fontWeight: 600, fontSize: 10 })}
+                    {td(fmt(prev), DIM, { fontSize: 10 })}
+                    {td(fin(d) ? (m.unit === "k" ? `${d >= 0 ? "+" : "−"}${Math.abs(d / 1000).toFixed(m.id === "IC4WSA" ? 0 : 2)}${m.id === "IC4WSA" ? "k" : "M"}` : `${pp(d, m.unit === "hr" ? 1 : 1)}`) : "—", good === null ? DIM : good ? GREEN : RED, { fontSize: 10 })}
+                    {tdL(m.note, DIM, { fontSize: 9 })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <Note>Green is the direction that means a healthier labour market for that particular series — falling claims and falling layoffs are good; falling quits and falling hours are not.</Note>
+      </Panel>
     </div>
 
-    <InfoBox color="#10B981">
-      <strong style={{ color: "var(--text-primary)" }}>JOLTS</strong> measures labor demand. High openings + high quits rate = workers feel confident enough to quit for better jobs (tight labor market). Falling openings + falling quits = cooling labor demand.
-    </InfoBox>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+      <Panel title="Unemployment — narrow against broad" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={210}>
+          <AreaChart data={clip(f.UNRATE).map(p => ({ d: p.d, u3: p.v, u6: (f.U6RATE || []).find(x => x.d === p.d)?.v ?? null }))} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="l-u3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={RED} stopOpacity={0.3} /><stop offset="95%" stopColor={RED} stopOpacity={0} /></linearGradient>
+              <linearGradient id="l-u6" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={AMBER} stopOpacity={0.15} /><stop offset="95%" stopColor={AMBER} stopOpacity={0} /></linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "var(--text-primary)", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} labelFormatter={fmtMon} formatter={(v, n) => [pc(v, 1), n === "u3" ? "U-3" : "U-6"]} />
+            <Area type="monotone" dataKey="u6" name="u6" stroke={AMBER} fill="url(#l-u6)" strokeWidth={1.5} dot={false} />
+            <Area type="monotone" dataKey="u3" name="u3" stroke={RED} fill="url(#l-u3)" strokeWidth={2} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Panel>
 
-    {/* Beveridge Curve */}
-    {beveridge.length > 5 && (<>
-      <SH>Beveridge Curve</SH>
-      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-        <ResponsiveContainer width="100%" height={280}>
-          <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis type="number" dataKey="unemployment" name="Unemployment" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickFormatter={v => `${v}%`} label={{ value: "Unemployment Rate %", position: "insideBottom", offset: -2, fill: "var(--text-muted)", fontSize: 10, fontFamily: fonts.mono }} />
-            <YAxis type="number" dataKey="openings" name="Openings" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickFormatter={v => `${v}M`} label={{ value: "Job Openings (M)", angle: -90, position: "insideLeft", offset: 15, fill: "var(--text-muted)", fontSize: 10, fontFamily: fonts.mono }} />
-            <ZAxis range={[20, 20]} />
-            <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} formatter={(v, n) => [n === "Unemployment" ? `${v.toFixed(1)}%` : `${v.toFixed(2)}M`, n]} labelFormatter={(_, payload) => payload?.[0]?.payload?.date ? fmtDate(payload[0].payload.date) : ""} />
-            <Scatter data={beveridge} fill="#818cf8" fillOpacity={0.6} strokeWidth={0}>
+      <Panel title="Jobless claims" right="weekly — the most timely labour reading there is" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={210}>
+          <AreaChart data={clip(f.ICSA).map(p => ({ d: p.d, ic: p.v / 1000, cc: (f.CCSA || []).find(x => x.d === p.d)?.v / 1000 || null }))} margin={{ top: 6, right: 8, left: -8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="l-ic" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={VIOLET} stopOpacity={0.3} /><stop offset="95%" stopColor={VIOLET} stopOpacity={0} /></linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis yAxisId="l" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}k`} />
+            <YAxis yAxisId="r" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(1)}M`} />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "var(--text-primary)", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} labelFormatter={fmtDay} formatter={(v, n) => [n === "ic" ? `${v.toFixed(0)}k` : `${(v / 1000).toFixed(2)}M`, n === "ic" ? "initial claims" : "continued claims"]} />
+            <Area yAxisId="l" type="monotone" dataKey="ic" name="ic" stroke={VIOLET} fill="url(#l-ic)" strokeWidth={2} dot={false} />
+            <Line yAxisId="r" type="monotone" dataKey="cc" name="cc" stroke={PINK} strokeWidth={1.4} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <Note>Initial claims are people losing jobs; continued claims are people failing to find new ones. Continued claims rising while initial claims stay low is a hiring freeze, not a layoff wave — a different problem with a different fix.</Note>
+      </Panel>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+      <Panel title="Openings per unemployed person, and the quits rate" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={216}>
+          <ComposedChart data={vu.filter(p => p.d >= cutoff).map(p => ({ ...p, quits: (f.JTSQUR || []).find(x => x.d === p.d)?.v ?? null }))} margin={{ top: 6, right: 16, left: -12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="l-vu" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={GREEN} stopOpacity={0.3} /><stop offset="95%" stopColor={GREEN} stopOpacity={0} /></linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis yAxisId="l" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(1)}×`} />
+            <YAxis yAxisId="r" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "var(--text-primary)", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} labelFormatter={fmtMon} formatter={(v, n) => [n === "ratio" ? `${v.toFixed(2)} openings per unemployed` : pc(v, 1), n === "ratio" ? "V/U" : "quits rate"]} />
+            <ReferenceLine yAxisId="l" y={1} stroke="var(--text-muted)" strokeDasharray="4 4" label={{ value: "one opening each", fill: SLATE, fontSize: 8.5, position: "insideTopRight", fontFamily: fonts.mono }} />
+            <Area yAxisId="l" type="monotone" dataKey="ratio" name="ratio" stroke={GREEN} fill="url(#l-vu)" strokeWidth={2} dot={false} />
+            <Line yAxisId="r" type="monotone" dataKey="quits" name="quits" stroke={AMBER} strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+          </ComposedChart>
+        </ResponsiveContainer>
+        <Note>This ratio peaked near 2.0 in 2022 and is the single number the Fed used to argue the labour market was too tight. Below 1.0 there are more people looking than jobs advertised.</Note>
+      </Panel>
+
+      <Panel title="Beveridge curve" right="openings against unemployment, colour runs light to dark over time" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={216}>
+          <ScatterChart margin={{ top: 8, right: 14, left: -8, bottom: 6 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+            <XAxis type="number" dataKey="unemployment" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickFormatter={v => `${v}%`} domain={["dataMin - 0.3", "dataMax + 0.3"]} />
+            <YAxis type="number" dataKey="openings" tick={axis} axisLine={false} tickFormatter={v => `${v.toFixed(1)}M`} domain={["dataMin - 0.3", "dataMax + 0.3"]} />
+            <ZAxis range={[18, 18]} />
+            <Tooltip
+              contentStyle={tip} itemStyle={{ fontFamily: fonts.mono }}
+              formatter={(v, n) => [n === "unemployment" ? pc(v, 1) : `${v.toFixed(2)}M openings`, n === "unemployment" ? "unemployment" : "openings"]}
+              labelFormatter={() => ""}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const p = payload[0].payload;
+                return (
+                  <div style={{ ...tip, padding: "8px 10px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+                    <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 12 }}>{fmtMon(p.d)}</div>
+                    <div style={{ fontSize: 10.5, marginTop: 3 }}>{p.openings.toFixed(2)}M openings against {pc(p.unemployment, 1)} unemployment</div>
+                    <div style={{ fontSize: 10.5, color: GREEN }}>{p.ratio.toFixed(2)} openings per unemployed person</div>
+                  </div>
+                );
+              }}
+            />
+            <Scatter data={beveridge}>
               {beveridge.map((p, i) => {
                 const t = i / Math.max(beveridge.length - 1, 1);
-                const r = Math.round(59 + t * 70);
-                const g = Math.round(130 - t * 50);
-                const b = Math.round(246 - t * 100);
-                return <Cell key={i} fill={`rgb(${r},${g},${b})`} fillOpacity={0.3 + t * 0.6} />;
+                return <Cell key={i} fill={`rgb(${Math.round(96 + t * 33)},${Math.round(165 - t * 25)},${Math.round(250 - t * 2)})`} fillOpacity={0.25 + t * 0.7} />;
               })}
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
-        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 4 }}>
-          <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono }}>◀ Earlier (lighter)</span>
-          <span style={{ fontSize: 9, color: "var(--text-muted)", fontFamily: fonts.mono }}>Recent (darker) ▶</span>
-        </div>
-      </div>
-      <InfoBox color="#818cf8">
-        <strong style={{ color: "var(--text-primary)" }}>Beveridge Curve:</strong> Plots job openings vs unemployment. During recoveries the curve shifts up-left (many openings, low unemployment). In recessions it moves down-right. Outward shifts of the whole curve suggest structural mismatch — lots of openings AND high unemployment simultaneously.
-      </InfoBox>
-    </>)}
-
-    {/* Labor Force Participation */}
-    <SH>Labor Force Participation Rate</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={filterRange(data.CIVPART || []).map(p => {
-          const prime = (data.LNS11300060 || []).find(x => x.d === p.d);
-          return { d: p.d, CIVPART: p.v, PRIME: prime?.v };
-        })} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-civpart" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} /><stop offset="95%" stopColor="#6366F1" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(filterRange(data.CIVPART || []).length / 8) - 1)} tickFormatter={fmtAxisDate} />
-          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={["auto", "auto"]} />
-          <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`${v.toFixed(1)}%`]} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-          <Area type="monotone" dataKey="PRIME" name="Prime-Age (25-54)" stroke="#14B8A6" fill="none" strokeWidth={2} dot={false} strokeDasharray="6 3" />
-          <Area type="monotone" dataKey="CIVPART" name="Total LFPR" stroke="#6366F1" fill="url(#g-civpart)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-        </AreaChart>
-      </ResponsiveContainer>
+        <Note>Moving down-and-right along the same curve is ordinary cooling. The whole curve shifting outward — many openings <em>and</em> high unemployment — means employers and workers are not matching, which rate cuts cannot fix.</Note>
+      </Panel>
     </div>
 
-    <InfoBox color="#6366F1">
-      <strong style={{ color: "var(--text-primary)" }}>Participation Rate</strong> measures what share of the working-age population is in the labor force. Total LFPR is dragged down by aging demographics (Baby Boomer retirement). <strong style={{ color: "var(--text-primary)" }}>Prime-Age (25-54)</strong> strips out demographics and gives a cleaner signal of labor market engagement.
-    </InfoBox>
-
-    {/* Average Hourly Earnings YoY */}
-    {earningsYoY.length > 0 && (<>
-      <SH>Average Hourly Earnings — YoY %</SH>
-      <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={earningsYoY} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-            <defs>
-              <linearGradient id="g-earnings" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} /><stop offset="95%" stopColor="#818cf8" stopOpacity={0} /></linearGradient>
-            </defs>
-            <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(earningsYoY.length / 8) - 1)} tickFormatter={fmtAxisDate} />
-            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-            <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`${v.toFixed(1)}%`, "Wage Growth"]} />
-            <ReferenceLine y={3.5} stroke="rgba(239,68,68,0.3)" strokeDasharray="4 4" label={{ value: "Fed comfort zone", fill: "#64748b", fontSize: 9, position: "right" }} />
-            <Area type="monotone" dataKey="v" name="Avg Hourly Earnings YoY" stroke="#818cf8" fill="url(#g-earnings)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-          </AreaChart>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+      <Panel title="Participation — headline against prime age" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={196}>
+          <LineChart data={clip(f.CIVPART).map(p => ({
+            d: p.d, all: p.v,
+            prime: (f.LNS11300060 || []).find(x => x.d === p.d)?.v ?? null,
+            epop: (f.LNS12300060 || []).find(x => x.d === p.d)?.v ?? null,
+          }))} margin={{ top: 6, right: 16, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis yAxisId="l" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={["dataMin - 0.4", "dataMax + 0.4"]} />
+            <YAxis yAxisId="r" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={["dataMin - 0.4", "dataMax + 0.4"]} />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "var(--text-primary)", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} labelFormatter={fmtMon} formatter={(v, n) => [pc(v, 1), n === "all" ? "all ages, participation" : n === "prime" ? "prime-age participation" : "prime-age employment rate"]} />
+            <Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono, paddingTop: 2 }} iconType="circle" iconSize={6} formatter={v => (v === "all" ? "all ages (left)" : v === "prime" ? "prime-age (right)" : "prime-age employed (right)")} />
+            <Line yAxisId="l" type="monotone" dataKey="all" name="all" stroke={INDIGO} strokeWidth={2} dot={false} />
+            <Line yAxisId="r" type="monotone" dataKey="prime" name="prime" stroke={TEAL} strokeWidth={1.5} dot={false} strokeDasharray="4 3" />
+            <Line yAxisId="r" type="monotone" dataKey="epop" name="epop" stroke={CYAN} strokeWidth={1.5} dot={false} />
+          </LineChart>
         </ResponsiveContainer>
-      </div>
-      <InfoBox color="#818cf8">
-        <strong style={{ color: "var(--text-primary)" }}>Wage growth</strong> above ~3.5% can fuel inflationary pressure through a wage-price spiral. The Fed watches this closely — strong wage growth makes it harder to cut rates even if headline inflation cools.
-      </InfoBox>
-    </>)}
+        <Note>The all-ages rate is dragged down by retirements and tells you little about demand. Prime-age is the clean read, and the employment-to-population version of it removes the judgement call about who counts as looking.</Note>
+      </Panel>
 
-    {/* Sahm Rule */}
-    <SH>Sahm Rule Recession Indicator</SH>
-    <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
-      <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={filterRange(data.SAHMREALTIME || [])} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="g-sahm" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} /><stop offset="95%" stopColor="#EF4444" stopOpacity={0} /></linearGradient>
-          </defs>
-          <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} interval={Math.max(0, Math.floor(filterRange(data.SAHMREALTIME || []).length / 8) - 1)} tickFormatter={fmtAxisDate} />
-          <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v}pp`} domain={[0, "auto"]} />
-          <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`${v.toFixed(2)}pp`, "Sahm Rule"]} />
-          <ReferenceLine y={0.5} stroke="#EF4444" strokeDasharray="4 4" label={{ value: "0.50 Recession Threshold", fill: "#f87171", fontSize: 9, position: "right" }} />
-          <Area type="monotone" dataKey="v" stroke="#EF4444" fill="url(#g-sahm)" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
-        </AreaChart>
-      </ResponsiveContainer>
+      <Panel title="Wage growth and the Sahm rule" style={{ marginBottom: 0 }}>
+        <ResponsiveContainer width="100%" height={196}>
+          <ComposedChart data={earningsYoY.map(p => ({ d: p.d, wage: p.v, sahm: (f.SAHMREALTIME || []).find(x => x.d === p.d)?.v ?? null }))} margin={{ top: 6, right: 16, left: -12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="l-sahm" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={RED} stopOpacity={0.3} /><stop offset="95%" stopColor={RED} stopOpacity={0} /></linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+            <YAxis yAxisId="l" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}%`} />
+            <YAxis yAxisId="r" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(1)} />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "var(--text-primary)", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} labelFormatter={fmtMon} formatter={(v, n) => [n === "wage" ? pc(v, 1) : v.toFixed(2), n === "wage" ? "wage growth, year over year" : "Sahm rule"]} />
+            <Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono, paddingTop: 2 }} iconType="circle" iconSize={6} formatter={v => (v === "wage" ? "wage growth (left)" : "Sahm rule (right)")} />
+            <ReferenceLine yAxisId="r" y={0.5} stroke={RED} strokeDasharray="4 4" label={{ value: "0.50", fill: RED, fontSize: 8.5, position: "insideTopRight", fontFamily: fonts.mono }} />
+            <Area yAxisId="r" type="monotone" dataKey="sahm" name="sahm" stroke={RED} fill="url(#l-sahm)" strokeWidth={1.4} dot={false} />
+            <Line yAxisId="l" type="monotone" dataKey="wage" name="wage" stroke={VIOLET} strokeWidth={2} dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+        <Note>
+          Wage growth around 3.5% is consistent with 2% inflation given trend productivity; it is currently {pc(wage, 1)}. The Sahm rule fires when the three-month average unemployment rate runs 0.50pp above its prior twelve-month low — it is at {fin(sahm) ? sahm.toFixed(2) : "—"}. Claudia Sahm has said herself it was built as a trigger for sending cheques, not as a forecast.
+        </Note>
+      </Panel>
     </div>
-    <InfoBox color="#EF4444">
-      <strong style={{ color: "var(--text-primary)" }}>Sahm Rule:</strong> Triggers when the 3-month moving average of unemployment rises 0.50pp or more above its 12-month low. Has signaled every U.S. recession since 1970 with no false positives. Created by economist Claudia Sahm as a real-time recession indicator.
-    </InfoBox>
   </>);
 }
 

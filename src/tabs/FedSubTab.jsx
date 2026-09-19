@@ -1,284 +1,268 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from "recharts";
-import { fonts, cardBg, cardBorder } from "../lib/styles.js";
+import { ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ReferenceLine, CartesianGrid } from "recharts";
+import { fonts } from "../lib/styles.js";
 import { fetchFred } from "../lib/api.js";
-import { fmtDate, fmtAxisDate, RateCard, SH, InfoBox } from "../components/shared.jsx";
+import { SH } from "../components/shared.jsx";
+import {
+  GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, BLUE, ORANGE, PINK, TEAL,
+  fin, card, label, note, tip, axis, pc, tn, bn, money, fmtDay, th, td, tdL, tableStyle,
+  chip, DenseHeader, Panel, Note, lastV, lastD, backV,
+} from "../components/dense.jsx";
 
-// ────────────────────────────────────────────────────────────────
-// FRED Series Configuration (7 series with formatting rules)
-// ────────────────────────────────────────────────────────────────
+// a signed change in $B, dropped to $M when it is smaller than a billion
+const delta = v => (!fin(v) ? "—" : Math.abs(v) < 1 ? `${v >= 0 ? "+" : "−"}$${Math.abs(v * 1000).toFixed(0)}M` : `${v > 0 ? "+" : "−"}$${Math.abs(v).toFixed(0)}B`);
+
+// ============================================================================
+// FEDERAL RESERVE BALANCE SHEET — read off the H.4.1 release via FRED.
+//
+// Rewritten Sept 2026. The previous version wired five series that either do
+// not exist on FRED (MORTGAGE, EXCRESBA, DMONRNJ) or were the wrong thing
+// entirely and stopped updating in 2021 — WIMFSL is institutional money-market
+// fund assets, not Fed liabilities, and MMNRNJ is a bank deposit *interest
+// rate*. Both were being printed as dollar totals. The chart axes also divided
+// millions by a thousand and labelled the result trillions, so every axis was
+// off by 1000×. Everything below is normalised to $ billions once, on ingest.
+//
+// All W-prefixed series are Wednesday levels in millions; RRPONTSYD is daily in
+// billions; GDP is quarterly in billions.
+// ============================================================================
+
+const MIL = 1 / 1000; // millions → billions
+
+// side: "a" assets, "l" liabilities & capital, "x" memo
 const SERIES = {
-  WALCL: { label: "Total Assets", color: "#818cf8", limit: 520, format: "T" },
-  TREAST: { label: "Treasuries Held", color: "#3B82F6", limit: 120, format: "T" },
-  MORTGAGE: { label: "MBS Held", color: "#10B981", limit: 120, format: "T" },
-  EXCRESBA: { label: "Excess Reserves", color: "#F59E0B", limit: 120, format: "B" },
-  WIMFSL: { label: "Total Liabilities", color: "#EF4444", limit: 520, format: "T" },
-  MMNRNJ: { label: "Money Market Holdings", color: "#8B5CF6", limit: 520, format: "B" },
-  DMONRNJ: { label: "Deposits (Technical)", color: "#EC4899", limit: 1000, format: "B" },
+  // ── assets ──
+  WALCL:    { side: "t", label: "Total assets",            scale: MIL, limit: 800, color: INDIGO },
+  WSHOSHO:  { side: "x", label: "Securities held outright", scale: MIL, limit: 800, color: INDIGO },
+  TREAST:   { side: "x", label: "  of which Treasuries",   scale: MIL, limit: 800, color: BLUE },
+  WSHOBL:   { side: "a", label: "Treasury bills",          scale: MIL, limit: 800, color: TEAL,   group: "Securities held outright" },
+  WSHONBNL: { side: "a", label: "Treasury notes & bonds",  scale: MIL, limit: 800, color: BLUE,   group: "Securities held outright" },
+  WSHOICL:  { side: "a", label: "TIPS + inflation comp.",  scale: MIL, limit: 800, color: VIOLET, group: "Securities held outright" },
+  WSHOMCB:  { side: "a", label: "Mortgage-backed securities", scale: MIL, limit: 800, color: GREEN, group: "Securities held outright" },
+  WLCFLPCL: { side: "a", label: "Discount window (primary credit)", scale: MIL, limit: 800, color: AMBER, group: "Lending facilities" },
+  WORAL:    { side: "a", label: "Repurchase agreements",   scale: MIL, limit: 800, color: ORANGE, group: "Lending facilities" },
+  SWPT:     { side: "a", label: "Central bank liquidity swaps", scale: MIL, limit: 800, color: PINK, group: "Lending facilities" },
+  // ── liabilities & capital ──
+  WLTLECL:  { side: "t", label: "Total liabilities",       scale: MIL, limit: 800, color: RED },
+  WRESBAL:  { side: "l", label: "Reserve balances",        scale: MIL, limit: 800, color: CYAN },
+  WCURCIR:  { side: "l", label: "Currency in circulation", scale: MIL, limit: 800, color: GREEN },
+  WTREGEN:  { side: "l", label: "Treasury General Account", scale: MIL, limit: 800, color: AMBER },
+  WLRRAL:   { side: "l", label: "Reverse repos (ON RRP + foreign)", scale: MIL, limit: 800, color: VIOLET },
+  WCTCL:    { side: "l", label: "Total capital",           scale: MIL, limit: 800, color: SLATE },
+  // ── memo ──
+  RRPONTSYD: { side: "x", label: "Overnight RRP (daily)",  scale: 1,   limit: 900, color: VIOLET },
+  GDP:       { side: "x", label: "Nominal GDP",            scale: 1,   limit: 90,  color: DIM },
 };
 
-// Batch size for FRED API requests (respect rate limits)
-const BATCH = 3;
+const ASSET_ROWS = ["WSHOBL", "WSHONBNL", "WSHOICL", "WSHOMCB", "WLCFLPCL", "WORAL", "SWPT"];
+const LIAB_ROWS = ["WRESBAL", "WCURCIR", "WTREGEN", "WLRRAL"];
+const BATCH = 5;
 
-// ────────────────────────────────────────────────────────────────
-// Smart Number Formatter
-// ────────────────────────────────────────────────────────────────
-const fmtNum = (val, preferredFormat) => {
-  if (val == null) return null;
-  if (preferredFormat === "B") return `$${(val / 1).toFixed(0)}B`;
-  if (preferredFormat === "T") return `$${(val / 1000).toFixed(2)}T`;
-  // Smart: use T for large values, B for small
-  return val >= 100 ? `$${(val / 1000).toFixed(2)}T` : `$${(val / 1).toFixed(0)}B`;
-};
-
-// ────────────────────────────────────────────────────────────────
-// Data Merging Function (forward-fill for different frequencies)
-// ────────────────────────────────────────────────────────────────
-const mergeByDate = (dataObj, seriesIds, fieldNames = {}) => {
-  // Collect all unique dates
-  const allDates = new Set();
-  seriesIds.forEach(id => {
-    if (dataObj[id]) {
-      dataObj[id].forEach(obs => allDates.add(obs.d));
-    }
-  });
-
-  const sorted = Array.from(allDates).sort();
-  const merged = [];
-
-  // Maintain current value for each series (forward-fill)
-  const current = {};
-  seriesIds.forEach(id => { current[id] = null; });
-
-  sorted.forEach(date => {
-    // Update current values from this date's observations
-    seriesIds.forEach(id => {
-      const obs = dataObj[id]?.find(o => o.d === date);
-      if (obs) current[id] = obs.v;
-    });
-
-    // Only include if we have at least one value
-    if (Object.values(current).some(v => v !== null)) {
-      const row = { d: date };
-      seriesIds.forEach(id => {
-        row[fieldNames[id] || id] = current[id];
-      });
-      merged.push(row);
-    }
-  });
-
-  return merged;
-};
-
-// ────────────────────────────────────────────────────────────────
-// Main FedSubTab Component
-// ────────────────────────────────────────────────────────────────
 function FedSubTab({ fredKey }) {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [err, setErr] = useState(null);
+  const [range, setRange] = useState("5Y");
 
-  // Fetch FRED data in batches
   useEffect(() => {
     if (!fredKey || data) return;
-    setLoading(true);
-    setError(false);
-
     (async () => {
-      try {
-        const result = {};
-        const entries = Object.entries(SERIES);
-
-        for (let b = 0; b < entries.length; b += BATCH) {
-          const batch = entries.slice(b, b + BATCH);
-
-          const fetched = await Promise.all(
-            batch.map(async ([id, meta]) => {
-              try {
-                const obs = await fetchFred(id, fredKey, meta.limit);
-                return [id, obs];
-              } catch (e) {
-                console.warn(`Failed to fetch ${id}:`, e.message);
-                return [id, []];
-              }
-            })
-          );
-
-          fetched.forEach(([id, obs]) => {
-            result[id] = obs;
-          });
-
-          // Stagger requests to avoid hitting FRED rate limits
-          if (b + BATCH < entries.length) {
-            await new Promise(r => setTimeout(r, 400));
-          }
-        }
-
-        setData(result);
-        setLoading(false);
-      } catch (e) {
-        console.error("Error fetching Fed data:", e);
-        setError(true);
-        setLoading(false);
+      const out = {};
+      const entries = Object.entries(SERIES);
+      for (let b = 0; b < entries.length; b += BATCH) {
+        const got = await Promise.all(entries.slice(b, b + BATCH).map(async ([id, m]) => {
+          try { return [id, (await fetchFred(id, fredKey, m.limit)).map(o => ({ d: o.d, v: o.v * m.scale }))]; }
+          catch (e) { console.warn(`Fed: ${id} failed —`, e.message); return [id, []]; }
+        }));
+        got.forEach(([id, obs]) => { out[id] = obs; });
       }
+      if (!out.WALCL?.length) setErr("FRED returned no observations for WALCL.");
+      setData(out);
     })();
   }, [fredKey, data]);
 
-  // Helper to get latest value for a series
-  const latest = (id) => {
-    const arr = data?.[id];
-    return arr?.length ? arr[arr.length - 1] : null;
+  const months = range === "1Y" ? 12 : range === "5Y" ? 60 : range === "10Y" ? 120 : 9999;
+  const cutoff = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - months); return d.toISOString().slice(0, 10); }, [months]);
+
+  // Weekly series share the same Wednesday dates, so a plain date join works.
+  const weekly = useMemo(() => {
+    if (!data?.WALCL?.length) return [];
+    const ids = Object.keys(SERIES).filter(id => SERIES[id].scale === MIL);
+    const idx = {};
+    for (const id of ids) { idx[id] = new Map((data[id] || []).map(o => [o.d, o.v])); }
+    return data.WALCL.filter(o => o.d >= cutoff).map(o => {
+      const row = { d: o.d };
+      for (const id of ids) { const v = idx[id].get(o.d); if (v != null) row[id] = v; }
+      return row;
+    });
+  }, [data, cutoff]);
+
+  if (err) return <div style={{ ...card, fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Fed balance sheet could not load: {err}</div>;
+  if (!data) return <div style={{ ...card, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>Loading the H.4.1 release from FRED…</div>;
+
+  const V = id => lastV(data[id]);
+  const D = id => lastD(data[id]);
+  const B = (id, n) => backV(data[id], n);
+
+  const assets = V("WALCL"), liabs = V("WLTLECL"), capital = V("WCTCL");
+  const asOf = D("WALCL");
+  const wk1 = assets != null && B("WALCL", 1) != null ? assets - B("WALCL", 1) : null;
+  const wk13 = assets != null && B("WALCL", 13) != null ? assets - B("WALCL", 13) : null;
+  const wk52 = assets != null && B("WALCL", 52) != null ? assets - B("WALCL", 52) : null;
+  const pace = fin(wk13) ? (wk13 / 13) * 52 : null;          // annualised from the last quarter
+  const gdp = lastV(data.GDP);
+  const pctGdp = fin(assets) && fin(gdp) ? (assets / gdp) * 100 : null;
+  const reserves = V("WRESBAL");
+  const resGdp = fin(reserves) && fin(gdp) ? (reserves / gdp) * 100 : null;
+  const onRrp = V("RRPONTSYD");
+  const identity = fin(assets) && fin(liabs) && fin(capital) ? assets - liabs - capital : null;
+
+  // peak for the drawdown line
+  const peak = (data.WALCL || []).reduce((m, o) => (o.v > (m?.v ?? -Infinity) ? o : m), null);
+  const offPeak = fin(assets) && peak ? assets - peak.v : null;
+
+  const row = (id, total, n1 = 13, n2 = 52) => {
+    const m = SERIES[id], v = V(id);
+    if (!fin(v)) return null;
+    const d13 = fin(B(id, n1)) ? v - B(id, n1) : null;
+    const d52 = fin(B(id, n2)) ? v - B(id, n2) : null;
+    return (
+      <tr key={id} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+        <td style={{ padding: "4px 6px", fontSize: 10.5, fontFamily: fonts.mono, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: m.color, marginRight: 6 }} />{m.label}
+        </td>
+        {td(money(v), "var(--text-primary)")}
+        {td(fin(total) && total > 0 ? pc((v / total) * 100, (v / total) * 100 < 1 ? 2 : 1) : "—", DIM)}
+        {td(delta(d13), !fin(d13) ? DIM : d13 > 0 ? GREEN : RED)}
+        {td(delta(d52), !fin(d52) ? DIM : d52 > 0 ? GREEN : RED)}
+      </tr>
+    );
   };
 
-  // Prepare merged data for composition chart (TREAST, MORTGAGE, MMNRNJ)
-  const compositionData = useMemo(() => {
-    if (!data || !data.TREAST || !data.MORTGAGE || !data.MMNRNJ) return null;
-    return mergeByDate(data, ["TREAST", "MORTGAGE", "MMNRNJ"], {
-      TREAST: "treasuries",
-      MORTGAGE: "mbs",
-      MMNRNJ: "moneyMkt",
-    });
-  }, [data]);
+  const Hover = ({ active, payload, label: l }) => {
+    if (!active || !payload?.length) return null;
+    const r = weekly.find(x => x.d === l);
+    if (!r) return null;
+    return (
+      <div style={{ ...tip, padding: "8px 10px", fontFamily: fonts.mono, color: "#cbd5e1" }}>
+        <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: 12 }}>{fmtDay(l)}</div>
+        <div style={{ fontSize: 10.5, marginTop: 3 }}>total assets {tn(r.WALCL)} · Treasuries {tn((r.WSHOBL || 0) + (r.WSHONBNL || 0) + (r.WSHOICL || 0))} · MBS {tn(r.WSHOMCB)}</div>
+        <div style={{ fontSize: 10.5, color: CYAN }}>reserves {tn(r.WRESBAL)} · TGA {tn(r.WTREGEN)} · reverse repos {tn(r.WLRRAL)}</div>
+      </div>
+    );
+  };
 
-  // Prepare merged data for operational chart (EXCRESBA, DMONRNJ, WIMFSL)
-  const operationalData = useMemo(() => {
-    if (!data || !data.EXCRESBA || !data.DMONRNJ || !data.WIMFSL) return null;
-    return mergeByDate(data, ["EXCRESBA", "DMONRNJ", "WIMFSL"], {
-      EXCRESBA: "excesses",
-      DMONRNJ: "deposits",
-      WIMFSL: "liabilities",
-    });
-  }, [data]);
+  const paceWord = !fin(pace) ? "flat" : pace > 40 ? "growing" : pace < -40 ? "shrinking" : "roughly flat";
+  const rangeBtn = r => ({
+    padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontSize: 9.5, fontFamily: fonts.mono,
+    border: `1px solid ${range === r ? "#818cf8" : "var(--border-subtle)"}`,
+    background: range === r ? "rgba(129,140,248,0.15)" : "transparent",
+    color: range === r ? "#c7d2fe" : SLATE, fontWeight: range === r ? 600 : 400,
+  });
 
-  return (
-    <>
-      <SH>Federal Reserve Balance Sheet</SH>
-      <InfoBox color="#818cf8">
-        Federal Reserve balance sheet size and composition. Track Fed policy actions through asset holdings and operational metrics. Data from FRED (weekly assets, monthly details).
-      </InfoBox>
+  return (<>
+    <DenseHeader
+      eyebrow="Federal Reserve balance sheet · H.4.1, Wednesday level"
+      headline={<>The balance sheet is {tn(assets)} and {paceWord} at {fin(pace) ? `${delta(pace)} a year` : "an unclear pace"} — {fin(offPeak) ? `${tn(Math.abs(offPeak))} below the ${peak?.d?.slice(0, 4)} peak` : "off its peak"}, with {tn(reserves)} of reserves left in the system</>}
+      blurb="Assets are what the Fed owns and liabilities are what it owes; reserves, the Treasury's account and the reverse-repo facility all compete for the same pool. When reverse repos run to zero and reserves keep falling, the next dollar of runoff comes straight out of bank reserves — that is the point at which balance-sheet policy starts moving money-market rates."
+      meta={<>as of {fmtDay(asOf)} · FRED / Federal Reserve H.4.1<br />all figures normalised to $ billions on ingest</>}
+      chips={[
+        chip("total assets", tn(assets), INDIGO, fin(pctGdp) ? `${pc(pctGdp)} of GDP` : null),
+        chip("week on week", delta(wk1), fin(wk1) ? (wk1 > 0 ? GREEN : RED) : SLATE, fin(wk52) ? `${delta(wk52)} over 52 weeks` : null),
+        chip("annualised pace", fin(pace) ? `${delta(pace)}/yr` : "—", fin(pace) ? (pace > 0 ? GREEN : RED) : SLATE, "from the last 13 weeks"),
+        chip("reserve balances", tn(reserves), reserves < 2800 ? AMBER : CYAN, fin(resGdp) ? `${pc(resGdp)} of GDP` : null),
+        chip("overnight RRP", money(onRrp), onRrp < 25 ? AMBER : VIOLET, `daily, ${fmtDay(D("RRPONTSYD"))}`),
+        chip("Treasury account", tn(V("WTREGEN")), AMBER, "cash the Treasury parks at the Fed"),
+      ]}
+    />
 
-      {/* Loading state */}
-      {loading && (
-        <div style={{ color: "var(--text-secondary)", fontSize: 13, textAlign: "center", padding: "20px" }}>
-          ⏳ Loading Fed balance sheet data...
-        </div>
-      )}
+    <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+      {["1Y", "5Y", "10Y", "MAX"].map(r => <button key={r} onClick={() => setRange(r)} style={rangeBtn(r)}>{r}</button>)}
+    </div>
 
-      {/* Error state */}
-      {error && (
-        <div style={{ color: "#ef4444", fontSize: 13, padding: "12px 14px", background: "#ef44440a", border: "1px solid #ef444422", borderRadius: 8, marginBottom: 14 }}>
-          ⚠️ Failed to load Fed data. Please try refreshing.
-        </div>
-      )}
+    <Panel title="Asset composition — what the Fed actually holds" right={`${weekly.length} weekly observations`}>
+      <ResponsiveContainer width="100%" height={250}>
+        <AreaChart data={weekly} margin={{ top: 5, right: 8, left: -6, bottom: 0 }}>
+          <defs>
+            {["WSHOBL", "WSHONBNL", "WSHOICL", "WSHOMCB"].map(id => (
+              <linearGradient key={id} id={`fed-${id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={SERIES[id].color} stopOpacity={0.45} />
+                <stop offset="95%" stopColor={SERIES[id].color} stopOpacity={0.05} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+          <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+          <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(1)}T`} />
+          <Tooltip content={<Hover />} />
+          <Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono, paddingTop: 4 }} iconType="circle" iconSize={7} />
+          <Area type="monotone" dataKey="WSHOBL" stackId="1" name="Bills" stroke={TEAL} fill={`url(#fed-WSHOBL)`} strokeWidth={1.5} dot={false} />
+          <Area type="monotone" dataKey="WSHONBNL" stackId="1" name="Notes & bonds" stroke={BLUE} fill={`url(#fed-WSHONBNL)`} strokeWidth={1.5} dot={false} />
+          <Area type="monotone" dataKey="WSHOICL" stackId="1" name="TIPS" stroke={VIOLET} fill={`url(#fed-WSHOICL)`} strokeWidth={1.5} dot={false} />
+          <Area type="monotone" dataKey="WSHOMCB" stackId="1" name="MBS" stroke={GREEN} fill={`url(#fed-WSHOMCB)`} strokeWidth={1.5} dot={false} />
+          <Line type="monotone" dataKey="WALCL" name="Total assets" stroke={INDIGO} strokeWidth={2} dot={false} strokeDasharray="4 3" />
+        </AreaChart>
+      </ResponsiveContainer>
+      <Note>The gap between the dashed total and the stack is unamortised premium, lending facilities, swaps, gold and the float — small in normal times, and the first thing to swell in a crisis.</Note>
+    </Panel>
 
-      {/* Metric cards grid (7 series) */}
-      {data && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(135px, 1fr))", gap: 10, marginBottom: 20 }}>
-            {Object.entries(SERIES).map(([id, s]) => {
-              const val = latest(id);
-              const displayVal = val ? (val.v / 1000) : null; // Convert millions to billions for display
-              const displayStr = fmtNum(displayVal, s.format);
+    <Panel title="The balance sheet, line by line" right={`Wednesday level, ${fmtDay(asOf)}`} pad="10px 12px 8px">
+      <div style={{ overflowX: "auto" }}>
+        <table style={tableStyle}>
+          <thead><tr>
+            {th("line", "left")}{th("level")}{th("share")}{th("13-wk chg")}{th("52-wk chg")}
+          </tr></thead>
+          <tbody>
+            <tr><td colSpan={5} style={{ ...label, padding: "8px 6px 3px", fontSize: 8.5, color: INDIGO }}>Assets</td></tr>
+            {ASSET_ROWS.map(id => row(id, assets))}
+            <tr style={{ borderTop: "1.5px solid var(--text-muted)" }}>
+              {tdL("Total assets", "var(--text-primary)", { fontWeight: 700 })}
+              {td(tn(assets), INDIGO, { fontWeight: 700 })}{td("100.0%", DIM)}
+              {td(delta(wk13), fin(wk13) && wk13 > 0 ? GREEN : RED, { fontWeight: 700 })}
+              {td(delta(wk52), fin(wk52) && wk52 > 0 ? GREEN : RED, { fontWeight: 700 })}
+            </tr>
+            <tr><td colSpan={5} style={{ ...label, padding: "12px 6px 3px", fontSize: 8.5, color: RED }}>Liabilities &amp; capital</td></tr>
+            {LIAB_ROWS.map(id => row(id, assets))}
+            {row("WCTCL", assets)}
+            <tr style={{ borderTop: "1.5px solid var(--text-muted)" }}>
+              {tdL("Total liabilities + capital", "var(--text-primary)", { fontWeight: 700 })}
+              {td(tn(fin(liabs) && fin(capital) ? liabs + capital : null), RED, { fontWeight: 700 })}
+              {td(fin(identity) ? (Math.abs(identity) < 1 ? "balances" : `off by ${delta(identity)}`) : "—", Math.abs(identity ?? 0) < 1 ? GREEN : AMBER)}
+              {td("", DIM)}{td("", DIM)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <Note>Residual lines the H.4.1 reports separately — the float, deferred credit, other deposits and the eliminations from consolidation — are not shown, so the listed rows do not sum to the totals. The identity check above is on the published totals, which do balance.</Note>
+    </Panel>
 
-              return (
-                <div key={id} style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px", position: "relative", overflow: "hidden" }}>
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.color, borderRadius: "14px 14px 0 0" }} />
-                  <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.heading, letterSpacing: -0.5 }}>
-                    {displayStr || "—"}
-                  </div>
-                  {val && (
-                    <div style={{ fontSize: 9, color: "#4ade80", marginTop: 3, fontFamily: fonts.mono }}>
-                      {fmtDate(val.d)}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+    <Panel title="The liability side — who holds the Fed's money" right="reserves vs the Treasury's account vs reverse repos">
+      <ResponsiveContainer width="100%" height={230}>
+        <LineChart data={weekly} margin={{ top: 5, right: 8, left: -6, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+          <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+          <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(1)}T`} />
+          <Tooltip content={<Hover />} />
+          <Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono, paddingTop: 4 }} iconType="circle" iconSize={7} />
+          <Line type="monotone" dataKey="WRESBAL" name="Reserve balances" stroke={CYAN} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="WCURCIR" name="Currency" stroke={GREEN} strokeWidth={1.5} dot={false} />
+          <Line type="monotone" dataKey="WTREGEN" name="Treasury General Account" stroke={AMBER} strokeWidth={1.5} dot={false} />
+          <Line type="monotone" dataKey="WLRRAL" name="Reverse repos" stroke={VIOLET} strokeWidth={1.5} dot={false} />
+          <ReferenceLine y={2800} stroke={`${AMBER}66`} strokeDasharray="4 4" label={{ value: "≈ reserve scarcity zone", fill: AMBER, fontSize: 8.5, position: "insideTopRight", fontFamily: fonts.mono }} />
+        </LineChart>
+      </ResponsiveContainer>
+      <Note>
+        Currency only grows. The Treasury's account swings with tax dates and debt-ceiling episodes, and every dollar into it drains a dollar of reserves. The scarcity marker is a rule of thumb, not an official line — the Fed has never published a reserve floor, and the 2019 repo squeeze arrived with reserves near 7% of GDP.
+      </Note>
+    </Panel>
 
-          {/* Total Assets Chart */}
-          {data.WALCL && data.WALCL.length > 0 && (
-            <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", margin: "0 0 10px 12px" }}>
-                Total Assets (Weekly)
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={data.WALCL} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="walclGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} />
-                  <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(1)}T`} />
-                  <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`$${(v / 1000).toFixed(2)}T`, "Assets"]} />
-                  <Area type="monotone" dataKey="v" stroke="#818cf8" fill="url(#walclGrad)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Asset Composition Chart (Stacked) */}
-          {compositionData && compositionData.length > 0 && (
-            <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", margin: "0 0 10px 12px" }}>
-                Asset Composition (Stacked)
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={compositionData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="treasGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="mbsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="mmGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} />
-                  <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(1)}T`} />
-                  <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`$${(v / 1000).toFixed(2)}T`, ""]} />
-                  <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-                  <Area type="monotone" dataKey="treasuries" stackId="1" name="Treasuries" stroke="#3B82F6" fill="url(#treasGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="mbs" stackId="1" name="MBS" stroke="#10B981" fill="url(#mbsGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="moneyMkt" stackId="1" name="Money Market" stroke="#F59E0B" fill="url(#mmGrad)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Operational Metrics Chart (Lines, in Billions) */}
-          {operationalData && operationalData.length > 0 && (
-            <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px" }}>
-              <h3 style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", margin: "0 0 10px 12px" }}>
-                Operational Metrics (Billions)
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={operationalData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
-                  <XAxis dataKey="d" tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} />
-                  <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}B`} />
-                  <Tooltip contentStyle={{ background: "var(--tooltip-bg, #0f172a)", border: "1px solid var(--border-subtle)", borderRadius: 8, fontSize: 11, fontFamily: fonts.heading }} labelFormatter={fmtDate} formatter={(v) => [`$${v.toFixed(0)}B`, ""]} />
-                  <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.heading, paddingTop: 6 }} iconType="circle" iconSize={7} />
-                  <Line type="monotone" dataKey="excesses" name="Excess Reserves" stroke="#F59E0B" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="deposits" name="Deposits (Technical)" stroke="#EC4899" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="liabilities" name="Total Liabilities" stroke="#EF4444" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </>
-      )}
-    </>
-  );
+    <div style={{ ...card, fontSize: 10.5, fontFamily: fonts.mono, color: SLATE, lineHeight: 1.6 }}>
+      <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>What to watch.</span> Three numbers decide whether runoff is still painless:
+      reserves as a share of GDP <span style={{ color: CYAN }}>({pc(resGdp)} now)</span>, whether the overnight RRP is still absorbing anything
+      <span style={{ color: VIOLET }}> ({money(onRrp)}{fin(onRrp) && onRrp < 10 ? " — effectively drained" : ""})</span>,
+      and whether banks are touching the discount window <span style={{ color: AMBER }}>({money(V("WLCFLPCL"))})</span>.
+      Reverse repos near zero mean the buffer is gone and further runoff lands on reserves directly.
+    </div>
+  </>);
 }
 
 export default FedSubTab;
