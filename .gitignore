@@ -60,3 +60,5 @@ fred-cache.json
 # Owner wealth: 24h feed cache and the permanent SOI tax-year extracts (re-derivable)
 owner-wealth.json
 soi-archive.json
+# Capex returns: 24h feed cache (re-derivable from SEC XBRL)
+capex-returns.json

@@ -21,6 +21,7 @@ import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createGpuEconomics } from './server/gpuEconomics.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
+import { createCapexReturns } from './server/capexReturns.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3768,6 +3769,9 @@ const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuE
 // Owner wealth (server/ownerWealth.js): IRS SOI returns by state and county and AGI bracket,
 // against BEA state proprietors' income -- the public read on where pass-through wealth lives
 const ownerWealth = createOwnerWealth({ fetchFredSeries, UA, dir: __dirname, homeState: 'WA' })
+// Capex returns (server/capexReturns.js): FCF with the stock-comp adjustment, ROIC, ROIIC and
+// Dickinson life-cycle staging from SEC XBRL -- the reproducible half of the Mauboussin paper
+const capexReturns = createCapexReturns({ UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3924,6 +3928,7 @@ export default defineConfig({
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())
+        reRoute('/api/capex-returns', () => capexReturns.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -3962,6 +3967,7 @@ export default defineConfig({
         setTimeout(() => { gpuEconomics.get().catch(() => {}) }, 540 * 1000) // after the AI pulse it joins
         setTimeout(() => { tokenEstimates.get().catch(() => {}) }, 660 * 1000) // after the GPU economics it joins
         setTimeout(() => { ownerWealth.get().catch(() => {}) }, 780 * 1000)
+        setTimeout(() => { capexReturns.get().catch(() => {}) }, 900 * 1000)
         setTimeout(() => { municipalities.get().catch(() => {}) }, 90 * 1000)
         // the remaining metros warm after the other feeds have had the throttle,
         // so switching cities is instant instead of a three-minute cold build

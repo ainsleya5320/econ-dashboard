@@ -7,6 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
+import CapexReturnsPanel from "./ai/CapexReturns.jsx";
 import TokenEstimatesPanel from "./ai/TokenEstimates.jsx";
 
 function SubTab({ id, label, active, onClick }) {
@@ -2101,6 +2102,7 @@ function ComputeTab() {
     </div>
     <GpuRentalsPanel />
     <GpuEconomicsPanel />
+    <CapexReturnsPanel />
     <ComputePowerTab />
     <SupplyCeilingPanel />
     <MemoryPricesPanel />
