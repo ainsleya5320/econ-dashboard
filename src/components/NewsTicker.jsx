@@ -148,7 +148,7 @@ export default function NewsTicker({ items, loading }) {
             <button onClick={() => setShowAll(false)} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "5px 12px", fontSize: 10, color: "#94a3b8", cursor: "pointer", fontFamily: fonts.mono }}>Close</button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))", gap: 12 }}>
             {items.map((item, i) => (
               <a
                 key={i}

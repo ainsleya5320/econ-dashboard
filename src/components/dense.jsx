@@ -228,7 +228,7 @@ export function DataTable({ cols, rows, note: footnote, dense = false }) {
           <div style={{ fontSize: 11.5, fontFamily: fonts.mono, fontWeight: 600, color: "var(--text-primary)", marginBottom: 5 }}>
             {cell(primary, r)}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(88px,1fr))", gap: "5px 10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(88px, 100%),1fr))", gap: "5px 10px" }}>
             {rest.map(c => (
               <div key={c.key} style={{ minWidth: 0 }}>
                 <div style={{ ...label, fontSize: 8, marginBottom: 1 }}>{c.label}</div>

@@ -217,7 +217,7 @@ function LaborSubTab({ fredKey }) {
       {["5Y", "10Y", "20Y", "MAX"].map(r => <button key={r} onClick={() => setRange(r)} style={rangeBtn(r)}>{r}</button>)}
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(350px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="Payrolls, monthly change" right="bars are months; the line is the three-month average" style={{ marginBottom: 0 }}>
         <ResponsiveContainer width="100%" height={236}>
           <ComposedChart data={payrollChange.map((p, i, a) => ({ ...p, avg3: i >= 2 ? (a[i].v + a[i - 1].v + a[i - 2].v) / 3 : null }))} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
@@ -256,7 +256,7 @@ function LaborSubTab({ fredKey }) {
       </Panel>
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(350px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="The full slack ladder, U-1 to U-6" right={fmtMon(D("UNRATE"))} style={{ marginBottom: 0 }}>
         <DataTable
           rows={[
@@ -302,7 +302,7 @@ function LaborSubTab({ fredKey }) {
       </Panel>
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(350px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="Unemployment — narrow against broad" style={{ marginBottom: 0 }}>
         <ResponsiveContainer width="100%" height={210}>
           <AreaChart data={clip(f.UNRATE).map(p => ({ d: p.d, u3: p.v, u6: (f.U6RATE || []).find(x => x.d === p.d)?.v ?? null }))} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
@@ -339,7 +339,7 @@ function LaborSubTab({ fredKey }) {
       </Panel>
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(350px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="Openings per unemployed person, and the quits rate" style={{ marginBottom: 0 }}>
         <ResponsiveContainer width="100%" height={216}>
           <ComposedChart data={vu.filter(p => p.d >= cutoff).map(p => ({ ...p, quits: (f.JTSQUR || []).find(x => x.d === p.d)?.v ?? null }))} margin={{ top: 6, right: 16, left: -12, bottom: 0 }}>
@@ -394,7 +394,7 @@ function LaborSubTab({ fredKey }) {
       </Panel>
     </div>
 
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(350px,1fr))", gap: 12, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(350px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="Participation — headline against prime age" style={{ marginBottom: 0 }}>
         <ResponsiveContainer width="100%" height={196}>
           <LineChart data={clip(f.CIVPART).map(p => ({
