@@ -59,7 +59,11 @@ export default function NewsTicker({ items, loading }) {
 
         {/* Scrolling strip */}
         <div
-          style={{ overflow: "hidden", flex: 1, height: "100%", cursor: "default" }}
+          // minWidth:0 matters: a flex item defaults to min-width:auto, so this
+          // refuses to shrink below the marquee's content width (~38,000px) and
+          // drags the whole page sideways on a phone. overflow:hidden alone does
+          // not stop it, because the item is already wider than its parent.
+          style={{ overflow: "hidden", flex: 1, minWidth: 0, height: "100%", cursor: "default" }}
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
