@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-4. Open http://localhost:5173 in your browser
+4. Open http://localhost:5180 in your browser
 5. Enter your API keys in the dashboard:
    - **FRED key**: Free at https://fred.stlouisfed.org/docs/api/api_key.html
    - **FMP key**: Free at https://site.financialmodelingprep.com (250 requests/day)
