@@ -4469,10 +4469,13 @@ export default defineConfig({
     // Honor a harness-assigned port (autoPort) so multiple sessions can run
     // side-by-side; fall back to the usual 5180.
     port: Number(process.env.PORT) || 5180,
-    host: true,
+    // All interfaces by default; an always-on server sets HOST=127.0.0.1 so only
+    // `tailscale serve` on the same machine can reach it.
+    host: process.env.HOST || true,
     // OneDrive-synced folder: native fs events are unreliable (edits can be
-    // invisible to the dev server until restart). Poll instead.
-    watch: { usePolling: true, interval: 1200 },
+    // invisible to the dev server until restart). Poll instead. A server that
+    // never edits its files sets WATCH_POLL=0 to stop polling around the clock.
+    watch: { usePolling: process.env.WATCH_POLL !== '0', interval: 1200 },
     proxy: {
       // CBOE moved the delayed-quotes CDN to cdn-api.cboe.com in Sept 2026; the
       // old host now answers with a 307, which the proxy hands to the browser,
