@@ -25,6 +25,7 @@ import { createHouseholdWealth } from './server/householdWealth.js'
 import { createTokenSpot } from './server/tokenSpot.js'
 import { createTightening } from './server/tightening.js'
 import { createTradeFlows } from './server/tradeFlows.js'
+import { createMarketMap } from './server/marketMap.js'
 import { createCapexReturns } from './server/capexReturns.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
@@ -3951,6 +3952,10 @@ export default defineConfig({
         // imbalances, the disinflation last mile. International → Forex and Pulse.
         const tradeFlows = createTradeFlows({ fetchFredSeries, UA, dir: __dirname })
         reRoute('/api/trade-flows', () => tradeFlows.get())
+        // Market map (server/marketMap.js): Real Estate → Market Map — every
+        // state, metro and county, a scorecard per area and a correction-risk
+        // score. Monthly Zillow + Realtor.com joined to the annual Census seed.
+        createMarketMap({ dir: __dirname, fetchFredSeries, UA }).register(server)
 
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())
