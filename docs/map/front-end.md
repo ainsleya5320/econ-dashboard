@@ -7,9 +7,9 @@ Back to the [master map](../../CLAUDE.md).
 - [src/main.jsx](../../src/main.jsx): React entry point
 - [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today, Valuation, Income, Macro, Themes), data loading, data-health status
 - [src/tabs/](../../src/tabs): one component per tab and sub-tab (Overview cockpit, Rates, CPI, U.S. Economy, SFC Model, Tightening …)
-- [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, technicals, special situations
+- [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash, technicals, value book, special situations
 - [src/tabs/options/](../../src/tabs/options): options income, expectations, volatility history, watchlist ladder
-- [src/tabs/realEstate/](../../src/tabs/realEstate): market profile, metro comparison, rental pricing, refinancing
+- [src/tabs/realEstate/](../../src/tabs/realEstate): market map (states, metros, counties), market profile, metro comparison, rental pricing, refinancing
 - [src/tabs/ai/](../../src/tabs/ai): capex returns, GPU economics, token estimates, token spot
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels

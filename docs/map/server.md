@@ -21,6 +21,8 @@ Back to the [master map](../../CLAUDE.md).
 - [server/householdWealth.js](../../server/householdWealth.js): Distributional Financial Accounts wealth by percentile
 - [server/ownerWealth.js](../../server/ownerWealth.js): IRS SOI state tables, the business-owner wealth question
 - [server/realEstateFeeds.js](../../server/realEstateFeeds.js): Redfin, FRED pipeline, rents, build costs, CRE credit, Kastle
+- [server/marketMap.js](../../server/marketMap.js): Real Estate → Market Map: states, metros and counties from Zillow and Realtor.com joined to the annual seed (/api/market-map)
+- [server/marketMapSeed.js](../../server/marketMapSeed.js): builds that annual seed from Census (SAIPE, ACS, estimates, permits, CBSA) and Realtor.com's 2017–19 baseline
 - [server/metroComparison.js](../../server/metroComparison.js): metro housing stock, permits and rents joined
 - [server/metroEmployment.js](../../server/metroEmployment.js): BLS CES metro employment by industry
 - [server/localMarketData.js](../../server/localMarketData.js): Census ACS and Zillow parsers for local markets
