@@ -9,6 +9,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/](../../src/tabs): one component per tab and sub-tab (Overview cockpit, Rates, CPI, U.S. Economy, SFC Model, Tightening …)
 - [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash (with optimal debt), technicals, valuation (cost of capital, industry yardstick, story valuation), value book, special situations
 - [src/tabs/options/](../../src/tabs/options): options income, expectations, volatility history, watchlist ladder
+- [src/tabs/history/](../../src/tabs/history): the Historical tab's long-run sections (interest rates, inflation, growth), under HistoricalTab.jsx with the asset-returns view
 - [src/tabs/realEstate/](../../src/tabs/realEstate): market map (states, metros, counties), market profile, metro comparison, rental pricing, refinancing
 - [src/tabs/ai/](../../src/tabs/ai): capex returns, GPU economics, token estimates, token spot
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse

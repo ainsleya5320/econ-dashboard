@@ -17,6 +17,10 @@
 // (server/marketMapSeed.js has the list and the release calendar is in its
 // header).
 //
+// The Historical tab's long-run series (Shiller, Jordà–Schularick–Taylor, the
+// Bank of England's millennium dataset, Schmelzing, the Minneapolis Fed CPI)
+// are finished history; re-run that section when a new release appears.
+//
 // Run after each WEO release (April, October), after the Census releases
 // (ACS 5-year in December/January, SAIPE in December, population estimates in
 // March, permits in May), or when BLS redefines metro series; commit
@@ -24,6 +28,7 @@
 //
 //   node scripts/refresh-seeds.mjs
 //   node scripts/refresh-seeds.mjs market-map
+//   node scripts/refresh-seeds.mjs long-run
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
@@ -32,11 +37,12 @@ import { METROS } from '../server/realEstateFeeds.js'
 import { selectEmploymentSeries } from '../server/metroEmployment.js'
 import { IMF_INDICATORS } from '../server/tradeFlows.js'
 import { buildMarketMapSeed, SEED_NAME } from '../server/marketMapSeed.js'
+import { buildLongRunSeed, SEED_NAME as LONG_RUN_SEED } from '../server/longRunSeed.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const out = path.join(root, 'data', 'seeds')
 fs.mkdirSync(out, { recursive: true })
-const SECTIONS = ['bls', 'imf', 'market-map']
+const SECTIONS = ['bls', 'imf', 'market-map', 'long-run']
 const asked = process.argv.slice(2)
 const unknown = asked.filter(a => !SECTIONS.includes(a))
 if (unknown.length) { console.error(`unknown section(s): ${unknown.join(', ')} — choose from ${SECTIONS.join(', ')}`); process.exit(1) }
@@ -83,3 +89,6 @@ if (run('market-map')) {
   if (counties < 3000 || Object.keys(seed.cbsa).length < 900) throw new Error(`market map seed looks short: ${counties} counties, ${Object.keys(seed.cbsa).length} CBSAs`)
   write(SEED_NAME, seed)
 }
+
+// ── Historical tab, long run ──
+if (run('long-run')) write(LONG_RUN_SEED, await buildLongRunSeed())

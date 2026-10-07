@@ -12,7 +12,7 @@ import StocksTab from "./tabs/StocksTab.jsx";
 import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
-import HistoricalReturnsTab from "./tabs/HistoricalReturnsTab.jsx";
+import HistoricalTab from "./tabs/HistoricalTab.jsx";
 import ForecastsTab from "./tabs/ForecastsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
 import CommoditiesTab from "./tabs/CommoditiesTab.jsx";
@@ -485,7 +485,7 @@ export default function Dashboard() {
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab />}
             {tab === "forecasts" && <ForecastsTab />}
-            {tab === "history" && <HistoricalReturnsTab />}
+            {tab === "history" && <HistoricalTab />}
           </TabErrorBoundary>
           </div>
 

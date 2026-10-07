@@ -23,6 +23,8 @@ Back to the [master map](../../CLAUDE.md).
 - [server/realEstateFeeds.js](../../server/realEstateFeeds.js): Redfin, FRED pipeline, rents, build costs, CRE credit, Kastle
 - [server/marketMap.js](../../server/marketMap.js): Real Estate → Market Map: states, metros and counties from Zillow and Realtor.com joined to the annual seed (/api/market-map)
 - [server/marketMapSeed.js](../../server/marketMapSeed.js): builds that annual seed from Census (SAIPE, ACS, estimates, permits, CBSA) and Realtor.com's 2017–19 baseline
+- [server/longRun.js](../../server/longRun.js): Historical tab → interest rates, inflation and growth back a century and more: the long-run seed joined to FRED (/api/long-run)
+- [server/longRunSeed.js](../../server/longRunSeed.js): builds that seed from Shiller, Jordà–Schularick–Taylor, the Bank of England millennium dataset, Schmelzing and the Minneapolis Fed CPI
 - [server/metroComparison.js](../../server/metroComparison.js): metro housing stock, permits and rents joined
 - [server/metroEmployment.js](../../server/metroEmployment.js): BLS CES metro employment by industry
 - [server/localMarketData.js](../../server/localMarketData.js): Census ACS and Zillow parsers for local markets

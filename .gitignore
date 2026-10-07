@@ -77,3 +77,5 @@ special-digest-preview.html
 state/
 # Market map: 24h feed cache (data/seeds/market-map-annual.json is the tracked annual half)
 market-map.json
+# Long run: 12h feed cache (data/seeds/long-run-history.json is the tracked history)
+long-run.json

@@ -26,6 +26,7 @@ import { createTokenSpot } from './server/tokenSpot.js'
 import { createTightening } from './server/tightening.js'
 import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
+import { createLongRun } from './server/longRun.js'
 import { createCapexReturns } from './server/capexReturns.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
@@ -3956,6 +3957,11 @@ export default defineConfig({
         // state, metro and county, a scorecard per area and a correction-risk
         // score. Monthly Zillow + Realtor.com joined to the annual Census seed.
         createMarketMap({ dir: __dirname, fetchFredSeries, UA }).register(server)
+        // Long run (server/longRun.js): Historical tab → Interest rates,
+        // Inflation, Growth — a century and more, the committed history seed
+        // joined to FRED's modern series.
+        const longRun = createLongRun({ dir: __dirname, fetchFredSeries })
+        reRoute('/api/long-run', () => longRun.get())
 
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())
