@@ -14,12 +14,13 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels
 - [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search
-- [src/lib/](../../src/lib): client logic: api.js (FRED/FMP fetches), constants, fallback data, options/property/rental/stock analysis, technicals, styles
+- [src/lib/](../../src/lib): client logic: api.js (FRED/FMP fetches), constants, fallback data, options/property/rental/stock analysis, technicals, styles, Damodaran cost of capital (costOfCapital.js) and the FMP → Damodaran industry map (industryMap.js)
 - [src/lib/assistantContext.js](../../src/lib/assistantContext.js): turns the dashboard's verdicts into text for the chat assistant
 - [src/theme.css](../../src/theme.css): global theme
 
 ## State
 - [src/lib/damodaran.json](../../src/lib/damodaran.json): Damodaran annual implied ERP (1960 on) and rating spreads, built by the refresh script
+- [src/lib/damodaranIndustries.json](../../src/lib/damodaranIndustries.json): his U.S. industry averages (betas, costs of capital, margins, returns, multiples, working capital), built by the same script
 - [src/data/labRevenueTracker.json](../../src/data/labRevenueTracker.json): hand-curated AI lab revenue and deployed-GW observations (append by hand)
 - [src/lib/fallbackData.js](../../src/lib/fallbackData.js): baked-in series shown when FRED is unreachable
 - [src/lib/forecasts.js](../../src/lib/forecasts.js): curated FutureSearch forecast snapshots
