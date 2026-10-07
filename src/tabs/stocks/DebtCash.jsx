@@ -3,6 +3,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, L
 import { fonts } from "../../lib/styles.js";
 import { isBankOrInsurer } from "../../lib/stockResearch.js";
 import { industryOf, returnOnCapital, INDUSTRY_AS_OF } from "../../lib/costOfCapital.js";
+import OptimalDebt from "./OptimalDebt.jsx";
 import {
   GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, TEAL,
   fin, card, note, tip, axis, chip, DenseHeader, Panel, Note, useIsPhone, chartH,
@@ -219,6 +220,8 @@ export default function DebtCash({ data, coc }) {
         </ResponsiveContainer>
       </Panel>
     </div>
+
+    {coc && <OptimalDebt coc={coc} />}
 
     <Panel title="Carrying the debt" right={`${span}-year record${t ? " plus TTM" : ""}`}>
       <HistoryTable cols={cols} rows={[

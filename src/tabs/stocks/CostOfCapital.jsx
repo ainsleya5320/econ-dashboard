@@ -40,7 +40,7 @@ export function CostOfCapitalPanel({ data, coc, inputs }) {
     ["Levered beta", x2(coc.betaL), `${x2(coc.betaU)} × (1 + (1 − ${p1(coc.t)}) × ${p1(coc.de)})`],
     ["Equity risk premium", p2(coc.erp), inputs.erpLabel],
     ["Cost of equity", p2(coc.ke), `${p2(coc.rf)} + ${x2(coc.betaL)} × ${p2(coc.erp)}`, true],
-    ["Synthetic rating", coc.rating ? coc.rating.rating : "—", coc.rating ? `interest coverage ${coc.coverage.toFixed(1)}×${coc.interestEst ? " (no interest reported, so estimated at riskfree + industry spread on its debt)" : ""} → his ${coc.rating.large ? "large" : "small"}-firm table, default spread ${p2(coc.rating.spread)}` : coc.kdBasis === "industry" ? "no interest expense reported, so the industry's credit spread stands in" : "no debt cost available"],
+    ["Synthetic rating", coc.rating ? coc.rating.rating : "—", coc.rating ? `interest coverage ${coc.coverage.toFixed(1)}×${coc.interestEst ? " (no interest reported, so estimated at riskfree + industry spread on its debt)" : ""} → his ${coc.rating.large ? "large" : "small"}-firm table, default spread ${p2(coc.rating.spread)}` : coc.kdBasis === "industry" ? (coc.lossMaking ? "operating loss: a coverage-based rating would read D, so the industry's credit spread stands in" : "no interest expense reported, so the industry's credit spread stands in") : "no debt cost available"],
     ["Pre-tax cost of debt", p2(coc.kdPre), coc.rating ? `${p2(coc.rf)} + ${p2(coc.rating.spread)}` : "riskfree + industry spread"],
     ["After-tax cost of debt", p2(coc.kdAfter), `× (1 − ${p1(coc.t)} marginal tax rate)`],
     ["Weights", `${p1(coc.wE)} / ${p1(coc.wD)}`, "equity / debt, at market value (debt at book, leases included)"],

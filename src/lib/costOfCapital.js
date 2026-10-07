@@ -150,7 +150,11 @@ export function costOfCapital(data, { rf, erp }) {
   let interest = nz(T.interest) ? Math.abs(T.interest) : nz(T.interestPaid) ? Math.abs(T.interestPaid) : null, interestEst = false;
   if (!interest && debt > 0 && fin(rf) && fin(T.ebit)) { interest = debt * (rf + ((ind.row?.kdPre ?? IND.inputs.rf) - IND.inputs.rf)); interestEst = true; }
   const coverage = fin(T.ebit) && interest ? T.ebit / interest : null;
-  const rating = syntheticRating(coverage, mcap);
+  // an operating loss makes coverage negative and the synthetic rating a D —
+  // he would not rate a money-loser on this year's income, so the industry's
+  // credit spread stands in (lossMaking flags it for the page)
+  const lossMaking = fin(T.ebit) && T.ebit <= 0;
+  const rating = lossMaking ? null : syntheticRating(coverage, mcap);
   let kdPre = null, kdBasis = null;
   if (rating && fin(rf)) { kdPre = rf + rating.spread; kdBasis = "rating"; }
   else if (fin(rf) && fin(ind.row?.kdPre)) { kdPre = rf + (ind.row.kdPre - IND.inputs.rf); kdBasis = "industry"; }
@@ -159,7 +163,7 @@ export function costOfCapital(data, { rf, erp }) {
   const wE = V ? mcap / V : null, wD = V ? debt / V : null;
   const wacc = !ind.equityOnly && fin(ke) && fin(kdAfter) && V ? wE * ke + wD * kdAfter : null;
   return {
-    ind, market: marketFor(ind), rf, erp, t, T, mcap, shares, debt, cash, de, betaU, betaL, ke, interest, interestEst, coverage, rating, kdPre, kdAfter, kdBasis, wE, wD, wacc,
+    ind, market: marketFor(ind), rf, erp, t, T, mcap, shares, debt, cash, de, betaU, betaL, ke, interest, interestEst, coverage, rating, lossMaking, kdPre, kdAfter, kdBasis, wE, wD, wacc,
     equityOnly: ind.equityOnly, indNow: restate(ind.row, rf, erp), marketNow: restate(marketFor(ind), rf, erp),
   };
 }

@@ -21,6 +21,7 @@ import StockResearchSheet from "./stocks/StockResearchSheet.jsx";
 import TechnicalAnalysis from "./stocks/TechnicalAnalysis.jsx";
 import { CostOfCapitalPanel, ExcessReturnPanel, IndustryYardstick } from "./stocks/CostOfCapital.jsx";
 import { useDiscountInputs } from "./stocks/useDiscountInputs.js";
+import StoryValuation from "./stocks/StoryValuation.jsx";
 import { costOfCapital } from "../lib/costOfCapital.js";
 import {fetchStockDetail} from "../lib/stockDetail.js";
 
@@ -1128,6 +1129,7 @@ function StockDetailView({ data, onBack, fmpKey, treasury }) {
       <IndustryYardstick data={data} coc={coc} />
       <ValuationBands data={data} fmpKey={fmpKey} />
       <ReverseDCF data={data} defaultRate={coc.ke} />
+      <StoryValuation data={data} coc={coc} />
       <PIEPanel data={data} defaultWacc={coc.wacc ?? coc.ke} />
     </>)}
 
