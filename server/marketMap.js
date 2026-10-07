@@ -490,11 +490,15 @@ export function createMarketMap({ dir, fetchFredSeries, UA }) {
 
   function register(server) {
     server.middlewares.use('/api/market-map', async (req, res, next) => {
-      // req.url arrives with the mount path stripped: "/county", "/history/WA"
-      const p = new URL(req.url || '/', 'http://localhost').pathname.replace(/\.json$/, '')
-      let m, pick
-      if ((m = /^\/(state|metro|county)$/.exec(p))) pick = d => d.levels[m[1]]
-      else if ((m = /^\/history\/([A-Z]{2})$/.exec(p))) pick = d => d.history[m[1]]
+      // req.url arrives with the mount path stripped: "/county", "/history/WA".
+      // The Netlify fork's bake asks with a query instead ("/?level=county",
+      // "/history?st=WA") and writes the answer under the path form the page uses.
+      const url = new URL(req.url || '/', 'http://localhost'), p = url.pathname.replace(/\.json$/, '')
+      const level = /^\/(state|metro|county)$/.exec(p)?.[1] ?? (p === '/' ? url.searchParams.get('level') : null)
+      const st = /^\/history\/([A-Z]{2})$/.exec(p)?.[1] ?? (p === '/history' ? url.searchParams.get('st') : null)
+      let pick
+      if (/^(state|metro|county)$/.test(level || '')) pick = d => d.levels[level]
+      else if (/^[A-Z]{2}$/.test(st || '')) pick = d => d.history[st]
       else return next()
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('Cache-Control', 'no-store')
