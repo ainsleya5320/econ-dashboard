@@ -7,7 +7,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/main.jsx](../../src/main.jsx): React entry point
 - [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today, Valuation, Income, Macro, Themes), data loading, data-health status
 - [src/tabs/](../../src/tabs): one component per tab and sub-tab (Overview cockpit, Rates, CPI, U.S. Economy, SFC Model, Tightening …)
-- [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash (with optimal debt), technicals, valuation (cost of capital, industry yardstick, story valuation), value book, special situations
+- [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash (with optimal debt), accounting (Beneish, Montier, accruals, footnotes, filings), technicals, valuation (cost of capital, industry yardstick, story valuation), value book, special situations, sin & folly
 - [src/tabs/options/](../../src/tabs/options): options income, expectations, volatility history, watchlist ladder
 - [src/tabs/history/](../../src/tabs/history): the Historical tab's long-run sections (interest rates, inflation, growth), under HistoricalTab.jsx with the asset-returns view
 - [src/tabs/realEstate/](../../src/tabs/realEstate): market map (states, metros, counties), market profile, metro comparison, rental pricing, refinancing
@@ -16,6 +16,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels
 - [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search
 - [src/lib/](../../src/lib): client logic: api.js (FRED/FMP fetches), constants, fallback data, options/property/rental/stock analysis, technicals, styles, Damodaran cost of capital (costOfCapital.js) and the FMP → Damodaran industry map (industryMap.js)
+- [src/lib/accountingQuality.js](../../src/lib/accountingQuality.js): Beneish M-score, Montier C-score, accruals and useful life, shared by the stock page's Accounting tab and server/sinMonitorSeed.js
 - [src/lib/assistantContext.js](../../src/lib/assistantContext.js): turns the dashboard's verdicts into text for the chat assistant
 - [src/theme.css](../../src/theme.css): global theme
 

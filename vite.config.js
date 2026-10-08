@@ -28,6 +28,8 @@ import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
 import { createLongRun } from './server/longRun.js'
 import { createCapexReturns } from './server/capexReturns.js'
+import { createAccountingFlags } from './server/accountingFlags.js'
+import { createSinMonitor } from './server/sinMonitor.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3796,6 +3798,12 @@ const householdWealth = createHouseholdWealth({ UA, dir: __dirname })
 // Capex returns (server/capexReturns.js): FCF with the stock-comp adjustment, ROIC, ROIIC and
 // Dickinson life-cycle staging from SEC XBRL -- the reproducible half of the Mauboussin paper
 const capexReturns = createCapexReturns({ UA, dir: __dirname })
+// Accounting flags (server/accountingFlags.js): the stock page's Accounting tab -- restatements, auditor
+// changes, late filings, comment letters, Friday-night 8-Ks and footnote lines from EDGAR, per company
+const accountingFlags = createAccountingFlags({ UA, dir: __dirname })
+// Sin & Folly (server/sinMonitor.js): accounting posture of the 500 largest non-financial filers,
+// trouble-filing and buzzword counts; serves data/seeds/sin-monitor.json and refreshes recent years weekly
+const sinMonitor = createSinMonitor({ UA, dir: __dirname })
 
 export default defineConfig({
   plugins: [
@@ -3981,6 +3989,8 @@ export default defineConfig({
         reRoute('/api/owner-wealth', () => ownerWealth.get())
         reRoute('/api/household-wealth', () => householdWealth.get())
         reRoute('/api/capex-returns', () => capexReturns.get())
+        reRoute('/api/accounting-flags', req => accountingFlags.get(req))
+        reRoute('/api/sin-monitor', () => sinMonitor.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')

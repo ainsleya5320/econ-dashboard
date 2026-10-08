@@ -5,7 +5,7 @@ Back to the [master map](../../CLAUDE.md).
 ## Projects
 - [package.json](../../package.json): npm scripts (dev, build, preview) and dependencies (React, Recharts, Plotly, Anthropic SDK, xlsx)
 - [scripts/refresh-damodaran.mjs](../../scripts/refresh-damodaran.mjs): rebuilds src/lib/damodaran.json and src/lib/damodaranIndustries.json from Damodaran's yearly spreadsheets
-- [scripts/refresh-seeds.mjs](../../scripts/refresh-seeds.mjs): rebuilds data/seeds/ (BLS metro catalog, IMF DataMapper, the Market Map's annual Census and Realtor.com data, the Historical tab's long-run history)
+- [scripts/refresh-seeds.mjs](../../scripts/refresh-seeds.mjs): rebuilds data/seeds/ (BLS metro catalog, IMF DataMapper, the Market Map's annual Census and Realtor.com data, the Historical tab's long-run history, Stocks → Sin & Folly)
 - [scripts/special-digest.mjs](../../scripts/special-digest.mjs): builds and scores the special-situations feed, emails new ideas through Resend
 - [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code
 
@@ -19,7 +19,7 @@ Back to the [master map](../../CLAUDE.md).
 - `npm run dev`: the app and its API on port 5180
 - `node --test tests/*.test.js`: run the unit tests (after npm install; they import xlsx)
 - `node scripts/refresh-damodaran.mjs`: once a year, in January
-- `node scripts/refresh-seeds.mjs [bls|imf|market-map|long-run]`: after the releases its header lists, then commit data/seeds/
+- `node scripts/refresh-seeds.mjs [bls|imf|market-map|long-run|sin]`: after the releases its header lists, then commit data/seeds/
 - `node scripts/special-digest.mjs --dry-run`: build and score the digest without sending
 
 ## Memory

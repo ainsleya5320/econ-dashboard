@@ -33,6 +33,9 @@ Back to the [master map](../../CLAUDE.md).
 - [server/bankruptcy.js](../../server/bankruptcy.js): U.S. Courts F-2 tables, CM/ECF feeds, CourtListener, 8-K Item 1.03
 - [server/specialSituations.js](../../server/specialSituations.js): spinoffs, mergers, tenders, insider buys from SEC EDGAR and FMP
 - [server/specialScore.js](../../server/specialScore.js): 0-100 score for special-situation ideas
+- [server/accountingFlags.js](../../server/accountingFlags.js): the stock page's Accounting tab, filings half: restatements, auditor changes, late filings, weaknesses, comment letters, Friday-night 8-Ks and footnote lines from EDGAR, per company (/api/accounting-flags)
+- [server/sinMonitor.js](../../server/sinMonitor.js): Stocks → Sin & Folly: serves the sin-monitor seed and rebuilds its recent years weekly in the background (/api/sin-monitor)
+- [server/sinMonitorSeed.js](../../server/sinMonitorSeed.js): builds that seed from SEC XBRL frames (the 500 largest non-financial 10-K filers since 2010) and EDGAR full-text counts since 2001
 - [server/peopleScreener.js](../../server/peopleScreener.js): S&P 500 revenue and profit per employee (FMP)
 - [server/optionsContext.js](../../server/optionsContext.js): earnings and dividend events for the options views
 - [server/sfcModel.js](../../server/sfcModel.js): serves the SFC model JSON to the SFC Model tab
@@ -43,7 +46,7 @@ Back to the [master map](../../CLAUDE.md).
 - [fred-cache.json](../../fred-cache.json): shared FRED observation cache (gitignored)
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)
-- Other feed caches (us-pulse.json, redfin.json, gpu-economics.json …) are gitignored; see [.gitignore](../../.gitignore)
+- Other feed caches (us-pulse.json, redfin.json, gpu-economics.json, accounting-flags.json, sin-monitor.json …) are gitignored; see [.gitignore](../../.gitignore)
 - Tracked archives these modules append to: [data snapshots](data.md)
 
 ## Skills

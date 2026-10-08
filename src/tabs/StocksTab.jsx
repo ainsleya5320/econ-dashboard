@@ -17,6 +17,8 @@ import SP500Overview from "./stocks/SP500Overview.jsx";
 import PeopleScreener from "./stocks/PeopleScreener.jsx";
 import SpecialSituations from "./stocks/SpecialSituations.jsx";
 import FlipBook from "./stocks/FlipBook.jsx";
+import Accounting from "./stocks/Accounting.jsx";
+import SinFolly from "./stocks/SinFolly.jsx";
 import StockResearchSheet from "./stocks/StockResearchSheet.jsx";
 import TechnicalAnalysis from "./stocks/TechnicalAnalysis.jsx";
 import { CostOfCapitalPanel, ExcessReturnPanel, IndustryYardstick } from "./stocks/CostOfCapital.jsx";
@@ -1034,12 +1036,12 @@ function VolSurface({ symbol, spot: initialSpot, chain: sharedChain }) {
   </>);
 }
 
-function StockDetailView({ data, onBack, fmpKey, treasury }) {
+function StockDetailView({ data, onBack, fmpKey, treasury, initialView = "classic" }) {
   // Damodaran's bottom-up cost of capital, computed once for every panel
   const discountInputs = useDiscountInputs(treasury);
   const coc = useMemo(() => costOfCapital(data, discountInputs), [data, discountInputs]);
   const { symbol, years, prof } = data;
-  const [viewMode, setViewMode] = useState("classic");
+  const [viewMode, setViewMode] = useState(initialView);
 
   const q = data.quote || {};
   const chg = q.change ?? 0;
@@ -1053,6 +1055,7 @@ function StockDetailView({ data, onBack, fmpKey, treasury }) {
   const DETAIL_TABS = [
     { id: "classic",    label: "Research sheet" },
     { id: "summary",    label: "Debt & cash" },
+    { id: "accounting", label: "Accounting" },
     { id: "technicals", label: "Technical analysis" },
     { id: "ratios",     label: "Key Ratios" },
     { id: "financials", label: "Profitability waterfall" },
@@ -1111,6 +1114,9 @@ function StockDetailView({ data, onBack, fmpKey, treasury }) {
       {/* Dividend safety read */}
       <DividendSafety data={data} fmpKey={fmpKey} />
     </>)}
+
+    {/* ═══ ACCOUNTING — the sin check: Beneish, Montier, accruals, footnotes, filings ═══ */}
+    {viewMode === "accounting" && <Accounting data={data} fmpKey={fmpKey} />}
 
     {/* ═══ TECHNICAL ANALYSIS — replaces the old 90-day chart view ═══ */}
     {viewMode === "technicals" && <TechnicalAnalysis data={data} fmpKey={fmpKey} />}
@@ -1206,6 +1212,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
   const detailRequest = useRef(0);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailView, setDetailView] = useState("classic"); // which stock-page tab a link opens on
   const [stockView, setStockView] = useState("overview"); // "overview" | "sp500" | "screener"
   const [indexYields, setIndexYields] = useState(null);
 
@@ -1255,8 +1262,9 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
     else { setSortCol(col); setSortDir("desc"); }
   };
 
-  const openDetail = async (symbol) => {
+  const openDetail = async (symbol, view = "classic") => {
     const request = ++detailRequest.current;
+    setDetailView(typeof view === "string" ? view : "classic");
     setDetailSymbol(symbol);
     setDetailData(null);
     setDetailLoading(true);
@@ -1286,7 +1294,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
           <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Preparing financial history, recent quarters and market prices.</div>
         </div>
       ) : detailData ? (
-        <StockDetailView key={detailData.symbol} data={detailData} onBack={closeDetail} fmpKey={fmpKey} treasury={treasury} />
+        <StockDetailView key={detailData.symbol} data={detailData} onBack={closeDetail} fmpKey={fmpKey} treasury={treasury} initialView={detailView} />
       ) : (
         <div style={{ textAlign: "center", padding: 60, color: "#f87171", fontFamily: fonts.heading }}>
           <div style={{ fontSize: 16, marginBottom: 8 }}>Failed to load data for {detailSymbol}</div>
@@ -1299,7 +1307,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
   // View toggle
   const viewToggle = (
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
-      {[["overview", "🗺️ S&P Overview"], ["sp500", "📋 S&P 500"], ["book", "📖 Value book"], ["people", "👥 Per Employee"], ["screener", "📊 Watchlist"], ["special", "🎯 Special Situations"]].map(([id, label]) => (
+      {[["overview", "🗺️ S&P Overview"], ["sp500", "📋 S&P 500"], ["book", "📖 Value book"], ["people", "👥 Per Employee"], ["screener", "📊 Watchlist"], ["special", "🎯 Special Situations"], ["sin", "🔎 Sin & Folly"]].map(([id, label]) => (
         <button key={id} onClick={() => setStockView(id)} style={{
           flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
           background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
@@ -1395,6 +1403,13 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
     return (<>
       {viewToggle}
       <SpecialSituations onSelectStock={openDetail} />
+    </>);
+  }
+
+  if (stockView === "sin") {
+    return (<>
+      {viewToggle}
+      <SinFolly onSelectStock={sym => openDetail(sym, "accounting")} />
     </>);
   }
 

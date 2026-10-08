@@ -62,6 +62,8 @@ owner-wealth.json
 soi-archive.json
 # Capex returns: 24h feed cache (re-derivable from SEC XBRL)
 capex-returns.json
+/accounting-flags.json
+/sin-monitor.json
 household-wealth.json
 scf-archive.json
 # Silicon Data index marks: typed in by hand from their public index page. Their

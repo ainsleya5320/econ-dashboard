@@ -21,6 +21,10 @@
 // Bank of England's millennium dataset, Schmelzing, the Minneapolis Fed CPI)
 // are finished history; re-run that section when a new release appears.
 //
+// Stocks → Sin & Folly is built from SEC XBRL frames and full-text search
+// (~4,500 requests, ~15 minutes). The server refreshes the last few years by
+// itself each week; re-run the whole thing once a year, after the 10-K season.
+//
 // Run after each WEO release (April, October), after the Census releases
 // (ACS 5-year in December/January, SAIPE in December, population estimates in
 // March, permits in May), or when BLS redefines metro series; commit
@@ -29,6 +33,7 @@
 //   node scripts/refresh-seeds.mjs
 //   node scripts/refresh-seeds.mjs market-map
 //   node scripts/refresh-seeds.mjs long-run
+//   node scripts/refresh-seeds.mjs sin
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
@@ -38,11 +43,12 @@ import { selectEmploymentSeries } from '../server/metroEmployment.js'
 import { IMF_INDICATORS } from '../server/tradeFlows.js'
 import { buildMarketMapSeed, SEED_NAME } from '../server/marketMapSeed.js'
 import { buildLongRunSeed, SEED_NAME as LONG_RUN_SEED } from '../server/longRunSeed.js'
+import { buildSinMonitor, SEED_NAME as SIN_SEED } from '../server/sinMonitorSeed.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const out = path.join(root, 'data', 'seeds')
 fs.mkdirSync(out, { recursive: true })
-const SECTIONS = ['bls', 'imf', 'market-map', 'long-run']
+const SECTIONS = ['bls', 'imf', 'market-map', 'long-run', 'sin']
 const asked = process.argv.slice(2)
 const unknown = asked.filter(a => !SECTIONS.includes(a))
 if (unknown.length) { console.error(`unknown section(s): ${unknown.join(', ')} — choose from ${SECTIONS.join(', ')}`); process.exit(1) }
@@ -92,3 +98,17 @@ if (run('market-map')) {
 
 // ── Historical tab, long run ──
 if (run('long-run')) write(LONG_RUN_SEED, await buildLongRunSeed())
+
+// ── Stocks → Sin & Folly ──
+// EDGAR wants a user agent; the same one the dev server sends. The earlier
+// seed's company records (SIC, 10-K filer) and any full-text series whose
+// query is unchanged are reused, so a rebuild is ~3,000 requests, not ~5,000.
+if (run('sin')) {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  let prior = null
+  try { prior = JSON.parse(fs.readFileSync(path.join(out, SIN_SEED), 'utf8')) } catch { /* first build */ }
+  const seed = await buildSinMonitor({ UA, prev: prior })
+  const years = Object.keys(seed.agg).length
+  if (seed.league.length < 450 || years < 10) throw new Error(`sin monitor seed looks short: ${seed.league.length} companies, ${years} years`)
+  write(SIN_SEED, seed)
+}
