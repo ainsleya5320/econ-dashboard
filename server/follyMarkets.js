@@ -14,7 +14,11 @@
 //   street gap   adjusted ("street") EPS against GAAP EPS, summed across
 //                today's S&P 500 each quarter since 2007, from FMP. About
 //                1,000 requests, so only the seed script builds it. S&P's own
-//                operating-vs-reported file refuses scripted downloads.
+//                operating-vs-reported history is behind its premium sign-in;
+//                the totals in its public buyback report (2018 to Sept 2025)
+//                make the same turns as this series, about four points lower,
+//                since analysts' street figures leave out more than S&P's
+//                operating definition does.
 //   the gauge    each series as a percentile of its own history, averaged into
 //                Folly (CAPE, margin-loan growth, IPO first-day returns, loss-
 //                making IPOs, SPAC filings, buzzword 8-Ks), Sin (accruals, the

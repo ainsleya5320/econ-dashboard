@@ -232,7 +232,10 @@ export default function SinFolly({ onSelectStock }) {
         accruals precede weak returns (Sloan, 1996), but Hirshleifer, Hou and Teoh (2009) found aggregate accruals preceded higher market returns. Read these as the
         posture of corporate accounting, not a market-timing signal.
         {M?.gap?.length > 0 && <> The street gap sums FMP&apos;s analyst-basis EPS against statement EPS (both on diluted shares) for the {fm.streetGap.companies} of today&apos;s S&amp;P 500
-        members it can match, so earlier years leave out companies since dropped from the index; S&amp;P&apos;s own operating-versus-reported series refuses scripted downloads.</>}
+        members it can match, so earlier years leave out companies since dropped from the index. S&amp;P&apos;s own operating-versus-reported history is behind its premium
+        sign-in, but the totals in its public buyback report (2018 to September 2025) are a check: the two make the same turns (S&amp;P 30% in 2020, 5% in 2021,
+        14% in 2022, 8.5% in the year to September 2025) with this series about four points higher, because analysts&apos; street figures leave out more than
+        S&amp;P&apos;s operating definition does.</>}
       </Note>
     </Panel>
 
