@@ -6,12 +6,15 @@ import { SH, InfoBox } from "../components/shared.jsx";
 // ============================================================================
 // AI PULSE — the AI Economy landing, cockpit-style, built around the token
 // tracker. Header: the chain verdict (the same functions the Cockpit uses) +
-// three scores (demand, efficiency, compute cost) + chips. Sections: the
+// four scores (demand, efficiency, compute cost, intelligence per megawatt) +
+// chips. The intelligence-per-megawatt gauge is scored by
+// server/intelligencePerMw.js; its full panel lives on the Compute sub-tab. Sections: the
 // token tracker (OpenRouter flow by lab and model, mix, movers), intelligence
 // vs price (Artificial Analysis frontier), compute cost (GPU rentals from
 // Vast.ai, RunPod, Ornn, SemiAnalysis, with the $/GPU-hour → $/M-token bridge).
 // Also exports GpuRentalsPanel (Compute sub-tab) and AaModelsPanel (Tokens).
-// Data: /api/ai-pulse (server-cached 1h) plus the chain feeds.
+// Data: /api/ai-pulse (server-cached 1h) plus the chain feeds and
+// /api/intelligence-mw.
 // ============================================================================
 
 const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8", SLATE = "#94a3b8", DIM = "#475569", CYAN = "#22d3ee";
@@ -29,6 +32,7 @@ const usd = (v, dp = 2) => (fin(v) ? `$${v.toFixed(dp)}` : "—");
 const upDown = v => (!fin(v) || v === 0 ? SLATE : v > 0 ? GREEN : RED);
 const LAB_COLORS = { deepseek: "#F59E0B", tencent: "#22d3ee", "z-ai": "#fb923c", openai: "#10B981", anthropic: "#E8553A", google: "#4285F4", nvidia: "#76b900", xiaomi: "#f97316", moonshotai: "#a78bfa", minimax: "#ec4899", qwen: "#D946EF", "x-ai": "#14B8A6", "meta-llama": "#8B5CF6", mistralai: "#f472b6", others: "#64748b" };
 const labColor = l => LAB_COLORS[l] || "#94a3b8";
+const monYr = ym => (ym ? `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}` : "—");
 
 // one fetch per page, shared by the panels
 let pulseCache = null, pulsePromise = null;
@@ -49,7 +53,7 @@ function Spark({ values, color, w = 72, h = 18 }) {
 function Score({ name, s }) {
   const c = s ? TONE[s.tone] : SLATE;
   return (
-    <div style={{ flex: "1 1 150px", minWidth: 150 }}>
+    <div style={{ flex: "1 1 calc(50% - 8px)", minWidth: 130 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={label}>{name}</span><span style={{ fontSize: 20, fontWeight: 800, color: c, fontFamily: fonts.heading, letterSpacing: -0.6, lineHeight: 1 }}>{s ? s.score : "…"}</span></div>
       <div style={{ position: "relative", height: 5, borderRadius: 3, marginTop: 5, background: "linear-gradient(90deg, #f87171 0%, #fbbf24 50%, #4ade80 100%)", opacity: 0.85 }}>{s && <div style={{ position: "absolute", left: `calc(${s.score}% - 4px)`, top: -3, width: 8, height: 11, borderRadius: 2, background: "#f8fafc", border: `1.5px solid ${c}` }} />}</div>
       <div style={{ fontSize: 10, fontWeight: 700, color: c, fontFamily: fonts.heading, marginTop: 6, lineHeight: 1.2 }}>{s?.label || "loading"}</div>
@@ -149,9 +153,14 @@ export function AaModelsPanel() {
 }
 
 // ── the landing ───────────────────────────────────────────────────────────────
-function AiPulseTab({ chainModel, chainHeadline, chainVerdicts }) {
+function AiPulseTab({ chainModel, chainHeadline, chainVerdicts, go }) {
   const d = useAiPulse();
   const or = useJson("/api/or-rankings-history"), ornn = useJson("/api/ornn"), semi = useJson("/api/semi-h100"), memF = useJson("/api/memory");
+  // the intelligence-per-megawatt gauge: undefined while loading, false when the
+  // feed failed or has no gauge (then the gauge is left out rather than "loading")
+  const [ipmwState, setIpmwState] = useState(undefined);
+  useEffect(() => { fetch("/api/intelligence-mw").then(r => r.json()).then(x => setIpmwState(x?.gauge || false)).catch(() => setIpmwState(false)); }, []);
+  const ipmw = ipmwState || null;
   const chain = useMemo(() => (or || ornn || semi || memF) && chainModel ? chainModel(or, ornn, semi, memF) : null, [or, ornn, semi, memF, chainModel]);
   const head = chain && chainHeadline ? chainHeadline(chain) : null;
   const verdicts = chain && chainVerdicts ? chainVerdicts(chain) : null;
@@ -160,7 +169,7 @@ function AiPulseTab({ chainModel, chainHeadline, chainVerdicts }) {
   const T = d.tokens, A = d.aa, s = d.scores;
   const labs = [...T.labs].sort((a, b) => (labSort === "tokens" ? b.tokens - a.tokens : (b[labSort] ?? -999) - (a[labSort] ?? -999)));
   const weeklyLabs = ["deepseek", "tencent", "z-ai", "openai", "google", "anthropic", "nvidia", "minimax", "xiaomi", "others"].filter(k => T.weeklyLabs.includes(k));
-  const chips = [["tokens / week", tok(T.week.total)], ["1-wk", pc(T.growth.w1)], ["4-wk", pc(T.growth.w4)], ["13-wk", pc(T.growth.w13)], ["52-wk", pc(T.growth.w52)], ["open weights", `${T.shares.open}%`], ["OTPI avg", fin(d.gpu.bridge.otpiAvg) ? `${usd(d.gpu.bridge.otpiAvg, 3)}/M` : "—"], ["H100", fin(d.gpu.h100SpotUsed) ? `${usd(d.gpu.h100SpotUsed)}/hr` : "—"], ["frontier", A ? `${A.best.name.slice(0, 22)} · ${A.best.idx}` : "—"]];
+  const chips = [["tokens / week", tok(T.week.total)], ["1-wk", pc(T.growth.w1)], ["4-wk", pc(T.growth.w4)], ["13-wk", pc(T.growth.w13)], ["52-wk", pc(T.growth.w52)], ["open weights", `${T.shares.open}%`], ["OTPI avg", fin(d.gpu.bridge.otpiAvg) ? `${usd(d.gpu.bridge.otpiAvg, 3)}/M` : "—"], ["H100", fin(d.gpu.h100SpotUsed) ? `${usd(d.gpu.h100SpotUsed)}/hr` : "—"], ["frontier", A ? `${A.best.name.slice(0, 22)} · ${A.best.idx}` : "—"], ...(ipmw ? [["intelligence/MW index", `${ipmw.index} (${ipmw.workloadLabel.split(" ")[0].toLowerCase()}, ${monYr(ipmw.base)} = 100)`]] : [])];
   const ScatterTip = ({ active, payload }) => { if (!active || !payload?.length) return null; const m = payload[0].payload; return <div style={{ ...tip, padding: "6px 8px", fontFamily: fonts.mono, color: "#cbd5e1" }}><div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{m.name}</div><div>{m.creator} · index {m.idx} · {usd(m.price)}/M{fin(m.tps) ? ` · ${Math.round(m.tps)} tok/s` : ""}{m.pareto ? " · on the frontier" : ""}</div></div>; };
   return (<>
     <div style={{ ...card, padding: "14px 18px", marginBottom: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(240px, 100%), 1fr))", gap: 18, alignItems: "start" }}>
@@ -171,7 +180,7 @@ function AiPulseTab({ chainModel, chainHeadline, chainVerdicts }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>{chips.map(([t, v]) => <span key={t} style={{ fontSize: 10, fontFamily: fonts.mono, color: "#cbd5e1", background: "rgba(255,255,255,0.04)", borderRadius: 6, padding: "3px 8px" }}>{t} <strong style={{ color: "var(--text-primary)" }}>{v}</strong></span>)}</div>
         <div style={{ ...note, marginTop: 8 }}>OpenRouter week of {T.week.d} ({T.week.weeks} complete weeks) · rankings snapshot {T.snapshot.d}{T.snapshot.daysOld > 3 ? ` (${T.snapshot.daysOld} days old)` : ""}, {T.snapshot.models} models · Artificial Analysis {A ? `${A.n} models` : "off"} · refreshed {new Date(d.updated).toLocaleString()}</div>
       </div>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><Score name="Token demand" s={s.demand} /><Score name="Price efficiency" s={s.efficiency} /><Score name="Compute cost" s={s.compute} /></div>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}><Score name="Token demand" s={s.demand} /><Score name="Price efficiency" s={s.efficiency} /><Score name="Compute cost" s={s.compute} />{ipmwState !== false && <Score name="Intelligence / MW" s={ipmw} />}</div>
     </div>
 
     <SH>The Token Tracker — Who Is Consuming Intelligence, and How Fast</SH>
@@ -232,7 +241,10 @@ function AiPulseTab({ chainModel, chainHeadline, chainVerdicts }) {
     </>) : <div style={{ ...card, marginBottom: 12, fontSize: 11, color: "#64748b", fontFamily: fonts.mono }}>Artificial Analysis data unavailable — add ARTIFICIAL_ANALYSIS_KEY to .env and restart.</div>}
 
     <GpuRentalsPanel />
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12, marginBottom: 14 }}><VerdictCard title="Compute cost" s={s.compute} /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12, marginBottom: 14 }}>
+      <VerdictCard title="Compute cost" s={s.compute} />
+      {ipmw && <div onClick={go ? () => go("compute") : undefined} title={go ? "Open the full intelligence-per-megawatt panel on Compute" : undefined} style={{ cursor: go ? "pointer" : "default" }}><VerdictCard title={`Intelligence per megawatt · ${ipmw.workloadLabel.toLowerCase()}${go ? " · open Compute →" : ""}`} s={ipmw} /></div>}
+    </div>
 
     <InfoBox color={INDIGO}>
       <strong style={{ color: "#cbd5e1" }}>How to read it.</strong> The AI economy is a chain — tokens demanded → models that make them → data centers that run them → silicon they run on — and this page tracks the money-relevant joints. Token demand is the top line; the price of a token is falling by design (the frontier gets cheaper every quarter, the scatter shows how fast), so revenue growth needs volume to outrun deflation. The compute bridge converts a GPU-hour into a cost per million tokens and compares it with what tokens actually sell for; that spread, times utilization, is the margin every lab, cloud and chip vendor is fighting over. OpenRouter is one large sample, not the market: it over-weights open-weight and cost-sensitive traffic, so read shares as relative and growth as directional.

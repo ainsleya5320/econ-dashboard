@@ -2119,7 +2119,7 @@ function ComputeTab() {
 // ── Pulse: the landing ─────────────────────────────────────────────────────
 function PulseTab({ go }) {
   return (<>
-    <AiPulseTab chainModel={chainModel} chainHeadline={chainHeadline} chainVerdicts={chainVerdicts} />
+    <AiPulseTab chainModel={chainModel} chainHeadline={chainHeadline} chainVerdicts={chainVerdicts} go={go} />
     <Collapse title="The Chain — tokens → models → data centers → silicon" sub="the four-stage verdict, the wedge tracker and the full KPI scorecard">
       <ChainTab go={go} />
     </Collapse>

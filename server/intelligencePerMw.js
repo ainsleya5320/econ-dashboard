@@ -34,6 +34,48 @@ const GROUPS = ['Hopper', 'Blackwell', 'Rubin', 'AMD']
 const monthEnd = ym => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) }
 const months = (a, b) => { const out = []; let [y, m] = a.split('-').map(Number); const [by, bm] = b.split('-').map(Number); while (y < by || (y === by && m <= bm)) { out.push(`${y}-${String(m).padStart(2, '0')}`); m === 12 ? (y++, m = 1) : m++ } return out }
 
+// ── the Pulse gauge ─────────────────────────────────────────────────────────
+// The frontier index's change over the last three months, scored like the
+// Pulse's token-demand gauge: flat = 50, doubling = 75, quadrupling = 100,
+// halving = 25; green from 60, red under 40. A workload is scored only once it
+// has a full three-month window (four monthly points), agentic traces first,
+// because a new series' first month has few runs and its early jump is partly
+// benchmarks arriving. A series still too new to score is reported in the
+// text; if neither has a full window, the longer one is scored and says it is
+// measured since the series began, with its run counts.
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const mon = ym => `${MON[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`
+const kfmt = v => (v >= 1e6 ? `${(v / 1e6).toFixed(2)} million` : `${Math.round(v / 1e3).toLocaleString('en-US')} thousand`)
+const FULL = 4
+export function pulseGauge(workloads) {
+  const series = k => { const W = workloads?.[k], h = (W?.history || []).filter(x => fin(x.all)); return W && fin(W.base?.value) && h.length >= 2 ? h : null }
+  const KEYS = ['agentic', 'chat'].filter(series)
+  if (!KEYS.length) return null
+  const key = KEYS.find(k => series(k).length >= FULL) || [...KEYS].sort((a, b) => series(b).length - series(a).length)[0]
+  const W = workloads[key], h = series(key), full = h.length >= FULL
+  const last = h[h.length - 1], first = h[Math.max(0, h.length - FULL)]
+  const g = last.all / first.all - 1
+  const score = Math.round(Math.min(100, Math.max(0, 50 + 25 * Math.log2(Math.max(0.05, 1 + g)))))
+  // the same rounding as the Compute panel, so both show the same index
+  const level = (wl, v) => Math.round(Math.round((v / workloads[wl].base.value) * 1000) / 10)
+  const pct = x => `${x >= 0 ? '+' : '−'}${Math.round(Math.abs(x) * 100)}%`
+  const lead = last.lead
+  // the other workload, when it exists but is too new to score
+  const young = KEYS.filter(k => k !== key && series(k).length < FULL).map(k => {
+    const s = series(k), a = s[0], b = s[s.length - 1]
+    return ` The ${workloads[k].label.toLowerCase()} series is too new to score (since ${mon(a.m)}, ${a.n} frontier-class run${a.n === 1 ? '' : 's'} then and ${b.n} now): its index went from ${level(k, a.all)} to ${level(k, b.all)} (${pct(b.all / a.all - 1)}), led by ${b.lead?.model || '—'} on ${b.lead?.chip || '—'}.`
+  }).join('')
+  return {
+    score, tone: score >= 60 ? 'green' : score >= 40 ? 'amber' : 'red',
+    label: (score >= 60 ? 'Intelligence per megawatt rising' : score >= 40 ? 'Intelligence per megawatt steady' : 'Intelligence per megawatt slipping') + (full ? '' : ` (since ${MON[+first.m.slice(5, 7) - 1]})`),
+    why: `${W.label}: the frontier index went from ${level(key, first.all)} to ${level(key, last.all)} between ${mon(first.m)} and ${mon(last.m)} to date (${pct(g)})`
+      + (full ? '' : `, measured since the series began (${first.n} frontier-class run${first.n === 1 ? '' : 's'} then, ${last.n} now)`)
+      + (lead ? `; ${lead.model} on ${lead.chip} serves ${kfmt(lead.tpsPerMw)} tokens a second per megawatt at an intelligence score of ${lead.idx}.` : '.')
+      + young + ' Flat scores 50, a doubling 75, a quadrupling 100.',
+    workload: key, workloadLabel: W.label, full, from: first.m, to: last.m, change: r3(g), index: level(key, last.all), base: W.base.m,
+  }
+}
+
 export function createIntelligencePerMw({ UA, dir }) {
   const CACHE = path.join(dir, 'intelligence-mw-cache.json')
   const read = p => { try { return JSON.parse(fs.readFileSync(p, 'utf8')) } catch { return null } }
@@ -127,16 +169,19 @@ export function createIntelligencePerMw({ UA, dir }) {
     }
   }
 
+  // the gauge is derived from the cached workloads on every read, so an older
+  // cache file gets it too
+  const withGauge = d => ({ ...d, gauge: pulseGauge(d.workloads) })
   async function get() {
-    if (mem && Date.now() - Date.parse(mem.built) < TTL) return mem
-    if (!mem) { const disk = read(CACHE); if (disk?.built && Date.now() - Date.parse(disk.built) < TTL) { mem = disk; return mem } }
-    if (inflight) return inflight
+    if (mem && Date.now() - Date.parse(mem.built) < TTL) return withGauge(mem)
+    if (!mem) { const disk = read(CACHE); if (disk?.built && Date.now() - Date.parse(disk.built) < TTL) { mem = disk; return withGauge(mem) } }
+    if (inflight) return inflight.then(withGauge)
     inflight = (async () => {
       try { const d = await build(); mem = d; try { fs.writeFileSync(CACHE, JSON.stringify(d)) } catch (e) { console.error('intelligence-mw save:', e.message) } return d }
       catch (e) { const disk = mem || read(CACHE); if (disk) return { ...disk, stale: e.message }; throw e }
       finally { inflight = null }
     })()
-    return inflight
+    return inflight.then(withGauge)
   }
   return { get }
 }
