@@ -11,7 +11,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/options/](../../src/tabs/options): options income, expectations, volatility history, watchlist ladder
 - [src/tabs/history/](../../src/tabs/history): the Historical tab's long-run sections (interest rates, inflation, growth), under HistoricalTab.jsx with the asset-returns view
 - [src/tabs/realEstate/](../../src/tabs/realEstate): market map (states, metros, counties), market profile, metro comparison, rental pricing, refinancing
-- [src/tabs/ai/](../../src/tabs/ai): capex returns, GPU economics, token estimates, token spot
+- [src/tabs/ai/](../../src/tabs/ai): capex returns, GPU economics, intelligence per megawatt, token estimates, token spot
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels
 - [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search

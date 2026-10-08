@@ -28,6 +28,7 @@ import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
 import { createLongRun } from './server/longRun.js'
 import { createCapexReturns } from './server/capexReturns.js'
+import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
 import { createFollyMarkets } from './server/follyMarkets.js'
@@ -3799,6 +3800,9 @@ const householdWealth = createHouseholdWealth({ UA, dir: __dirname })
 // Capex returns (server/capexReturns.js): FCF with the stock-comp adjustment, ROIC, ROIIC and
 // Dickinson life-cycle staging from SEC XBRL -- the reproducible half of the Mauboussin paper
 const capexReturns = createCapexReturns({ UA, dir: __dirname })
+// Intelligence per megawatt (server/intelligencePerMw.js): Artificial Analysis score x InferenceX tokens per second
+// per provisioned megawatt, frontier-class models, by chip family and month
+const intelligencePerMw = createIntelligencePerMw({ UA, dir: __dirname })
 // Accounting flags (server/accountingFlags.js): the stock page's Accounting tab -- restatements, auditor
 // changes, late filings, comment letters, Friday-night 8-Ks and footnote lines from EDGAR, per company
 const accountingFlags = createAccountingFlags({ UA, dir: __dirname })
@@ -3993,6 +3997,7 @@ export default defineConfig({
         reRoute('/api/owner-wealth', () => ownerWealth.get())
         reRoute('/api/household-wealth', () => householdWealth.get())
         reRoute('/api/capex-returns', () => capexReturns.get())
+        reRoute('/api/intelligence-mw', () => intelligencePerMw.get())
         reRoute('/api/accounting-flags', req => accountingFlags.get(req))
         reRoute('/api/sin-monitor', () => sinMonitor.get())
         reRoute('/api/folly-markets', () => follyMarkets.get())

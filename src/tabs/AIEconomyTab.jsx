@@ -7,6 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
+import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
 import CapexReturnsPanel from "./ai/CapexReturns.jsx";
 import TokenEstimatesPanel from "./ai/TokenEstimates.jsx";
@@ -2103,6 +2104,8 @@ function ComputeTab() {
     </div>
     <GpuRentalsPanel />
     <GpuEconomicsPanel />
+    <SH>Intelligence per Megawatt</SH>
+    <IntelligencePerMwPanel />
     <SH>A Spot Price for Tokens — Derived from the Spot Price of a GPU</SH>
     <TokenSpotPanel />
     <CapexReturnsPanel />

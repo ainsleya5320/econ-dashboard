@@ -15,6 +15,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/commodityPulse.js](../../server/commodityPulse.js): 15 commodity contracts, real-price fair value, CFTC positioning
 - [server/aiPulse.js](../../server/aiPulse.js): AI Economy landing feed: token tracker, Artificial Analysis, GPU rentals
 - [server/gpuEconomics.js](../../server/gpuEconomics.js): GPU-hour cost vs revenue by generation (InferenceX)
+- [server/intelligencePerMw.js](../../server/intelligencePerMw.js): intelligence per megawatt: Artificial Analysis score × InferenceX tokens per provisioned MW, frontier-class models (/api/intelligence-mw)
 - [server/tokenEstimates.js](../../server/tokenEstimates.js): bounding OpenAI and Anthropic token volume four ways
 - [server/tokenSpot.js](../../server/tokenSpot.js): $/token derived from GPU rental prices
 - [server/capexReturns.js](../../server/capexReturns.js): AI capex returns on capital from SEC XBRL
@@ -47,7 +48,7 @@ Back to the [master map](../../CLAUDE.md).
 - [fred-cache.json](../../fred-cache.json): shared FRED observation cache (gitignored)
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)
-- Other feed caches (us-pulse.json, redfin.json, gpu-economics.json, accounting-flags.json, sin-monitor.json, folly-markets.json …) are gitignored; see [.gitignore](../../.gitignore)
+- Other feed caches (us-pulse.json, redfin.json, gpu-economics.json, accounting-flags.json, sin-monitor.json, folly-markets.json, intelligence-mw-cache.json …) are gitignored; see [.gitignore](../../.gitignore)
 - Tracked archives these modules append to: [data snapshots](data.md)
 
 ## Skills
