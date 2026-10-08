@@ -129,6 +129,27 @@ export function assess(rows) {
   })
 }
 
+// FMP's earnings "actual" is the figure analysts compare with their
+// estimates, usually the company's adjusted ("street") number; the quarterly
+// statement's diluted EPS is GAAP. Each announcement is matched to the latest
+// quarter that ended within 120 days before it. Shared by the stock page's
+// Accounting tab and the S&P-wide street gap (server/follyMarkets.js).
+export function streetVsGaap(earnings, quarters) {
+  const num = v => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+  const dayOf = s => Date.parse(`${String(s).slice(0, 10)}T00:00:00Z`) / 864e5
+  const qs = (quarters || []).filter(r => /^Q[1-4]$/.test(r.period || '') && r.date)
+    .map(r => ({ end: r.date, eps: num(r.epsDiluted), shares: num(r.weightedAverageShsOutDil), rev: num(r.revenue), label: `${r.period} ${r.fiscalYear}` }))
+    .sort((a, b) => a.end.localeCompare(b.end))
+  const seen = new Set(), out = []
+  for (const e of (earnings || []).filter(e => e.date && fin(num(e.epsActual))).sort((a, b) => a.date.localeCompare(b.date))) {
+    const d = dayOf(e.date), q = qs.filter(x => dayOf(x.end) <= d && d - dayOf(x.end) <= 120).pop()
+    if (!q || !fin(q.eps) || seen.has(q.end)) continue
+    seen.add(q.end)
+    out.push({ label: q.label, end: q.end, gaap: q.eps, street: num(e.epsActual), shares: q.shares, rev: q.rev })
+  }
+  return out
+}
+
 // share of a sorted (ascending) list at or below v, 0–1
 export function pctRank(sorted, v) {
   if (!fin(v) || !sorted?.length) return null

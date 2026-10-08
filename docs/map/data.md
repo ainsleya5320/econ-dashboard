@@ -35,7 +35,8 @@ Back to the [master map](../../CLAUDE.md).
 - [re-composite.json](../../re-composite.json): daily 0-100 real-estate fair-value composite, append-only (server/realEstateFeeds.js)
 - [data/ai/](../../data/ai): hand-kept assumption tables: gpu-econ.json (GPU cost lines), token-estimates.json, token-spot.json (vendor specs)
 - [data/fx/](../../data/fx): reference tables: cb-stance.json, imf-esr.json (FX fundamentals), invoicing.json (trade flows)
-- [data/seeds/](../../data/seeds): committed inputs rebuilt by scripts/refresh-seeds.mjs: bls-employment-catalog.json and imf-datamapper.json (fallbacks for hosts that refuse Netlify) market-map-annual.json (the Market Map's Census and baseline half) long-run-history.json (the Historical tab's centuries of rates, prices and output) and sin-monitor.json (Stocks → Sin & Folly: the 500's accounting scores since 2010, the league table, trouble-filing and buzzword counts since 2001)
+- [data/folly/](../../data/folly): ritter-ipos.json, Jay Ritter's yearly IPO counts and loss-making share since 1980 (Sin & Folly), rebuilt from his PDF by scripts/ritter-ipos.py
+- [data/seeds/](../../data/seeds): committed inputs rebuilt by scripts/refresh-seeds.mjs: bls-employment-catalog.json and imf-datamapper.json (fallbacks for hosts that refuse Netlify) market-map-annual.json (the Market Map's Census and baseline half) long-run-history.json (the Historical tab's centuries of rates, prices and output) sin-monitor.json (Stocks → Sin & Folly: the 500's accounting scores since 2010, the league table, trouble-filing and buzzword counts since 2001) and folly-markets.json (its market half: CAPE, margin loans, IPOs and the FMP street-vs-GAAP gap)
 - `data/ai/silicon-data-marks.json` is typed in by hand and gitignored (licence is internal-use only)
 
 ## Skills

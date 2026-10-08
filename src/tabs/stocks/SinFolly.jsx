@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ResponsiveContainer, LineChart, BarChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import { fonts } from "../../lib/styles.js";
 import { M_CUT, MONTIER } from "../../lib/accountingQuality.js";
-import { GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, ORANGE, TEAL, PINK, fin, card, note, tip, axis, chip, DenseHeader, Panel, Note, DataTable, useIsPhone } from "../../components/dense.jsx";
+import { AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, ORANGE, TEAL, PINK, BLUE, fin, card, note, tip, axis, chip, DenseHeader, Panel, Note, DataTable, RangeBar, useIsPhone, chartH } from "../../components/dense.jsx";
 
 // ============================================================================
 // SIN & FOLLY: Munger's tell for a bubble, made countable. "Sin" is what
@@ -20,7 +20,12 @@ import { GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, ORANGE, TEAL, PINK
 //               weaknesses, going-concern doubts and preferability letters per
 //               quarter since 2001, for all filers and for the 500
 //   folly       8-Ks mentioning blockchain, the metaverse, AI or a crypto
-//               treasury, and SPAC registrations
+//               treasury, and SPAC registrations; from /api/folly-markets
+//               (server/follyMarkets.js) Shiller's CAPE, margin loans,
+//               Ritter's IPO first-day returns and loss-making IPOs
+//   street gap  adjusted against GAAP earnings across today's S&P 500
+//   the gauge   every series as a percentile of its own history, averaged
+//               into Folly, Sin and the Reckoning, quarterly since 1980
 // The formulas are src/lib/accountingQuality.js, shared with the stock page.
 // ============================================================================
 
@@ -58,12 +63,45 @@ function Mini({ title, sub, data, x = "x", series, fmt = v => v, bar = false, re
   );
 }
 
+// the gauge's three lines: Folly (what investors pay for), Sin (how companies
+// account), Reckoning (the filings when it comes out)
+const GAUGE = [["folly", "Folly", AMBER], ["sin", "Sin", RED], ["reckoning", "Reckoning", BLUE]];
+const fmtUnit = (u, v) => (!fin(v) ? "—" : u === "%" ? pct(v, 1) : u === "x" ? v.toFixed(1) : Math.round(v).toLocaleString());
+
 export default function SinFolly({ onSelectStock }) {
+  const phone = useIsPhone();
   const [d, setD] = useState(null), [err, setErr] = useState(null);
+  const [fm, setFm] = useState(null), [fmErr, setFmErr] = useState(null);
   const [view, setView] = useState("aggressive"), [q, setQ] = useState("");
   useEffect(() => {
     fetch("/api/sin-monitor").then(r => r.json()).then(j => (j.error ? setErr(j.error) : setD(j))).catch(e => setErr(e.message));
+    fetch("/api/folly-markets").then(r => r.json()).then(j => (j.error ? setFmErr(j.error) : setFm(j))).catch(e => setFmErr(e.message));
   }, []);
+
+  // the market half: gauge lines, CAPE, margin loans, IPOs, the street gap
+  const M = useMemo(() => {
+    if (!fm) return null;
+    const g = fm.gauge;
+    const gauge = g ? g.quarters.map((x, i) => ({ x, folly: g.folly[i], sin: g.sin[i], reckoning: g.reckoning[i] })) : [];
+    const cape = (fm.cape || []).map(([x, v]) => ({ x, v }));
+    const gdp = new Map((fm.gdp || []).map(([k, v]) => [k, v]));
+    const mByDate = new Map((fm.margin || []).map(([k, v]) => [k, v]));
+    const margin = (fm.margin || []).map(([k, v]) => { const p = mByDate.get(`${+k.slice(0, 4) - 1}${k.slice(4)}`); return { x: k, gdp: gdp.get(k) ? v / (gdp.get(k) * 1000) : null, yoy: p > 0 ? v / p - 1 : null }; });
+    const byYear = new Map();
+    for (const m of fm.ipoMonthly || []) {
+      const y = m.d.slice(0, 4), n = m.net ?? m.gross ?? 0, e = byYear.get(y) || { x: y, n: 0, w: 0, s: 0 };
+      e.n += n; if (fin(m.ret) && n > 0) { e.w += n; e.s += n * m.ret }
+      byYear.set(y, e);
+    }
+    const ipo = [...byYear.values()].map(e => ({ x: e.x, n: e.n, ret: e.w >= 5 ? e.s / e.w : null }));
+    const neg = (fm.ipoAnnual?.rows || []).map(r => ({ x: String(r.y), neg: r.neg }));
+    const sg = fm.streetGap?.quarters || [];
+    const gap = sg.map(([x, st, ga, n, up], i) => {
+      const w = sg.slice(Math.max(0, i - 3), i + 1), S = w.reduce((s, r) => s + r[1], 0), G = w.reduce((s, r) => s + r[2], 0);
+      return { x, gap: w.length === 4 && G > 0 ? S / G - 1 : null, up: n ? up / n : null };
+    });
+    return { g, gauge, cape, margin, ipo, neg, gap };
+  }, [fm]);
 
   const years = useMemo(() => (d ? Object.keys(d.agg).map(Number).filter(y => !d.agg[y].partial).sort((a, b) => a - b) : []), [d]);
   const A = useMemo(() => years.map(y => {
@@ -103,12 +141,8 @@ export default function SinFolly({ onSelectStock }) {
   if (err) return <div style={{ ...card, fontSize: 11, color: AMBER, fontFamily: fonts.mono }}>Sin &amp; Folly is unavailable: {err}</div>;
   if (!d) return <div style={{ ...card, fontSize: 11, color: SLATE, fontFamily: fonts.mono }}>Loading the SEC monitor…</div>;
 
-  const L = A[A.length - 1] || {}, F = A[0] || {};
-  const range = k => { const v = A.map(r => r[k]).filter(fin); return v.length ? [Math.min(...v), Math.max(...v)] : [null, null]; };
-  const last4 = key => { const s = d.events.all[key], idx = ev.keep.slice(-4); return idx.every(i => fin(s[i])) ? idx.reduce((t, i) => t + s[i], 0) : null; };
-  const prior4 = key => { const s = d.events.all[key], idx = ev.keep.slice(-8, -4); return idx.every(i => fin(s[i])) ? idx.reduce((t, i) => t + s[i], 0) : null; };
+  const L = A[A.length - 1] || {};
   const aiLast = fo.slice(-4).reduce((t, r) => t + (r.ai ?? 0), 0), aiPrior = fo.slice(-8, -4).reduce((t, r) => t + (r.ai ?? 0), 0);
-  const [mLo, mHi] = range("mShare"), [aLo, aHi] = range("accMed");
   const latestYear = years[years.length - 1];
 
   const league = d.league;
@@ -119,26 +153,67 @@ export default function SinFolly({ onSelectStock }) {
 
   const evRows = (key, def) => ev.keep.map(i => ({ x: ev.Q[i], v: ev.all[key][i] })).filter(r => r.x >= def.from);
 
+  // the gauge's latest reading per line, and any component's latest value
+  const gLast = k => { const a = M?.g?.[k]; if (!a) return null; for (let i = a.length - 1; i >= 0; i--) if (fin(a[i])) return { v: a[i], q: M.g.quarters[i] }; return null; };
+  const comp = key => M?.g?.components?.find(c => c.key === key)?.latest || null;
+  const gTone = v => (!fin(v) ? DIM : v >= 80 ? RED : v >= 60 ? AMBER : "var(--text-primary)");
+  const ord = v => { const n = Math.round(v), t = n % 100; return `${n}${t >= 11 && t <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`; };
+  const F_ = gLast("folly"), S_ = gLast("sin"), R_ = gLast("reckoning"), cape = comp("cape"), marg = comp("margin"), sgap = comp("streetGap");
+
   return (<>
     <DenseHeader
-      eyebrow={`Sin & Folly · the ${d.universeSize} largest non-financial SEC filers · FY${latestYear}${d.refreshing ? " · refreshing recent years" : ""}`}
+      eyebrow={`Sin & Folly · the ${d.universeSize} largest non-financial SEC filers · FY${latestYear}${d.refreshing || fm?.refreshing ? " · refreshing" : ""}`}
       headline={[
-        `Median accruals ${pct(L.accMed)} of assets (${pct(aLo)} to ${pct(aHi)} since ${F.x})`,
-        `${pct(L.mShare, 0)} of the ${d.universeSize} in Beneish's manipulator zone and ${pct(L.cShare, 0)} at a Montier C-score of 4+`,
-        fin(last4("restatement")) ? `${last4("restatement")} restatement 8-Ks across all filers in the last four quarters` : null,
+        F_ && S_ ? `Folly at the ${ord(F_.v)} percentile of its own history and sin at the ${ord(S_.v)} (${F_.q})` : null,
+        cape ? `CAPE ${cape.v.toFixed(1)}` : null,
+        `median accruals ${pct(L.accMed)} of assets`,
+        `${aiLast.toLocaleString()} 8-Ks mentioning AI in four quarters`,
       ].filter(Boolean).join("; ")}
-      blurb={<>Munger&apos;s tell for a bubble was sin and folly. Sin here is the forensic-accounting checklist (earnings outrunning cash, receivables and inventory outrunning sales, slower depreciation, stock pay) run on every large company&apos;s SEC filings, plus the filings companies make when the books go wrong. Folly is what gets sold: blockchain, the metaverse, AI, crypto treasuries, SPACs. These describe posture; they do not time the market.</>}
-      meta={<>SEC XBRL frames, EDGAR full-text search<br />built {d.built.slice(0, 10)}</>}
+      blurb={<>Munger&apos;s tell for a bubble was sin and folly. Sin here is the forensic-accounting checklist (earnings outrunning cash, receivables and inventory outrunning sales, slower depreciation, adjusted earnings above audited ones) run on every large company&apos;s SEC filings. Folly is what investors pay for and what gets sold to them: valuations, borrowed money, IPO pops and losses, SPACs, buzzwords. The reckoning is the filings when it comes out. These describe posture; they do not time the market.</>}
+      meta={<>SEC XBRL and full-text search, Shiller,<br />FRED, Ritter, FMP · built {d.built.slice(0, 10)}</>}
       chips={[
-        chip("Median accruals", pct(L.accMed), accTone(L.accMed), `size-weighted ${pct(L.accW)} · FY${latestYear}`),
-        chip("In M-score zone", pct(L.mShare, 0), "var(--text-primary)", `share above −1.78 · ${pct(mLo, 0)}–${pct(mHi, 0)} since ${F.x}`),
-        chip("C-score 4+", pct(L.cShare, 0), "var(--text-primary)", "Montier's danger zone"),
-        chip("Useful life of PP&E", fin(L.life) ? `${L.life.toFixed(1)} yrs` : "—", "var(--text-primary)", fin(F.life) ? `${F.x}: ${F.life.toFixed(1)} yrs · aggregate` : "gross PP&E ÷ depreciation"),
-        chip("Stock pay ÷ revenue", pct(L.sbc, 2), "var(--text-primary)", `median ${pct(L.sbcMed, 2)}`),
-        chip("Restatements, 4 qtrs", fin(last4("restatement")) ? String(last4("restatement")) : "—", "var(--text-primary)", fin(prior4("restatement")) ? `prior 4 qtrs ${prior4("restatement")} · all filers` : "all filers"),
+        chip("Folly gauge", F_ ? ord(F_.v) : fmErr ? "—" : "…", gTone(F_?.v), F_ ? `percentile of its history · ${F_.q}` : "market half loading"),
+        chip("Sin gauge", S_ ? ord(S_.v) : fmErr ? "—" : "…", gTone(S_?.v), S_ ? `percentile · ${S_.q}` : "accounting"),
+        chip("Reckoning", R_ ? ord(R_.v) : fmErr ? "—" : "…", gTone(R_?.v), R_ ? `trouble filings · ${R_.q}` : "trouble filings"),
+        chip("Shiller CAPE", cape ? cape.v.toFixed(1) : "—", cape ? gTone(cape.pct) : DIM, cape ? `${ord(cape.pct)} percentile since 1881` : "shillerdata.com"),
+        chip("Margin loans", marg ? `${marg.v >= 0 ? "+" : ""}${pct(marg.v, 0)}` : "—", marg ? gTone(marg.pct) : DIM, marg ? `over a year · ${marg.q}` : "Fed financial accounts"),
+        chip("Street over GAAP", sgap ? `+${pct(sgap.v, 0)}` : "—", sgap ? gTone(sgap.pct) : DIM, sgap ? `S&P 500 earnings, past year · ${sgap.q}` : "FMP"),
+        chip("Median accruals", pct(L.accMed), accTone(L.accMed), `the 500 · FY${latestYear}`),
         chip("AI in 8-Ks, 4 qtrs", aiLast.toLocaleString(), "var(--text-primary)", `prior 4 qtrs ${aiPrior.toLocaleString()}`),
       ]}
     />
+
+    <Panel title="The gauge: folly, sin and the reckoning" right="each series as a percentile of its own history, averaged · quarterly since 1980">
+      {M?.gauge?.length ? (<>
+        <ResponsiveContainer width="100%" height={chartH(phone, 240)}>
+          <LineChart data={M.gauge} margin={{ top: 6, right: 8, left: phone ? -18 : -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+            <XAxis dataKey="x" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} minTickGap={34} tickFormatter={v => v.slice(0, 4)} />
+            <YAxis tick={axis} axisLine={false} tickLine={false} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} />
+            <ReferenceLine y={50} stroke="var(--border-subtle)" strokeDasharray="3 3" />
+            <Tooltip contentStyle={tip} labelStyle={{ color: "#e2e8f0", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} formatter={(v, nm) => [fin(v) ? `${Math.round(v)}th pct` : "—", nm]} />
+            {GAUGE.map(([k, name, color]) => <Line key={k} type="monotone" dataKey={k} name={name} stroke={color} strokeWidth={k === "reckoning" ? 1.4 : 2.2} strokeDasharray={k === "reckoning" ? "4 3" : undefined} dot={false} connectNulls={false} />)}
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "2px 4px 6px" }}>
+          {GAUGE.map(([k, name, color]) => <span key={k} style={{ ...note, display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 12, height: 2, background: color, display: "inline-block" }} />{name}</span>)}
+        </div>
+        <DataTable dense rows={M.g.components.map(c => ({ ...c, key: c.key }))} cols={[
+          { key: "group", label: "gauge", render: c => <span style={{ color: GAUGE.find(x => x[0] === c.group)?.[2] }}>{GAUGE.find(x => x[0] === c.group)?.[1]}</span> },
+          { key: "label", label: "series", primary: true },
+          { key: "latest", label: "latest", render: c => fmtUnit(c.unit, c.latest?.v) },
+          { key: "asof", label: "as of", hide: true, render: c => c.latest?.q || "—" },
+          { key: "pct", label: "percentile", render: c => <RangeBar pct={c.latest?.pct} color={GAUGE.find(x => x[0] === c.group)?.[2]} /> },
+          { key: "since", label: "history from", hide: true, render: c => `${c.since} · ${c.freq}` },
+        ]} note={<>
+          Each series is ranked against its own history (CAPE since 1881, margin loans since 1946, IPO returns since 1960, Ritter's loss-making share since 1980,
+          the full-text counts since 2001, the street gap since 2007, the 500&apos;s accounting since 2010), so earlier years are judged with hindsight. A gauge
+          averages whatever of its series exist that quarter (at least two), so before 2001 Folly rests on four series and Sin begins in 2010. Nothing here was fitted
+          to past crashes; the 80th percentile is a reading, not a threshold. The reckoning lags: restatements and material weaknesses arrive after the
+          boom (2002 to 2006 after 2000; 2021 to 2022 after the SPACs).
+        </>} />
+      </>) : <div style={note}>{fmErr ? `The market half is unavailable: ${fmErr}` : "Loading the market series…"}</div>}
+    </Panel>
 
     <Panel title="How aggressive is large-company accounting?" right={`each fiscal year · the ${d.universeSize} largest non-financial 10-K filers by revenue`}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))", gap: 8 }}>
@@ -149,14 +224,37 @@ export default function SinFolly({ onSelectStock }) {
         <Mini title="Stock pay ÷ revenue" sub="stock-based compensation" data={A} fmt={v => pct(v, 1)} series={[{ key: "sbc", name: "aggregate", color: VIOLET }, { key: "sbcMed", name: "median", thin: true, color: SLATE }]} />
         <Mini title="Receivable and inventory days" sub="aggregate days of sales and of cost of sales" data={A} zoom fmt={v => (fin(v) ? `${Math.round(v)}d` : "—")} series={[{ key: "dso", name: "receivables", color: INDIGO }, { key: "dio", name: "inventory", color: TEAL }]} />
         <Mini title="Goodwill ÷ assets" sub="acquisitions not yet written down" data={A} zoom fmt={v => pct(v, 1)} series={[{ key: "gw", name: "aggregate", color: ORANGE }]} />
+        {M?.gap?.length > 0 && <Mini title="Street over GAAP earnings, S&P 500" sub="adjusted ÷ audited, past four quarters; share of companies adjusting up" data={M.gap.filter(r => r.x >= "2007Q4")} fmt={v => pct(v, 0)} refY={0} series={[{ key: "gap", name: "street ÷ GAAP − 1", color: RED }, { key: "up", name: "share adjusting up", thin: true, color: SLATE }]} />}
       </div>
       <Note>
         Aggregate lines are sums across companies (size-weighted); medians are the middle company. Partial fiscal years are left out
         {d.partialYear ? ` (FY${d.partialYear} so far: ${d.agg[d.partialYear]?.n ?? 0} of the 500)` : ""}. One caution on accruals: for single companies, high
         accruals precede weak returns (Sloan, 1996), but Hirshleifer, Hou and Teoh (2009) found aggregate accruals preceded higher market returns. Read these as the
         posture of corporate accounting, not a market-timing signal.
+        {M?.gap?.length > 0 && <> The street gap sums FMP&apos;s analyst-basis EPS against statement EPS (both on diluted shares) for the {fm.streetGap.companies} of today&apos;s S&amp;P 500
+        members it can match, so earlier years leave out companies since dropped from the index; S&amp;P&apos;s own operating-versus-reported series refuses scripted downloads.</>}
       </Note>
     </Panel>
+
+    {M && (M.cape.length > 0 || M.margin.length > 0) && (
+      <Panel title="Folly: what investors pay and borrow" right="Shiller, the Fed's financial accounts, Jay Ritter">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(250px, 100%), 1fr))", gap: 8 }}>
+          {M.cape.length > 0 && <Mini title="Shiller CAPE" sub="price ÷ ten-year average real earnings, monthly since 1881" data={M.cape} fmt={v => (fin(v) ? v.toFixed(0) : "—")} series={[{ key: "v", name: "CAPE", color: AMBER }]} />}
+          {M.margin.length > 0 && <Mini title="Margin loans ÷ GDP" sub="broker-dealer loans to customers, quarterly since 1945" data={M.margin.filter(r => r.x >= "1952")} zoom fmt={v => pct(v, 1)} series={[{ key: "gdp", name: "margin ÷ GDP", color: ORANGE }]} />}
+          {M.margin.length > 0 && <Mini title="Margin loans, change over a year" sub="borrowing to buy stocks, accelerating or not" data={M.margin.filter(r => r.x >= "1952")} zoom refY={0} fmt={v => pct(v, 0)} series={[{ key: "yoy", name: "change over a year", color: PINK }]} />}
+          {M.ipo.length > 0 && <Mini bar title="IPOs per year" sub="operating companies (Ritter's net count where he gives it)" data={M.ipo} fmt={v => (fin(v) ? Math.round(v).toLocaleString() : "—")} series={[{ key: "n", name: "IPOs", color: CYAN }]} />}
+          {M.ipo.length > 0 && <Mini title="IPO first-day return" sub="average first-day pop, weighted by count" data={M.ipo} zoom refY={0} fmt={v => pct(v, 0)} series={[{ key: "ret", name: "first-day return", color: VIOLET }]} />}
+          {M.neg.length > 0 && <Mini bar title="IPOs losing money" sub="share with negative earnings before listing, since 1980" data={M.neg} fmt={v => pct(v, 0)} series={[{ key: "neg", name: "share with EPS < 0", color: RED }]} />}
+        </div>
+        <Note>
+          CAPE comes from Robert Shiller&apos;s current file (shillerdata.com); his latest months use estimated earnings. Margin loans are the Federal Reserve&apos;s
+          broker-dealer receivables from customers (FRED {"BOGZ1FL663067003Q"}), mostly margin debt; FINRA&apos;s monthly margin statistics refuse scripted downloads.
+          IPO counts and first-day returns are Jay Ritter&apos;s monthly file; the loss-making share is his Table 9{fm?.ipoAnnual?.tableUpdated ? ` (updated ${fm.ipoAnnual.tableUpdated})` : ""}.
+          Since 2014 most IPOs have lost money because biotech floats before it has revenue, so that series reads high in quiet years too.
+          {fm?.lightBuilt ? ` Market data fetched ${fm.lightBuilt.slice(0, 10)}.` : ""}
+        </Note>
+      </Panel>
+    )}
 
     <Panel title="The league table" right={`latest fiscal year per company · ranked on accruals, Beneish and Montier`}>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>

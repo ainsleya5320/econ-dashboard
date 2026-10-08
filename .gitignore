@@ -64,6 +64,7 @@ soi-archive.json
 capex-returns.json
 /accounting-flags.json
 /sin-monitor.json
+/folly-markets.json
 household-wealth.json
 scf-archive.json
 # Silicon Data index marks: typed in by hand from their public index page. Their

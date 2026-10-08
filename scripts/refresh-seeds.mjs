@@ -25,6 +25,13 @@
 // (~4,500 requests, ~15 minutes). The server refreshes the last few years by
 // itself each week; re-run the whole thing once a year, after the 10-K season.
 //
+// Its market half (folly) takes Shiller's CAPE, FRED margin loans and Ritter's
+// monthly IPO sheet, all of which the server also refreshes weekly, plus the
+// S&P 500 street-vs-GAAP earnings gap from FMP (~1,000 requests, ~5 minutes),
+// which only this script builds; re-run it after each earnings season. It
+// reads the FRED and FMP keys from .env. Ritter's yearly loss-making-IPO share
+// is a separate step: python -I scripts/ritter-ipos.py (each January).
+//
 // Run after each WEO release (April, October), after the Census releases
 // (ACS 5-year in December/January, SAIPE in December, population estimates in
 // March, permits in May), or when BLS redefines metro series; commit
@@ -34,6 +41,7 @@
 //   node scripts/refresh-seeds.mjs market-map
 //   node scripts/refresh-seeds.mjs long-run
 //   node scripts/refresh-seeds.mjs sin
+//   node scripts/refresh-seeds.mjs folly
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
@@ -44,11 +52,12 @@ import { IMF_INDICATORS } from '../server/tradeFlows.js'
 import { buildMarketMapSeed, SEED_NAME } from '../server/marketMapSeed.js'
 import { buildLongRunSeed, SEED_NAME as LONG_RUN_SEED } from '../server/longRunSeed.js'
 import { buildSinMonitor, SEED_NAME as SIN_SEED } from '../server/sinMonitorSeed.js'
+import { fetchLight, buildStreetGap, SEED_NAME as FOLLY_SEED } from '../server/follyMarkets.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const out = path.join(root, 'data', 'seeds')
 fs.mkdirSync(out, { recursive: true })
-const SECTIONS = ['bls', 'imf', 'market-map', 'long-run', 'sin']
+const SECTIONS = ['bls', 'imf', 'market-map', 'long-run', 'sin', 'folly']
 const asked = process.argv.slice(2)
 const unknown = asked.filter(a => !SECTIONS.includes(a))
 if (unknown.length) { console.error(`unknown section(s): ${unknown.join(', ')} — choose from ${SECTIONS.join(', ')}`); process.exit(1) }
@@ -111,4 +120,25 @@ if (run('sin')) {
   const years = Object.keys(seed.agg).length
   if (seed.league.length < 450 || years < 10) throw new Error(`sin monitor seed looks short: ${seed.league.length} companies, ${years} years`)
   write(SIN_SEED, seed)
+}
+
+// ── Stocks → Sin & Folly, the market half ──
+// Keys come from .env and never reach the console: FRED errors report the
+// series id and status only.
+if (run('folly')) {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  const env = Object.fromEntries(fs.readFileSync(path.join(root, '.env'), 'utf8').split(/\r?\n/).filter(l => /^[A-Z_]+=/.test(l)).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]))
+  if (!env.VITE_FRED_KEY || !env.VITE_FMP_KEY) throw new Error('folly needs VITE_FRED_KEY and VITE_FMP_KEY in .env')
+  const fred = async id => {
+    const r = await fetch(`https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${env.VITE_FRED_KEY}&file_type=json`, { signal: AbortSignal.timeout(120_000) })
+    if (!r.ok) throw new Error(`FRED ${id} HTTP ${r.status}`)
+    return (await r.json()).observations.map(o => ({ d: o.date, v: o.value === '.' ? null : Number(o.value) }))
+  }
+  const light = await fetchLight({ UA, fred })
+  // one listing per company: Alphabet, Fox and News Corp each trade two share classes
+  const seen = new Set()
+  const symbols = JSON.parse(fs.readFileSync(path.join(root, 'sp500-data.json'), 'utf8')).data.filter(r => r.symbol && !seen.has(r.name) && seen.add(r.name)).map(r => r.symbol)
+  const streetGap = await buildStreetGap({ fmpKey: env.VITE_FMP_KEY, symbols })
+  if (streetGap.companies < 400 || streetGap.quarters.length < 40) throw new Error(`street gap looks short: ${streetGap.companies} companies, ${streetGap.quarters.length} quarters`)
+  write(FOLLY_SEED, { built: new Date().toISOString(), ...light, streetGap })
 }

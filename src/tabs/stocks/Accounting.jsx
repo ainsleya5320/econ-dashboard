@@ -3,7 +3,7 @@ import { ResponsiveContainer, ComposedChart, BarChart, Bar, Line, XAxis, YAxis, 
 import { fonts } from "../../lib/styles.js";
 import { fetchFMP } from "../../lib/api.js";
 import { isBankOrInsurer } from "../../lib/stockResearch.js";
-import { assess, fromFmp, BENEISH, MONTIER, M_CUT, M_STRICT, C_ZONE } from "../../lib/accountingQuality.js";
+import { assess, fromFmp, streetVsGaap, BENEISH, MONTIER, M_CUT, M_STRICT, C_ZONE } from "../../lib/accountingQuality.js";
 import { GREEN, AMBER, RED, INDIGO, SLATE, DIM, fin, card, note, tip, axis, chip, DenseHeader, Panel, Note, useIsPhone, chartH } from "../../components/dense.jsx";
 
 // ============================================================================
@@ -52,22 +52,6 @@ const TYPES = {
 // matters, so a Friday-night 5.02 counts only when it names a CFO change
 const BAD_ITEMS = ["4.01", "4.02", "2.06", "3.01", "2.04", "1.03"];
 const isBad = f => f.cfo || BAD_ITEMS.some(i => f.items.split(",").includes(i));
-
-// FMP's "actual" EPS is the figure analysts compare with their estimates,
-// usually the company's adjusted number; GAAP diluted EPS is the statement's.
-// Each announcement is matched to the latest quarter that ended within 120
-// days before it.
-function streetVsGaap(earnings, qinc) {
-  const qs = (qinc || []).filter(r => /^Q[1-4]$/.test(r.period || "")).map(r => ({ end: r.date, eps: n(r.epsDiluted), label: `${r.period} ${r.fiscalYear}` })).sort((a, b) => a.end.localeCompare(b.end));
-  const seen = new Set(), out = [];
-  for (const e of (earnings || []).filter(e => fin(n(e.epsActual))).sort((a, b) => a.date.localeCompare(b.date))) {
-    const d = day(e.date), q = qs.filter(x => day(x.end) <= d && d - day(x.end) <= 120).pop();
-    if (!q || !fin(q.eps) || seen.has(q.end)) continue;
-    seen.add(q.end);
-    out.push({ label: q.label, end: q.end, gaap: q.eps, street: n(e.epsActual) });
-  }
-  return out;
-}
 
 // where v sits in a distribution given as its 10/25/50/75/90th percentiles
 function fromDeciles(qs, v) {
@@ -289,7 +273,7 @@ export default function Accounting({ data, fmpKey }) {
           <BarChart data={eps} margin={{ top: 6, right: 8, left: phone ? -18 : -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
             <XAxis dataKey="label" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} minTickGap={8} />
-            <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+            <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => (v < 0 ? `−$${Math.abs(v)}` : `$${v}`)} />
             <ReferenceLine y={0} stroke="var(--border-subtle)" />
             <Tooltip contentStyle={tip} labelStyle={{ color: "#e2e8f0", fontFamily: fonts.mono }} itemStyle={{ fontFamily: fonts.mono }} formatter={(v, nm) => [`$${num(v)}`, nm]} />
             <Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono, paddingTop: 2 }} iconType="circle" iconSize={6} />

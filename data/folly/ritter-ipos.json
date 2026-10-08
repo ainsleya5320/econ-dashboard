@@ -1,0 +1,377 @@
+{
+ "source": "Jay Ritter, Initial Public Offerings: Updated Statistics, Table 9 (University of Florida)",
+ "url": "https://site.warrington.ufl.edu/ritter/files/IPO-Statistics.pdf",
+ "tableUpdated": "December 30, 2025",
+ "fetchedAt": "2026-10-08T19:07:41+00:00",
+ "note": "Operating-company IPOs (no penny stocks, units, ADRs, funds, SPACs, REITs, banks). neg = share with negative trailing EPS; retNeg/retPos = mean first-day return for each group.",
+ "rows": [
+  {
+   "y": 1980,
+   "n": 71,
+   "tech": 0.31,
+   "neg": 0.24,
+   "retNeg": 0.071,
+   "retPos": 0.165
+  },
+  {
+   "y": 1981,
+   "n": 192,
+   "tech": 0.38,
+   "neg": 0.17,
+   "retNeg": 0.08,
+   "retPos": 0.054
+  },
+  {
+   "y": 1982,
+   "n": 77,
+   "tech": 0.55,
+   "neg": 0.19,
+   "retNeg": 0.064,
+   "retPos": 0.121
+  },
+  {
+   "y": 1983,
+   "n": 451,
+   "tech": 0.38,
+   "neg": 0.22,
+   "retNeg": 0.14,
+   "retPos": 0.088
+  },
+  {
+   "y": 1984,
+   "n": 171,
+   "tech": 0.29,
+   "neg": 0.16,
+   "retNeg": 0.111,
+   "retPos": 0.022
+  },
+  {
+   "y": 1985,
+   "n": 186,
+   "tech": 0.2,
+   "neg": 0.15,
+   "retNeg": 0.052,
+   "retPos": 0.066
+  },
+  {
+   "y": 1986,
+   "n": 393,
+   "tech": 0.2,
+   "neg": 0.21,
+   "retNeg": 0.088,
+   "retPos": 0.054
+  },
+  {
+   "y": 1987,
+   "n": 285,
+   "tech": 0.2,
+   "neg": 0.17,
+   "retNeg": 0.051,
+   "retPos": 0.058
+  },
+  {
+   "y": 1988,
+   "n": 105,
+   "tech": 0.27,
+   "neg": 0.18,
+   "retNeg": 0.06,
+   "retPos": 0.053
+  },
+  {
+   "y": 1989,
+   "n": 116,
+   "tech": 0.3,
+   "neg": 0.22,
+   "retNeg": 0.083,
+   "retPos": 0.079
+  },
+  {
+   "y": 1990,
+   "n": 110,
+   "tech": 0.28,
+   "neg": 0.15,
+   "retNeg": 0.095,
+   "retPos": 0.11
+  },
+  {
+   "y": 1991,
+   "n": 286,
+   "tech": 0.24,
+   "neg": 0.24,
+   "retNeg": 0.094,
+   "retPos": 0.127
+  },
+  {
+   "y": 1992,
+   "n": 412,
+   "tech": 0.28,
+   "neg": 0.29,
+   "retNeg": 0.102,
+   "retPos": 0.103
+  },
+  {
+   "y": 1993,
+   "n": 510,
+   "tech": 0.25,
+   "neg": 0.28,
+   "retNeg": 0.126,
+   "retPos": 0.128
+  },
+  {
+   "y": 1994,
+   "n": 402,
+   "tech": 0.29,
+   "neg": 0.26,
+   "retNeg": 0.08,
+   "retPos": 0.102
+  },
+  {
+   "y": 1995,
+   "n": 462,
+   "tech": 0.44,
+   "neg": 0.3,
+   "retNeg": 0.224,
+   "retPos": 0.21
+  },
+  {
+   "y": 1996,
+   "n": 677,
+   "tech": 0.4,
+   "neg": 0.41,
+   "retNeg": 0.165,
+   "retPos": 0.177
+  },
+  {
+   "y": 1997,
+   "n": 474,
+   "tech": 0.36,
+   "neg": 0.36,
+   "retNeg": 0.125,
+   "retPos": 0.149
+  },
+  {
+   "y": 1998,
+   "n": 283,
+   "tech": 0.4,
+   "neg": 0.46,
+   "retNeg": 0.321,
+   "retPos": 0.131
+  },
+  {
+   "y": 1999,
+   "n": 476,
+   "tech": 0.78,
+   "neg": 0.76,
+   "retNeg": 0.81,
+   "retPos": 0.402
+  },
+  {
+   "y": 2000,
+   "n": 380,
+   "tech": 0.68,
+   "neg": 0.81,
+   "retNeg": 0.595,
+   "retPos": 0.432
+  },
+  {
+   "y": 2001,
+   "n": 80,
+   "tech": 0.29,
+   "neg": 0.49,
+   "retNeg": 0.153,
+   "retPos": 0.128
+  },
+  {
+   "y": 2002,
+   "n": 66,
+   "tech": 0.3,
+   "neg": 0.45,
+   "retNeg": 0.056,
+   "retPos": 0.12
+  },
+  {
+   "y": 2003,
+   "n": 63,
+   "tech": 0.29,
+   "neg": 0.44,
+   "retNeg": 0.095,
+   "retPos": 0.135
+  },
+  {
+   "y": 2004,
+   "n": 173,
+   "tech": 0.35,
+   "neg": 0.5,
+   "retNeg": 0.119,
+   "retPos": 0.127
+  },
+  {
+   "y": 2005,
+   "n": 159,
+   "tech": 0.28,
+   "neg": 0.45,
+   "retNeg": 0.073,
+   "retPos": 0.128
+  },
+  {
+   "y": 2006,
+   "n": 157,
+   "tech": 0.31,
+   "neg": 0.4,
+   "retNeg": 0.073,
+   "retPos": 0.154
+  },
+  {
+   "y": 2007,
+   "n": 159,
+   "tech": 0.48,
+   "neg": 0.56,
+   "retNeg": 0.137,
+   "retPos": 0.145
+  },
+  {
+   "y": 2008,
+   "n": 21,
+   "tech": 0.29,
+   "neg": 0.43,
+   "retNeg": 0.018,
+   "retPos": 0.087
+  },
+  {
+   "y": 2009,
+   "n": 41,
+   "tech": 0.34,
+   "neg": 0.29,
+   "retNeg": 0.128,
+   "retPos": 0.086
+  },
+  {
+   "y": 2010,
+   "n": 91,
+   "tech": 0.36,
+   "neg": 0.41,
+   "retNeg": 0.069,
+   "retPos": 0.111
+  },
+  {
+   "y": 2011,
+   "n": 81,
+   "tech": 0.44,
+   "neg": 0.57,
+   "retNeg": 0.11,
+   "retPos": 0.177
+  },
+  {
+   "y": 2012,
+   "n": 93,
+   "tech": 0.43,
+   "neg": 0.46,
+   "retNeg": 0.224,
+   "retPos": 0.137
+  },
+  {
+   "y": 2013,
+   "n": 158,
+   "tech": 0.29,
+   "neg": 0.63,
+   "retNeg": 0.202,
+   "retPos": 0.219
+  },
+  {
+   "y": 2014,
+   "n": 206,
+   "tech": 0.25,
+   "neg": 0.71,
+   "retNeg": 0.171,
+   "retPos": 0.114
+  },
+  {
+   "y": 2015,
+   "n": 118,
+   "tech": 0.32,
+   "neg": 0.7,
+   "retNeg": 0.191,
+   "retPos": 0.196
+  },
+  {
+   "y": 2016,
+   "n": 75,
+   "tech": 0.28,
+   "neg": 0.67,
+   "retNeg": 0.132,
+   "retPos": 0.17
+  },
+  {
+   "y": 2017,
+   "n": 106,
+   "tech": 0.28,
+   "neg": 0.77,
+   "retNeg": 0.124,
+   "retPos": 0.148
+  },
+  {
+   "y": 2018,
+   "n": 134,
+   "tech": 0.29,
+   "neg": 0.81,
+   "retNeg": 0.204,
+   "retPos": 0.105
+  },
+  {
+   "y": 2019,
+   "n": 113,
+   "tech": 0.32,
+   "neg": 0.77,
+   "retNeg": 0.252,
+   "retPos": 0.179
+  },
+  {
+   "y": 2020,
+   "n": 165,
+   "tech": 0.25,
+   "neg": 0.8,
+   "retNeg": 0.453,
+   "retPos": 0.269
+  },
+  {
+   "y": 2021,
+   "n": 311,
+   "tech": 0.38,
+   "neg": 0.75,
+   "retNeg": 0.3,
+   "retPos": 0.386
+  },
+  {
+   "y": 2022,
+   "n": 38,
+   "tech": 0.16,
+   "neg": 0.76,
+   "retNeg": 0.541,
+   "retPos": 0.324
+  },
+  {
+   "y": 2023,
+   "n": 54,
+   "tech": 0.17,
+   "neg": 0.65,
+   "retNeg": 0.139,
+   "retPos": 0.081
+  },
+  {
+   "y": 2024,
+   "n": 72,
+   "tech": 0.19,
+   "neg": 0.64,
+   "retNeg": 0.175,
+   "retPos": 0.117
+  },
+  {
+   "y": 2025,
+   "n": 90,
+   "tech": 0.34,
+   "neg": 0.53,
+   "retNeg": 0.398,
+   "retPos": 0.172
+  }
+ ]
+}
