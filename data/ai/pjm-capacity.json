@@ -1,0 +1,11 @@
+{
+  "_about": "PJM capacity auction (Base Residual Auction) clearing prices, RTO, $/MW-day: the market's price on grid scarcity. Public auction results. Read by AI Economy → Compute (the PJM panel) and the AI power check on AI Economy → Tensions. Add each new auction. Optional fields: cap (the price cap that applied), uncapped (what PJM says the price would have been without it), shortMw (MW of UCAP short of the reliability requirement), held (the date results were posted).",
+  "reviewed": "2026-10-11",
+  "auctions": [
+    {"auction": "2023/24", "price": 34.13},
+    {"auction": "2024/25", "price": 28.92},
+    {"auction": "2025/26", "price": 269.92},
+    {"auction": "2026/27", "price": 329.17, "cap": 329.17},
+    {"auction": "2027/28", "price": 333.44, "cap": 333.44, "uncapped": 529.8, "shortMw": 6623, "held": "2025-12-17"}
+  ]
+}

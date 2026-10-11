@@ -1,0 +1,34 @@
+{
+  "_about": "AI debt: the named financings tracker and SemiAnalysis's forecast path. Read by AI Economy → Compute (the AI debt-market panel) and by the AI financing check on AI Economy → Tensions (server/tensions/checks/ai-financing.js). Amounts in $B. Add a row to `deals` whenever a headline AI financing lands; that is the whole upkeep. date = announcement month (some approximate). contingent: true marks a guarantee (Nvidia's revenue backstop), not drawn debt: listed but left out of the cumulative total.",
+  "reviewed": "2026-10-11",
+  "forecast": {
+    "source": "SemiAnalysis, \"NVIDIA GPU debt backstop\"",
+    "debtOutstanding2029": 7000,
+    "cumulativeCapex2024to2029": 11100,
+    "note": "AI debt becomes the second-largest US credit market after mortgages (~$13T): ~$7T outstanding by 2029 against ~$11.1T of cumulative AI capex 2024-29. Only the endpoints are theirs.",
+    "path": [
+      { "date": "2024-06", "v": 40 },
+      { "date": "2025-06", "v": 150 },
+      { "date": "2026-06", "v": 450 },
+      { "date": "2027-06", "v": 1200 },
+      { "date": "2028-06", "v": 3000 },
+      { "date": "2029-12", "v": 7000 }
+    ],
+    "pathNote": "Illustrative glide path to the $7T endpoint, for scale on the chart; only the end-2029 point is SemiAnalysis's."
+  },
+  "deals": [
+    {"date": "2023-08", "borrower": "CoreWeave", "amt": 2.3, "lender": "Magnetar + Blackstone", "type": "GPU-collateralized loan"},
+    {"date": "2024-05", "borrower": "CoreWeave", "amt": 7.5, "lender": "Blackstone-led", "type": "DDTL 2.0"},
+    {"date": "2024-10", "borrower": "Crusoe (Abilene DC)", "amt": 3.4, "lender": "Blue Owl-led", "type": "DC construction financing"},
+    {"date": "2025-05", "borrower": "CoreWeave", "amt": 2, "lender": "public market", "type": "High-yield notes"},
+    {"date": "2025-06", "borrower": "xAI", "amt": 5, "lender": "Morgan Stanley-led", "type": "Notes + term loan"},
+    {"date": "2025-09", "borrower": "Oracle", "amt": 18, "lender": "public market", "type": "IG bonds (DC buildout)"},
+    {"date": "2025-09", "borrower": "Nebius", "amt": 3, "lender": "public market", "type": "Convertible notes"},
+    {"date": "2025-10", "borrower": "Meta (Hyperion DC)", "amt": 27, "lender": "Blue Owl JV", "type": "Private credit"},
+    {"date": "2025-10", "borrower": "TeraWulf", "amt": 3.2, "lender": "public (Google-backstopped)", "type": "Notes"},
+    {"date": "2025-10", "borrower": "Meta", "amt": 30, "lender": "public market", "type": "IG bonds"},
+    {"date": "2026-06", "borrower": "CoreWeave", "amt": 8.5, "lender": "incl. Meta-backstopped 5.9% tranche", "type": "DDTL 4.0", "src": "SemiAnalysis"},
+    {"date": "2026-06", "borrower": "Firmus (Melbourne)", "amt": 10, "lender": "Blackstone-led", "type": "Facility", "src": "SemiAnalysis"},
+    {"date": "2026-06", "borrower": "SharonAI (40k GB300)", "amt": 4.88, "lender": "NVIDIA", "type": "GPU revenue backstop", "contingent": true, "src": "SemiAnalysis"}
+  ]
+}

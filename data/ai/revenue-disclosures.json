@@ -1,0 +1,15 @@
+{
+  "_about": "Disclosed AI revenue run-rates ($B annualized): reported figures from press releases and earnings, the dollar check on the token-volume estimate. Read by AI Economy (the chain summary) and the AI revenue check on AI Economy → Tensions. approx: true marks a figure read from press coverage rather than the company. Add a row per new disclosure.",
+  "reviewed": "2026-10-11",
+  "disclosures": [
+    {"d": "2023-12", "co": "OpenAI", "arr": 1.6, "src": "reported ARR"},
+    {"d": "2024-06", "co": "OpenAI", "arr": 3.4, "src": "reported ARR"},
+    {"d": "2025-06", "co": "OpenAI", "arr": 10, "src": "reported ARR"},
+    {"d": "2025-12", "co": "OpenAI", "arr": 20, "src": "reported ~$20B ARR"},
+    {"d": "2024-12", "co": "Anthropic", "arr": 1, "src": "reported ARR"},
+    {"d": "2025-03", "co": "Anthropic", "arr": 2, "src": "reported ARR"},
+    {"d": "2025-08", "co": "Anthropic", "arr": 5, "src": "reported ARR"},
+    {"d": "2026-01", "co": "Anthropic", "arr": 9, "src": "reported ~$9B ARR", "approx": true},
+    {"d": "2025-01", "co": "Microsoft AI", "arr": 13, "src": "disclosed run-rate"}
+  ]
+}

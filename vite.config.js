@@ -32,6 +32,8 @@ import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
 import { createFollyMarkets } from './server/follyMarkets.js'
+import { createPredictionMarkets } from './server/predictionMarkets.js'
+import { createTensions } from './server/tensions/index.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3978,6 +3980,24 @@ export default defineConfig({
         // joined to FRED's modern series.
         const longRun = createLongRun({ dir: __dirname, fetchFredSeries })
         reRoute('/api/long-run', () => longRun.get())
+        // Tensions (server/tensions/): where independent claims about the economy (prediction
+        // markets, bond and stock prices, Fed projections, official data, named forecasts)
+        // cannot all be true at once. One engine; the check modules in server/tensions/checks
+        // say which board they belong to (AI Economy or U.S. Economy). Checks read the other
+        // feeds through these getters rather than over HTTP.
+        const tensions = createTensions({
+          fetchFredSeries, UA, dir: __dirname, EIA_KEY,
+          markets: createPredictionMarkets({ UA }),
+          sources: {
+            aiPulse: () => aiPulse.get(), capexReturns: () => capexReturns.get(), commodityPulse: () => commodityPulse.get(),
+            damodaranErp: () => damodaranErp.get(), follyMarkets: () => follyMarkets.get(), fxFundamentals: () => fxFundamentals.get(),
+            gpuEconomics: () => gpuEconomics.get(), intelligenceMw: () => intelligencePerMw.get(), intlPulse: () => intlPulse.get(),
+            kalecki: () => fetchKalecki(), longRun: () => longRun.get(), machine: () => machine.get(), sfc: () => sfcModel.get(),
+            tightening: () => tightening.get(), tokenEstimates: () => tokenEstimates.get(), tokenSpot: () => tokenSpot.get(),
+            tradeFlows: () => tradeFlows.get(), usPulse: () => usPulse.get(),
+          },
+        })
+        reRoute('/api/tensions', req => tensions.get(req))
 
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())

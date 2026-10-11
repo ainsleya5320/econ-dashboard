@@ -135,3 +135,7 @@ body { margin: 0; }
 @media(prefers-reduced-motion:reduce) { .ledger-app *, .ledger-app *::before, .ledger-app *::after { transition: none !important; animation: none !important; } }
 
 .ledger-app .recharts-line-curve { stroke-linecap: round; stroke-linejoin: round; }
+/* Tensions board text colours (src/components/TensionBoard.jsx): the bright set reads on the dark
+   card, the deeper set on the light one. */
+:root { --tension-red: #f87171; --tension-amber: #fbbf24; --tension-green: #4ade80; --tension-indigo: #818cf8; --tension-slate: #94a3b8; --tension-cyan: #22d3ee; --tension-violet: #a78bfa; --tension-orange: #fb923c; }
+:root[data-theme=light] { --tension-red: #b91c1c; --tension-amber: #b45309; --tension-green: #15803d; --tension-indigo: #4338ca; --tension-slate: #475569; --tension-cyan: #0e7490; --tension-violet: #6d28d9; --tension-orange: #c2410c; }

@@ -11,6 +11,10 @@ import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
 import CapexReturnsPanel from "./ai/CapexReturns.jsx";
 import TokenEstimatesPanel from "./ai/TokenEstimates.jsx";
+import AI_DEBT from "../../data/ai/ai-debt.json";
+import REVENUE from "../../data/ai/revenue-disclosures.json";
+import PJM from "../../data/ai/pjm-capacity.json";
+import TensionBoard from "../components/TensionBoard.jsx";
 
 function SubTab({ id, label, active, onClick }) {
   return (
@@ -353,7 +357,7 @@ function PowerBottleneckPanel() {
   const elecNow = elec?.length ? elec[elec.length - 1] : null;
   const elecYr = elec?.length > 12 ? elec[elec.length - 13] : null;
   const pjmLast = PJM_CAPACITY[PJM_CAPACITY.length - 1];
-  const pjmPrev = PJM_CAPACITY[PJM_CAPACITY.length - 3]; // two auctions back = pre-spike base
+  const pjmPrev = [...PJM_CAPACITY].reverse().find(r => r.price < 100); // the pre-spike base: the last auction under $100/MW-day
   return (<>
     <SH>The Power Bottleneck — What the Grid Charges for Scarcity</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(330px, 100%), 1fr))", gap: 12, marginBottom: 14 }}>
@@ -373,7 +377,7 @@ function PowerBottleneckPanel() {
           </BarChart>
         </ResponsiveContainer>
         <div style={{ fontSize: 9.5, color: "#64748b", fontFamily: fonts.mono, padding: "4px 0 6px 14px", lineHeight: 1.5 }}>
-          The largest US grid&apos;s price for guaranteed capacity: {pjmPrev ? `~${Math.round(pjmLast.price / pjmPrev.price)}× in two auctions` : "a step-change"} — the purest &ldquo;datacenters ate the slack&rdquo; market print. Public auction results; add each new BRA to <code style={{ color: "#a5b4fc" }}>PJM_CAPACITY</code>.
+          The largest US grid&apos;s price for guaranteed capacity: {pjmPrev ? `~${Math.round(pjmLast.price / pjmPrev.price)}× since the ${pjmPrev.auction} auction` : "a step-change"} — the purest &ldquo;datacenters ate the slack&rdquo; market print. Public auction results; add each new BRA to <code style={{ color: "#a5b4fc" }}>data/ai/pjm-capacity.json</code>.
         </div>
       </div>
       <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "14px 14px 6px 4px" }}>
@@ -598,29 +602,14 @@ const DISC_COLOR = { Google: "#4285F4", Microsoft: "#00A4EF", OpenAI: "#10B981",
 const OPEN_LABS = new Set(["deepseek", "qwen", "z-ai", "meta-llama", "mistralai", "moonshotai", "minimax", "tencent", "xiaomi", "nvidia", "microsoft", "nousresearch", "cognitivecomputations"]);
 const CLOSED_LABS = new Set(["anthropic", "openai", "google", "x-ai", "amazon", "cohere", "perplexity", "inflection"]);
 
-// Disclosed AI revenue run-rates ($B annualized) — reported figures from press
-// releases / earnings; the DOLLAR check on the token-volume estimate.
-const REVENUE_DISCLOSURES = [
-  { d: "2023-12", co: "OpenAI",       arr: 1.6,  src: "reported ARR" },
-  { d: "2024-06", co: "OpenAI",       arr: 3.4,  src: "reported ARR" },
-  { d: "2025-06", co: "OpenAI",       arr: 10,   src: "reported ARR" },
-  { d: "2025-12", co: "OpenAI",       arr: 20,   src: "reported ~$20B ARR" },
-  { d: "2024-12", co: "Anthropic",    arr: 1.0,  src: "reported ARR" },
-  { d: "2025-03", co: "Anthropic",    arr: 2.0,  src: "reported ARR" },
-  { d: "2025-08", co: "Anthropic",    arr: 5.0,  src: "reported ARR" },
-  { d: "2026-01", co: "Anthropic",    arr: 9.0,  src: "reported ~$9B ARR", approx: true },
-  { d: "2025-01", co: "Microsoft AI", arr: 13,   src: "disclosed run-rate" },
-];
+// Disclosed AI revenue run-rates ($B annualized), kept in data/ai/revenue-disclosures.json
+// (the AI revenue check on the Tensions tab reads the same file).
+const REVENUE_DISCLOSURES = REVENUE.disclosures;
 const REV_CO_COLOR = { OpenAI: "#10B981", Anthropic: "#E8553A", "Microsoft AI": "#00A4EF" };
 
-// PJM capacity auction clearing prices ($/MW-day, RTO) — the market's price on
-// grid scarcity. Public auction results; add each Base Residual Auction.
-const PJM_CAPACITY = [
-  { auction: "2023/24", price: 34.13 },
-  { auction: "2024/25", price: 28.92 },
-  { auction: "2025/26", price: 269.92 },
-  { auction: "2026/27", price: 329.17 },
-];
+// PJM capacity auction clearing prices ($/MW-day, RTO), kept in data/ai/pjm-capacity.json
+// (the AI power check on the Tensions tab reads the same file). Add each Base Residual Auction there.
+const PJM_CAPACITY = PJM.auctions;
 
 // Census BTOS: % of US firms using AI to produce goods/services. Biweekly
 // survey of ~1.2M businesses; points below from Census releases (≈ = read
@@ -1876,35 +1865,14 @@ function OrnnTokenPricePanel({ ornn }) {
 }
 
 // ── AI debt-market tracker (curated, extend by hand) ───────────────────────
-// SemiAnalysis ("NVIDIA GPU debt backstop" article) forecasts AI debt becoming
-// the 2nd-largest credit market after US mortgages (~$13T): ~$7T outstanding
-// by 2029 against ~$11.1T cumulative AI capex 2024-29. No API tracks this —
-// deals are public headlines, curated here like TOKEN_DISCLOSURES.
-// amt in $B. date = announcement month (some approximate — verify on edit).
-// contingent: true = a guarantee (NVIDIA revenue backstop), NOT drawn debt —
-// listed in the table but excluded from the cumulative line.
-// ADD A ROW whenever a headline AI financing lands. That's the whole upkeep.
-const AI_DEBT_DEALS = [
-  { date: "2023-08", borrower: "CoreWeave",            amt: 2.3,  lender: "Magnetar + Blackstone",         type: "GPU-collateralized loan" },
-  { date: "2024-05", borrower: "CoreWeave",            amt: 7.5,  lender: "Blackstone-led",                type: "DDTL 2.0" },
-  { date: "2024-10", borrower: "Crusoe (Abilene DC)",  amt: 3.4,  lender: "Blue Owl-led",                  type: "DC construction financing" },
-  { date: "2025-05", borrower: "CoreWeave",            amt: 2.0,  lender: "public market",                 type: "High-yield notes" },
-  { date: "2025-06", borrower: "xAI",                  amt: 5.0,  lender: "Morgan Stanley-led",            type: "Notes + term loan" },
-  { date: "2025-09", borrower: "Oracle",               amt: 18,   lender: "public market",                 type: "IG bonds (DC buildout)" },
-  { date: "2025-09", borrower: "Nebius",               amt: 3.0,  lender: "public market",                 type: "Convertible notes" },
-  { date: "2025-10", borrower: "Meta (Hyperion DC)",   amt: 27,   lender: "Blue Owl JV",                   type: "Private credit" },
-  { date: "2025-10", borrower: "TeraWulf",             amt: 3.2,  lender: "public (Google-backstopped)",   type: "Notes" },
-  { date: "2025-10", borrower: "Meta",                 amt: 30,   lender: "public market",                 type: "IG bonds" },
-  { date: "2026-06", borrower: "CoreWeave",            amt: 8.5,  lender: "incl. Meta-backstopped 5.9% tranche", type: "DDTL 4.0", src: "SemiAnalysis" },
-  { date: "2026-06", borrower: "Firmus (Melbourne)",   amt: 10,   lender: "Blackstone-led",                type: "Facility", src: "SemiAnalysis" },
-  { date: "2026-06", borrower: "SharonAI (40k GB300)", amt: 4.88, lender: "NVIDIA",                        type: "GPU revenue backstop", contingent: true, src: "SemiAnalysis" },
-];
-// Illustrative glide path to the article's endpoint — ONLY the $7T-by-2029
-// point is theirs; intermediate points are a smooth interpolation for scale.
-const AI_DEBT_FORECAST = [
-  { date: "2024-06", v: 40 }, { date: "2025-06", v: 150 }, { date: "2026-06", v: 450 },
-  { date: "2027-06", v: 1200 }, { date: "2028-06", v: 3000 }, { date: "2029-12", v: 7000 },
-];
+// SemiAnalysis forecasts AI debt becoming the 2nd-largest credit market after
+// US mortgages: ~$7T outstanding by 2029 against ~$11.1T cumulative AI capex
+// 2024-29. No API tracks this; the named deals are public headlines, kept in
+// data/ai/ai-debt.json with the forecast path (one home: the AI financing
+// check on the Tensions tab reads the same file). ADD A ROW there whenever a
+// headline AI financing lands.
+const AI_DEBT_DEALS = AI_DEBT.deals;
+const AI_DEBT_FORECAST = AI_DEBT.forecast.path;
 
 // ── Supply ceiling: advanced packaging (CoWoS) + HBM sold-out timeline ──────
 // Accelerator supply is packaging/memory-limited, not wafer-limited. Whether
@@ -1976,7 +1944,7 @@ function AIDebtPanel() {
   return (<>
     <SH>AI Debt Market — Announced Facilities vs the $7T Path</SH>
     <div style={{ fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5, maxWidth: 820 }}>
-      SemiAnalysis forecasts AI debt becoming the <strong style={{ color: "#cbd5e1" }}>second-largest credit market after US mortgages</strong> — ~$7T outstanding by 2029. This tracker tallies <em>publicly announced, named facilities</em> (a floor on the real number, since much debt is never itemized). Curated by hand — add each headline deal to <code style={{ color: "#a5b4fc" }}>AI_DEBT_DEALS</code>.
+      SemiAnalysis forecasts AI debt becoming the <strong style={{ color: "#cbd5e1" }}>second-largest credit market after US mortgages</strong> — ~$7T outstanding by 2029. This tracker tallies <em>publicly announced, named facilities</em> (a floor on the real number, since much debt is never itemized). Curated by hand — add each headline deal to <code style={{ color: "#a5b4fc" }}>data/ai/ai-debt.json</code>.
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 10, marginBottom: 12 }}>
       <StatCard label="Announced to Date" val={fmtB(calc.total)} sub={`${calc.deals.length} tracked deals`} color={SD_INDIGO} />
@@ -2188,7 +2156,7 @@ export function chainModel(or, ornn, semi, mem) {
     const spreadX = wedge.latestRev ? wedge.latestRev.rev / ((wedge.costBand.min + wedge.costBand.max) / 2) : null;
 
     // Stage 3 — compute & power
-    const debtTotal = AI_DEBT_DEALS.reduce((a, d) => a + (d.amt || 0), 0);
+    const debtTotal = AI_DEBT_DEALS.filter(d => !d.contingent).reduce((a, d) => a + (d.amt || 0), 0); // guarantees are not drawn debt
     const pjm = PJM_CAPACITY[PJM_CAPACITY.length - 1];
     const pjmPrev = PJM_CAPACITY[PJM_CAPACITY.length - 2];
 
@@ -2215,7 +2183,9 @@ export function chainVerdicts(c) {
     : ["Growing", SD_GREEN];
   const vLabs = [c.wedge.status.title, c.wedge.status.color];
   const vCompute = !c.pjm ? ["—", "#64748b"]
-    : c.pjm.price > (c.pjmPrev?.price ?? 0) ? ["Scarcity priced in", SD_AMBER]
+    // scarcity when the latest auction cleared at its cap, came in short of the reliability requirement,
+    // or rose from the one before; a flat price at the cap is still scarcity, not easing
+    : (c.pjm.cap != null && c.pjm.price >= c.pjm.cap - 0.5) || c.pjm.shortMw > 0 || c.pjm.price > (c.pjmPrev?.price ?? 0) ? ["Scarcity priced in", SD_AMBER]
     : ["Easing", SD_GREEN];
   const vSilicon = c.memTotal === 0 ? ["Loading", "#64748b"]
     : c.memUp > c.memDown ? ["Repricing up", SD_RED]
@@ -2290,7 +2260,7 @@ function ChainTab({ go }) {
         kpi={c.wedge.gwTotal ? `${c.wedge.gwTotal.toFixed(0)} GW` : "—"}
         kpiSub={`tracked lab footprint by ${c.wedge.gwDate || "—"} (incl. projections) · $${c.debtTotal.toFixed(0)}B AI debt announced · PJM $${c.pjm?.price}/MW-day`}
         verdict={vCompute[0]} color={vCompute[1]} onClick={() => go("compute")}
-        extra={c.pjmPrev ? `Grid scarcity: PJM capacity cleared $${c.pjmPrev.price} → $${c.pjm.price} across the last two auctions.` : null} />
+        extra={c.pjmPrev ? `Grid scarcity: PJM capacity cleared $${c.pjmPrev.price} → $${c.pjm.price} across the last two auctions${c.pjm.cap != null && c.pjm.price >= c.pjm.cap - 0.5 ? ` (at the price cap${c.pjm.shortMw > 0 ? `, ${(c.pjm.shortMw / 1000).toFixed(1)} GW short of the reliability requirement` : ""})` : ""}.` : null} />
       <ChainLink label="Link C · $ per GPU-hour (H100 1y contract)" color={linkColor(c.hChg)}
         value={c.hNow ? `$${c.hNow.h100.toFixed(2)}/hr · 4wk ${sdPct(c.hChg, 1)}` : "loading…"} />
       <StageCard n={4} title="Silicon & Memory" question="what does the hardware cost?"
@@ -2319,12 +2289,14 @@ function AIEconomyTab() {
   const [subTab, setSubTab] = useState("pulse");
 
   // 2026-09 revamp: Pulse landing (token tracker + Artificial Analysis + GPU
-  // rentals), then the three deep-dives along the chain.
+  // rentals), then the three deep-dives along the chain; Tensions (2026-10)
+  // checks whether the AI forecasts can all come true together.
   const SUB_TABS = [
-    { id: "pulse",   label: "Pulse"          },
-    { id: "tokens",  label: "Tokens"         },
-    { id: "compute", label: "Compute"        },
-    { id: "models",  label: "Models & Labs"  },
+    { id: "pulse",    label: "Pulse"          },
+    { id: "tokens",   label: "Tokens"         },
+    { id: "compute",  label: "Compute"        },
+    { id: "models",   label: "Models & Labs"  },
+    { id: "tensions", label: "Tensions"       },
   ];
 
   return (<>
@@ -2339,6 +2311,7 @@ function AIEconomyTab() {
     {subTab === "tokens"  && <TokenDemandTab />}
     {subTab === "compute" && <ComputeTab />}
     {subTab === "models"  && <ModelsLabsTab />}
+    {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);
 }
 

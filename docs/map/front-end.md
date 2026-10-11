@@ -15,6 +15,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels
 - [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search
+- [src/components/TensionBoard.jsx](../../src/components/TensionBoard.jsx): the Tensions sub-tab on AI Economy and U.S. Economy, one board for both (domain prop)
 - [src/lib/](../../src/lib): client logic: api.js (FRED/FMP fetches), constants, fallback data, options/property/rental/stock analysis, technicals, styles, Damodaran cost of capital (costOfCapital.js) and the FMP → Damodaran industry map (industryMap.js)
 - [src/lib/accountingQuality.js](../../src/lib/accountingQuality.js): Beneish M-score, Montier C-score, accruals and useful life, shared by the stock page's Accounting tab and server/sinMonitorSeed.js
 - [src/lib/assistantContext.js](../../src/lib/assistantContext.js): turns the dashboard's verdicts into text for the chat assistant

@@ -1,0 +1,36 @@
+{
+ "2026-10-11": {
+  "ai-financing": {
+   "status": "contradiction",
+   "gap": 1.92
+  },
+  "fed-path": {
+   "status": "consistent",
+   "gap": 6.811
+  },
+  "recession-odds": {
+   "status": "consistent",
+   "gap": 5.627
+  },
+  "inflation-priced": {
+   "status": "consistent",
+   "gap": 0.17
+  },
+  "profits-vs-gdp": {
+   "status": "contradiction",
+   "gap": 1.329
+  },
+  "ai-revenue": {
+   "status": "tension",
+   "gap": 0.951
+  },
+  "ai-power": {
+   "status": "tension",
+   "gap": 0.529
+  },
+  "deficit-saving": {
+   "status": "tension",
+   "gap": 1.411
+  }
+ }
+}

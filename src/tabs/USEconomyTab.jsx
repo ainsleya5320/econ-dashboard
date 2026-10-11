@@ -19,11 +19,13 @@ import TighteningTab from "./TighteningTab.jsx";
 import BudgetSubTab from "./BudgetSubTab.jsx";
 import MachineTab from "./MachineTab.jsx";
 import SfcModelTab from "./SfcModelTab.jsx";
+import TensionBoard from "../components/TensionBoard.jsx";
 
 // ============================================================================
-// U.S. ECONOMY — ten sub-tabs (consolidated from sixteen, Sept 2026).
+// U.S. ECONOMY — eleven sub-tabs (consolidated from sixteen, Sept 2026;
+// Tensions added Oct 2026).
 //   Pulse · Regional · Labor · Consumer · Inflation · Growth · Credit ·
-//   Rates & Fed · Fiscal · Machine
+//   Rates & Fed · Fiscal · Machine · Tensions
 // Five of them fold former pages into views (SubViews): Regional = metros /
 // states map; Growth = activity / profits engine; Credit = corporate / banks /
 // defaults; Rates & Fed = treasuries / Fed balance sheet / tightening
@@ -43,6 +45,7 @@ const ECON_SUB_TABS = [
   { id: "rates",     label: "Rates & Fed" },
   { id: "fiscal",    label: "Fiscal" },
   { id: "machine",   label: "Machine" },
+  { id: "tensions",  label: "Tensions" },
 ];
 
 // Old sub-tab ids (still used by Pulse's drill field and older links) → [tab, view].
@@ -140,6 +143,9 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
         { id: "sfc", label: "Stock-flow model", hint: "the ledger and the four-layer simulation", render: () => <SfcModelTab /> },
       ]} />
     )}
+
+    {/* Tensions — where markets, the Fed's projections and the data cannot all be right */}
+    {econSubTab === "tensions" && <TensionBoard domain="economy" />}
   </>);
 }
 
