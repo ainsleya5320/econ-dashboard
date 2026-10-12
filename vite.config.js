@@ -34,6 +34,7 @@ import { createSinMonitor } from './server/sinMonitor.js'
 import { createFollyMarkets } from './server/follyMarkets.js'
 import { createPredictionMarkets } from './server/predictionMarkets.js'
 import { createTensions } from './server/tensions/index.js'
+import { createNewsDesk } from './server/newsDesk/index.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -52,6 +53,8 @@ const BEA_KEY = env.BEA_KEY || ''
 // (ANTHROPIC_API_KEY in .env — loadEnv, not process.env, like the other keys).
 const ANTHROPIC_KEY = env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || ''
 const CHAT_MODEL = 'claude-opus-5'
+// News Desk: the hard daily cap on its Claude spending, in dollars (server/newsDesk/budget.js)
+const NEWS_DAILY_BUDGET = Number(env.NEWS_DAILY_BUDGET_USD || process.env.NEWS_DAILY_BUDGET_USD) || 2
 
 /* ── BEA PCE Price Index (monthly index levels, compute YoY) ── */
 let beaPceCache = { data: null, ts: 0 }
@@ -3998,6 +4001,18 @@ export default defineConfig({
           },
         })
         reRoute('/api/tensions', req => tensions.get(req))
+        // News Desk (server/newsDesk/): the WSJ, NYT and Economist feeds, FMP stock news and SEC
+        // filings read against the watchlist and data/news/categories.json, scored and read by
+        // Claude within a hard daily budget (NEWS_DAILY_BUDGET_USD in .env, default $2). The
+        // refresh, clip and proposal POSTs spend that budget or write files, so index.js takes
+        // them from this computer only. /news-clip is the window the clip bookmarklet opens.
+        const newsDesk = createNewsDesk({
+          UA, dir: __dirname, FMP_KEY, ANTHROPIC_KEY, dailyUsd: NEWS_DAILY_BUDGET,
+          tensions: () => Promise.all(['ai', 'economy'].map(domain => tensions.get({ url: `/api/tensions?domain=${domain}` }))),
+        })
+        server.middlewares.use('/api/news-desk', (req, res) => { newsDesk.handle(req, res) })
+        server.middlewares.use('/news-clip', (req, res) => newsDesk.clipPage(req, res))
+        server.httpServer?.once('close', () => newsDesk.stop())
 
         reRoute('/api/us-pulse', () => usPulse.get())
         reRoute('/api/intl-pulse', () => intlPulse.get())

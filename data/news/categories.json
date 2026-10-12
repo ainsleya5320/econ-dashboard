@@ -1,0 +1,44 @@
+[
+  {
+    "id": "ai",
+    "label": "AI build-out",
+    "description": "The money and machinery behind AI: data-center capex, how it is financed, the power it needs, the chips and memory it runs on, and what the AI labs earn.",
+    "keywords": ["artificial intelligence", "AI capex", "data center", "data centre", "hyperscaler", "GPU", "accelerator", "AI chip", "semiconductor", "chipmaker", "foundry", "high-bandwidth memory", "HBM", "DRAM", "compute", "neocloud", "AI cloud", "inference", "training run", "AI lab", "OpenAI", "Anthropic", "large language model", "AI revenue", "AI financing", "AI debt", "gigawatt", "power purchase agreement", "chip export controls", "AI bubble"]
+  },
+  {
+    "id": "fed",
+    "label": "The Fed and rates",
+    "description": "Federal Reserve policy and the price of money: rate decisions, inflation, the Treasury market, the deficit and how much the government has to borrow.",
+    "keywords": ["Federal Reserve", "the Fed", "FOMC", "Fed chair", "interest rate", "rate cut", "rate hike", "inflation", "CPI", "PCE", "core inflation", "Treasury yields", "10-year yield", "bond market", "Treasury auction", "term premium", "yield curve", "balance sheet", "quantitative tightening", "deficit", "national debt", "debt ceiling", "jobs report", "unemployment rate", "wage growth"]
+  },
+  {
+    "id": "credit",
+    "label": "Credit",
+    "description": "Who is struggling to pay: credit spreads, defaults, private credit and direct lending, leveraged loans, downgrades and bankruptcies.",
+    "keywords": ["credit spread", "high yield", "junk bond", "investment grade", "default", "private credit", "direct lending", "BDC", "leveraged loan", "CLO", "bankruptcy", "Chapter 11", "restructuring", "distressed", "downgrade", "refinancing", "maturity wall", "covenant", "delinquency", "charge-off", "commercial real estate loans", "regional banks", "loan losses"]
+  },
+  {
+    "id": "seattle",
+    "label": "Seattle and Washington",
+    "description": "The local economy: Seattle-area employers and hiring, layoffs and WARN notices, housing and commercial real estate, and Washington state budgets and taxes.",
+    "keywords": ["Seattle", "Puget Sound", "King County", "Bellevue", "Redmond", "Tacoma", "Everett", "Spokane", "Washington state", "Olympia", "Sea-Tac", "Port of Seattle", "WARN notice", "layoffs", "Seattle housing", "Seattle office market", "Washington capital gains tax", "Washington legislature", "Pacific Northwest"]
+  },
+  {
+    "id": "special",
+    "label": "Special situations",
+    "description": "Corporate events that move a stock on their own: spin-offs, mergers and acquisitions, tender offers, buybacks, activist stakes and proxy fights.",
+    "keywords": ["spin-off", "spinoff", "split-off", "merger", "acquisition", "takeover", "buyout", "tender offer", "going private", "activist investor", "activist stake", "13D", "proxy fight", "board seats", "strategic review", "asset sale", "divestiture", "carve-out", "rights offering", "share buyback", "special dividend", "IPO", "SPAC", "closed-end fund discount"]
+  },
+  {
+    "id": "energy",
+    "label": "Energy",
+    "description": "Oil, natural gas and electricity: supply, prices, OPEC, LNG, the power grid, utilities and the electricity demand from data centers.",
+    "keywords": ["oil", "crude", "Brent", "WTI", "OPEC", "natural gas", "LNG", "refinery", "gasoline", "diesel", "electricity prices", "power grid", "utility", "transmission", "PJM", "ERCOT", "capacity auction", "nuclear", "small modular reactor", "gas turbine", "solar", "battery storage", "energy prices"]
+  },
+  {
+    "id": "markets",
+    "label": "Markets",
+    "description": "The big picture for portfolios: stock valuations, fund flows and positioning, earnings season, the dollar, volatility, and the major macro calls (recession, soft landing, bubble).",
+    "keywords": ["stock market", "S&P 500", "Nasdaq", "Dow", "valuation", "price-to-earnings", "CAPE", "earnings season", "earnings guidance", "fund flows", "ETF flows", "positioning", "margin debt", "volatility", "VIX", "the dollar", "currency", "gold", "recession", "soft landing", "bull market", "bear market", "correction", "bubble", "market concentration", "strategist"]
+  }
+]

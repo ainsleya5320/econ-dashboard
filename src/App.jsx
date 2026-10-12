@@ -16,6 +16,7 @@ import HistoricalTab from "./tabs/HistoricalTab.jsx";
 import ForecastsTab from "./tabs/ForecastsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
 import CommoditiesTab from "./tabs/CommoditiesTab.jsx";
+import NewsDeskTab from "./tabs/NewsDeskTab.jsx";
 import ChatDrawer from "./components/ChatDrawer.jsx";
 import DataHealthPanel from "./components/DataHealthPanel.jsx";
 import { collectLatestDate, sourceStatus } from "./lib/dataHealth.js";
@@ -94,7 +95,7 @@ export default function Dashboard() {
   // Label every table from its own thead so it can reflow to cards on a phone.
   useResponsiveTables();
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options'].includes(view)?view:'overview'; });
+  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','news'].includes(view)?view:'overview'; });
   useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
@@ -401,7 +402,7 @@ export default function Dashboard() {
 
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [
-    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }] },
+    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }] },
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "realestate", label: "Real Estate" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
@@ -477,6 +478,7 @@ export default function Dashboard() {
           <div style={{ marginTop: 4 }}>
           <TabErrorBoundary key={tab}>
             {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
+            {tab === "news" && <NewsDeskTab />}
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} treasury={td} />}

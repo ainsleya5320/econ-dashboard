@@ -5,7 +5,8 @@ Back to the [master map](../../CLAUDE.md).
 ## Projects
 - [index.html](../../index.html): the page shell Vite serves at /
 - [src/main.jsx](../../src/main.jsx): React entry point
-- [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today, Valuation, Income, Macro, Themes), data loading, data-health status
+- [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today: Cockpit and News Desk; Valuation, Income, Macro, Themes), data loading, data-health status
+- [src/tabs/NewsDeskTab.jsx](../../src/tabs/NewsDeskTab.jsx): the News Desk: the daily brief, news by holding and by category with Claude's reads, proposed rows for the data/ai tables, the clip bookmarklet and paste box, feed health
 - [src/tabs/](../../src/tabs): one component per tab and sub-tab (Overview cockpit, Rates, CPI, U.S. Economy, SFC Model, Tightening …)
 - [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash (with optimal debt), accounting (Beneish, Montier, accruals, footnotes, filings), technicals, valuation (cost of capital, industry yardstick, story valuation), value book, special situations, sin & folly
 - [src/tabs/options/](../../src/tabs/options): options income, expectations, volatility history, watchlist ladder
@@ -14,7 +15,7 @@ Back to the [master map](../../CLAUDE.md).
 - [src/tabs/ai/](../../src/tabs/ai): capex returns, GPU economics, intelligence per megawatt, token estimates, token spot
 - [src/tabs/intl/](../../src/tabs/intl): FX, trade flows, global imbalances, liquidity, World Bank, international pulse
 - [src/tabs/consumer/](../../src/tabs/consumer): household wealth and owner wealth panels
-- [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search
+- [src/components/](../../src/components): shared widgets: chat drawer, data-health panel, fear & greed gauge, choropleth, ticker search, the news crawl (NewsTicker.jsx, which marks watchlist tickers)
 - [src/components/TensionBoard.jsx](../../src/components/TensionBoard.jsx): the Tensions sub-tab on AI Economy and U.S. Economy, one board for both (domain prop)
 - [src/lib/](../../src/lib): client logic: api.js (FRED/FMP fetches), constants, fallback data, options/property/rental/stock analysis, technicals, styles, Damodaran cost of capital (costOfCapital.js) and the FMP → Damodaran industry map (industryMap.js)
 - [src/lib/accountingQuality.js](../../src/lib/accountingQuality.js): Beneish M-score, Montier C-score, accruals and useful life, shared by the stock page's Accounting tab and server/sinMonitorSeed.js

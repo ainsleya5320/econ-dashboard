@@ -40,28 +40,31 @@ Back to the [master map](../../CLAUDE.md).
 - [server/follyMarkets.js](../../server/follyMarkets.js): Stocks → Sin & Folly, the market half: Shiller CAPE, FRED margin loans, Ritter IPOs, the S&P 500 street-vs-GAAP gap (FMP, seed only) and the folly/sin/reckoning gauge (/api/folly-markets)
 - [server/tensions/](../../server/tensions): AI Economy → Tensions and U.S. Economy → Tensions: index.js is the engine (/api/tensions?domain=ai|economy, 1h cache, daily history); lib.js the shared arithmetic (formatting, grading, Kalshi strike ladders; editing it needs a dev-server restart); aiCapexPath.js the one yearly path for SemiAnalysis's $11.1T that the AI revenue and AI power checks share; checks/ one module per check, each saying which board it belongs to. A check sets what independent sources claim side by side and grades the gap: consistent, tension or contradiction. The return shape is documented in index.js and ai-financing.js is the reference check
 - [server/predictionMarkets.js](../../server/predictionMarkets.js): read-only Kalshi and Polymarket client for the Tensions checks (15-minute cache, no keys)
+- [server/newsDesk/](../../server/newsDesk): the News Desk (/api/news-desk, /news-clip). index.js is the integrator: routes, the refresh cycle, the clip window and bookmarklet, and the this-computer-only guard on the routes that spend or write; feeds.js the WSJ, NYT and Economist RSS, FMP stock news and SEC filings; profile.js the watchlist, categories and Tensions checks the news is read against; store.js the item store; analyzer.js Claude's triage, deep reads and daily brief; budget.js the hard daily cap on Claude spending. Each file's header documents its part
 - [server/peopleScreener.js](../../server/peopleScreener.js): S&P 500 revenue and profit per employee (FMP)
 - [server/optionsContext.js](../../server/optionsContext.js): earnings and dividend events for the options views
 - [server/sfcModel.js](../../server/sfcModel.js): serves the SFC model JSON to the SFC Model tab
 
 ## State
 - [.env.example](../../.env.example): key names; the real `.env` also takes ANTHROPIC_API_KEY, EIA_API_KEY, ARTIFICIAL_ANALYSIS_KEY
-- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it
+- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it. NEWS_DAILY_BUDGET_USD sets the News Desk's daily Claude cap (default 2)
 - [fred-cache.json](../../fred-cache.json): shared FRED observation cache (gitignored)
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)
+- News Desk state at the root, gitignored because it names the watchlist: `news-desk.json` (items and Claude's reads), `news-desk-meta.json` (the brief, feed health, the last run), `news-usage.json` (Claude spend per day), `news-profile.json` (company names and CIKs; other names for a company go in its `aliases` list)
 - Other feed caches (us-pulse.json, redfin.json, gpu-economics.json, accounting-flags.json, sin-monitor.json, folly-markets.json, intelligence-mw-cache.json …) are gitignored; see [.gitignore](../../.gitignore)
 - Tracked archives these modules append to: [data snapshots](data.md)
 
 ## Skills
 - `npm run dev`: start the dev server, which is also the API server (port 5180 or `$PORT`)
 - `curl localhost:5180/api/tickers`: cheap health check (reads a local file, no upstream calls)
+- `curl "localhost:5180/api/news-desk?auto=0"`: the News Desk payload without starting a refresh
 
 ## Memory
 - The header comment of each server/ module documents its sources, scores and cache TTLs
 
 ## Routines
-None on a schedule: each feed rebuilds on request once its TTL (2h to 30 days) expires.
+Each feed rebuilds on request once its TTL (2h to 30 days) expires. The one timer is the News Desk's: it refreshes hourly, but only while the desk has been opened on this computer in the past 24 hours (server/newsDesk/index.js).
 
 ## Not here
 - The tabs that render these feeds: [front end](front-end.md)

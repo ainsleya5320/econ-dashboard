@@ -83,3 +83,12 @@ state/
 market-map.json
 # Long run: 12h feed cache (data/seeds/long-run-history.json is the tracked history)
 long-run.json
+# News Desk (server/newsDesk/): the stored items, the brief and run log, the daily Claude spend and
+# the watchlist's company profiles. They name the watchlist, so they stay on this machine. The
+# patterns cover their temp files (.tmp-*) and set-aside copies (.corrupt-*) too.
+/news-desk*.json
+/news-usage*.json
+/news-profile*.json
+/news-*.tmp
+# a temp file left only if the server dies while appending an approved News Desk row to a data/ai table
+/data/ai/*.tmp-*.json

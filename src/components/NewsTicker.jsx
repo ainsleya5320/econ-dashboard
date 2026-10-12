@@ -1,10 +1,30 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { fonts, cardBg, cardBorder } from "../lib/styles.js";
+
+// Items about a watchlist symbol (GET /api/tickers, the list the Stocks, Options and News Desk tabs
+// share) get a dot and their ticker in gold. The crawl bar and its expand panel are dark in both
+// themes, so they use the dark theme's --chart-gold; the full-page cards follow the theme's own.
+const WATCH_GOLD = "#ddba78";
+const symbolsOf = item => String(item?.tickers || "").split(",").map(t => t.trim().replace(/^[A-Z]+:/i, "").toUpperCase()).filter(Boolean);
+const Dot = ({ color = WATCH_GOLD }) => (
+  <span title="On your watchlist" aria-label="On your watchlist" style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: color, marginRight: 7, verticalAlign: "middle", position: "relative", top: -1 }} />
+);
 
 export default function NewsTicker({ items, loading }) {
   const [paused, setPaused] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showAll, setShowAll] = useState(false);
+  const [watch, setWatch] = useState(() => new Set());
+
+  // the watchlist, read once; a failure just leaves the crawl unmarked
+  useEffect(() => {
+    let live = true;
+    fetch("/api/tickers").then(r => (r.ok ? r.json() : [])).then(list => {
+      if (live && Array.isArray(list)) setWatch(new Set(list.map(s => String(s).toUpperCase())));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const watchedOf = item => symbolsOf(item).filter(s => watch.has(s));
 
   const fmtAge = (dateStr) => {
     if (!dateStr) return "";
@@ -72,7 +92,7 @@ export default function NewsTicker({ items, loading }) {
             animation: `ticker-scroll ${duration}s linear infinite`,
             animationPlayState: paused ? "paused" : "running",
           }}>
-            {doubled.map((item, i) => (
+            {doubled.map((item, i) => { const hit = watchedOf(item); return (
               <span
                 key={i}
                 className="ticker-hl"
@@ -84,19 +104,20 @@ export default function NewsTicker({ items, loading }) {
                   cursor: "pointer", transition: "color 0.15s", userSelect: "none",
                 }}
               >
+                {hit.length > 0 && <Dot />}
                 {item.site && (
                   <span style={{ color: "#818cf8", marginRight: 8, fontSize: 9, fontFamily: fonts.mono, fontWeight: 700, letterSpacing: 0.3 }}>
                     {item.site}{item.paywalled ? " 🔒" : ""}
                   </span>
                 )}
                 {item.tickers && (
-                  <span style={{ color: "#3b82f6", marginRight: 8, fontSize: 9, fontFamily: fonts.mono, fontWeight: 600 }}>
-                    {item.tickers.split(",")[0].replace("NASDAQ:", "").replace("NYSE:", "")}
+                  <span style={{ color: hit.length ? WATCH_GOLD : "#3b82f6", marginRight: 8, fontSize: 9, fontFamily: fonts.mono, fontWeight: hit.length ? 700 : 600 }}>
+                    {hit[0] || item.tickers.split(",")[0].replace("NASDAQ:", "").replace("NYSE:", "")}
                   </span>
                 )}
                 {item.title}
               </span>
-            ))}
+            ); })}
           </div>
         </div>
 
@@ -114,9 +135,11 @@ export default function NewsTicker({ items, loading }) {
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {watchedOf(selected).length > 0 && <Dot />}
                 <span style={{ color: "#818cf8", fontWeight: 700 }}>{selected.site}{selected.paywalled ? " 🔒" : ""}</span>
                 {selected.publishedDate ? ` · ${fmtAge(selected.publishedDate)}` : ""}
                 {selected.tickers ? ` · ${selected.tickers}` : ""}
+                {watchedOf(selected).length > 0 && <span style={{ color: WATCH_GOLD, fontWeight: 700 }}> · on your watchlist</span>}
               </div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", fontFamily: fonts.heading, marginBottom: 8, lineHeight: 1.45 }}>
                 {selected.title}
@@ -168,6 +191,7 @@ export default function NewsTicker({ items, loading }) {
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 9, color: "#475569", fontFamily: fonts.mono, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {watchedOf(item).length > 0 && <Dot color="var(--chart-gold)" />}
                       {item.site && <span style={{ color: "#818cf8", fontWeight: 700 }}>{item.site}{item.paywalled ? " 🔒" : ""}</span>}
                       {item.site ? " · " : ""}{fmtAge(item.publishedDate)}
                       {item.tickers ? ` · ${item.tickers.split(",").slice(0,3).map(t => t.replace("NASDAQ:","").replace("NYSE:","")).join(", ")}` : ""}

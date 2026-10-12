@@ -1188,12 +1188,14 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
     try { const saved = localStorage.getItem("econ-dash-tickers"); return saved ? JSON.parse(saved) : DEFAULT_TICKERS; } catch { return DEFAULT_TICKERS; }
   });
 
-  // On mount: pull tickers from server so all devices stay in sync
+  // On mount: pull tickers from server so all devices stay in sync. Nothing is saved back until
+  // this read settles, or this browser's stale copy (or the defaults) would overwrite the server's list.
+  const tickersFromServer = useRef(false);
   useEffect(() => {
     fetch('/api/tickers')
       .then(r => r.json())
-      .then(saved => { if (Array.isArray(saved) && saved.length) setTickers(saved); })
-      .catch(() => {}); // server unavailable → keep localStorage value
+      .then(saved => { tickersFromServer.current = true; if (Array.isArray(saved) && saved.length) setTickers(saved); })
+      .catch(() => { tickersFromServer.current = true; }); // server unavailable → keep localStorage value
   }, []);
 
   // On mount: fetch index earnings yields
@@ -1228,8 +1230,9 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
     if (!results.length) setError("No data returned. Check your FMP key or ticker symbols.");
   }, [fmpKey, tickers]);
 
-  // Persist tickers to localStorage AND server whenever they change
+  // Persist tickers to localStorage AND server whenever they change (once the server's list is in)
   useEffect(() => {
+    if (!tickersFromServer.current) return;
     try { localStorage.setItem("econ-dash-tickers", JSON.stringify(tickers)); } catch {}
     fetch('/api/tickers', {
       method: 'POST',
