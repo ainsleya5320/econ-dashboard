@@ -306,7 +306,8 @@ function ItemRow({ item, also = [], focus, focusLabel, startOpen = false }) {
 }
 
 // the same story from several outlets shares a triage cluster key: show it once, led by the best read
-function clusterStories(items) {
+// of the card's own holding or category (a copy about it before a second-order one)
+function clusterStories(items, focus, relMin) {
   const groups = new Map(), out = [];
   for (const it of items) {
     const k = it.triage?.cluster ? `c:${String(it.triage.cluster).toLowerCase()}` : `i:${it.id}`;
@@ -315,7 +316,8 @@ function clusterStories(items) {
     g.items.push(it);
   }
   for (const g of out) {
-    g.items.sort((x, y) => (!!y.analysis - !!x.analysis)
+    g.items.sort((x, y) => (directFor(y, focus, relMin) - directFor(x, focus, relMin))
+      || (!!y.analysis - !!x.analysis)
       || ((y.triage?.relevance ?? -1) - (x.triage?.relevance ?? -1))
       || String(y.published || "").localeCompare(String(x.published || "")));
     g.lead = g.items[0];
@@ -349,7 +351,7 @@ const CARD_TAG = {
 function GroupCard({ title, sub, items, focus, status, show = 4 }) {
   const { relMin } = useContext(Desk);
   const [all, setAll] = useState(false);
-  const stories = useMemo(() => clusterStories(items), [items]);
+  const stories = useMemo(() => clusterStories(items, focus, relMin), [items, focus, relMin]);
   const n = useMemo(() => tally(items, focus, relMin), [items, focus, relMin]);
   const shown = all ? stories : stories.slice(0, show);
   const tag = CARD_TAG[status];
@@ -518,7 +520,10 @@ function ClipTools({ bookmarklet, left, canRead, minChars = 200, onDone }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: phone ? "minmax(0,1fr)" : "minmax(0,2fr) minmax(0,1fr)", gap: 6 }}>
             <input value={f.title} onChange={set("title")} placeholder="Headline" aria-label="Headline" style={inputStyle} />
-            <input type="date" value={f.published} onChange={set("published")} aria-label="Date published (optional)" title="Date published (optional): without it, the clip is dated today" style={inputStyle} />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }} title="Without it, a clip of an article the desk has not seen is dated today">
+              <span style={{ ...note, whiteSpace: "nowrap" }}>Published</span>
+              <input type="date" value={f.published} onChange={set("published")} aria-label="Date published (optional)" style={{ ...inputStyle, minWidth: 0 }} />
+            </label>
           </div>
           <textarea value={f.text} onChange={set("text")} placeholder="The article's text" aria-label="Article text" rows={phone ? 5 : 6} style={{ ...inputStyle, resize: "vertical", fontFamily: fonts.heading, lineHeight: 1.5 }} />
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

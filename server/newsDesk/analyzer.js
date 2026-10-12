@@ -128,7 +128,7 @@ const sourceIndex = (text, extra = []) => {
   const list = [...numbersIn(text), ...spelledNumbers(text), ...extra]
   return { set: new Set(list), vals: [...new Set(list)].map(Number).filter(v => Number.isFinite(v) && v !== 0) }
 }
-// Each number in a claim, with what it is: part of a name ("H100", "GPT-5",
+// Each number in a claim, with what it is: part of a name ("X200", "GPT-5",
 // "8-K", "S&P 500", "Chapter 11": never a figure the source must state), a
 // figure with a unit ("$7 billion", "8%", "40 bps", "3x"), or bare.
 const NAME_BEFORE = /(?:[A-Za-z]-?|\b(?:S&P|Russell|Nasdaq|Stoxx|FTSE|Nikkei|CAC|DAX|Fortune|Section|Item|Items|Rule|Chapter|Form|Schedule|Article|Title|Regulation|Phase|Tier|Class|Series|Model|Version|No\.|Number|Gen|Generation)\s+)$/i

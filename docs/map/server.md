@@ -64,7 +64,7 @@ Back to the [master map](../../CLAUDE.md).
 - The header comment of each server/ module documents its sources, scores and cache TTLs
 
 ## Routines
-Each feed rebuilds on request once its TTL (2h to 30 days) expires. The one timer is the News Desk's: it refreshes hourly, but only while the desk has been opened on this computer in the past 24 hours (server/newsDesk/index.js).
+Each feed rebuilds on request once its TTL (2h to 30 days) expires. The one timer is the News Desk's: it refreshes hourly, but only while the desk has been opened on this computer in the past 24 hours; between midnight and 5 am it only scores, and briefs follow the clock (after 6 am, noon and 4 pm) (server/newsDesk/index.js).
 
 ## Not here
 - The tabs that render these feeds: [front end](front-end.md)

@@ -891,8 +891,8 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
   // Direct: triage named the target at a relevant score (or named it and the
   // deep read confirms it), or, unscored, the source tagged the ticker; an
   // item read in depth but never scored counts its implications as direct.
-  // Second-order: only a deep read's implication names the target (TSMC's
-  // results bearing on a memory maker); such items sit below the direct ones
+  // Second-order: only a deep read's implication names the target (a
+  // supplier's results bearing on its customer); such items sit below the direct ones
   // on a card, and the tab labels them "via" the item's own subject.
   function targetsOf(it) {
     const t = new Map(), c = new Map()
