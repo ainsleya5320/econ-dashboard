@@ -25,6 +25,7 @@
 // month and day, posts read, the last run and error.
 // No token or no cashtags: the reader is off and says so in the feed health.
 // ============================================================================
+import fs from 'node:fs'
 import path from 'node:path'
 import { cleanUrl, idForUrl, plain, siteInfo } from './feeds.js'
 import { readJsonSafe, writeJsonAtomic } from './store.js'
@@ -125,11 +126,39 @@ export function mergeShares(a = [], b = []) {
   return [...byId.values()].sort((x, y) => String(y.at).localeCompare(String(x.at))).slice(0, SHARES_KEEP)
 }
 
-export function createXReader({ dir, token = '', UA, fetchImpl = fetch, price } = {}) {
+// A pasted bearer token, tidied: surrounding spaces and a leading "Bearer " go; it must
+// then be one unbroken run of the characters X tokens use (they are URL-encoded).
+export function normalizeToken(raw) {
+  const t = String(raw ?? '').trim().replace(/^bearer\s+/i, '').trim()
+  return /^[A-Za-z0-9%+/=._-]{20,400}$/.test(t) ? t : null
+}
+
+// Set NAME=value in a .env file without disturbing the other lines (their order,
+// comments and line endings), written to a temp file and renamed into place.
+export function saveEnvVar(file, name, value) {
+  let text = ''
+  try { text = fs.readFileSync(file, 'utf8') } catch (e) { if (e.code !== 'ENOENT') throw e }
+  const eol = text.includes('\r\n') ? '\r\n' : '\n'
+  const lines = text.length ? text.split(/\r?\n/) : []
+  const re = new RegExp(`^\\s*${name}\\s*=`)
+  let found = false
+  const out = lines.map(l => (re.test(l) ? ((found = true), `${name}=${value}`) : l))
+  if (!found) {
+    if (out.length && out[out.length - 1] === '') out.splice(out.length - 1, 0, `${name}=${value}`)
+    else out.push(`${name}=${value}`, '')
+  }
+  const tmp = `${file}.tmp-${process.pid}-${Date.now().toString(36)}`
+  fs.writeFileSync(tmp, out.join(eol))
+  fs.renameSync(tmp, file)
+}
+
+export function createXReader({ dir, token: initialToken = '', UA, fetchImpl = fetch, price } = {}) {
   const CONFIG_FILE = path.join(dir, 'news-x.json')
   const STATE_FILE = path.join(dir, 'news-x-state.json')
   const perPost = Number(price ?? process.env.X_PRICE_PER_POST) > 0 ? Number(price ?? process.env.X_PRICE_PER_POST) : DEFAULT_PRICE
-  const scrub = s => (token ? String(s).split(token).join('***') : String(s))
+  let token = initialToken
+  const pending = new Set() // a token being checked, scrubbed from messages too
+  const scrub = s => [token, ...pending].filter(Boolean).reduce((out, t) => out.split(t).join('***'), String(s))
 
   const config = () => {
     const r = readJsonSafe(CONFIG_FILE)
@@ -164,18 +193,18 @@ export function createXReader({ dir, token = '', UA, fetchImpl = fetch, price } 
   }
 
   let fieldsParam = 'tweet.fields'
-  async function search(params) {
+  async function search(params, tok = token) {
     const u = new URL(API)
     for (const [k, v] of Object.entries({ ...params, [fieldsParam]: 'created_at,entities' })) if (v != null) u.searchParams.set(k, String(v))
     let r
-    try { r = await fetchImpl(u, { headers: { Authorization: `Bearer ${token}`, 'User-Agent': UA || 'econ-dashboard', Accept: 'application/json' }, signal: AbortSignal.timeout(20000) }) }
+    try { r = await fetchImpl(u, { headers: { Authorization: `Bearer ${tok}`, 'User-Agent': UA || 'econ-dashboard', Accept: 'application/json' }, signal: AbortSignal.timeout(20000) }) }
     catch (e) { throw new Error(e?.name === 'TimeoutError' ? 'X timed out' : 'X could not be reached') }
     let j = null
     try { j = await r.json() } catch { /* not JSON */ }
     if (r.ok) return j || {}
     const why = scrub(j?.detail || j?.title || j?.errors?.[0]?.message || j?.error || `HTTP ${r.status}`)
     // the field list's name changed in X's newer docs (post.fields); switch once, free (no posts returned)
-    if (r.status === 400 && fieldsParam === 'tweet.fields' && /tweet\.fields|post\.fields/i.test(why)) { fieldsParam = 'post.fields'; return search(params) }
+    if (r.status === 400 && fieldsParam === 'tweet.fields' && /tweet\.fields|post\.fields/i.test(why)) { fieldsParam = 'post.fields'; return search(params, tok) }
     const err = new Error(r.status === 401 ? 'X rejected the token (401): check X_BEARER_TOKEN in .env'
       : r.status === 403 ? `X refused the search (403): the app's plan may not include reads (${why})`
       : r.status === 402 || r.status === 429 ? `X stopped the search (${r.status}): out of credits, over the spending limit or rate-limited (${why})`
@@ -186,6 +215,22 @@ export function createXReader({ dir, token = '', UA, fetchImpl = fetch, price } 
   }
 
   return {
+    setToken(t) { token = t || '' },
+    // Try a token with a search that matches nothing (a made-up phrase in the last
+    // hour): X bills posts returned, so it should cost nothing, and it shows whether
+    // the token works and the plan can read. Any post it does return is counted.
+    // → { ok, status, message }; never throws, never repeats the token.
+    async check(tok) {
+      pending.add(tok)
+      try {
+        const j = await search({ query: '"zq7 nomatch check 4821" -is:retweet', max_results: MIN_RESULTS, start_time: new Date(Date.now() - 3600e3).toISOString().replace(/\.\d{3}Z$/, 'Z') }, tok)
+        const got = Array.isArray(j.data) ? j.data.length : 0
+        if (got) { const s = loadState(), day = localDay(); spend(s, got * perPost, got, day); saveState(s) }
+        return { ok: true, status: 200, message: 'X accepted the token and your plan can read posts.' }
+      } catch (e) {
+        return { ok: false, status: e.status || 0, message: scrub(e.message) }
+      } finally { pending.delete(tok) }
+    },
     enabled: () => Boolean(token) && config().cashtags.length > 0,
     status() {
       const c = config(), s = loadState(), a = allowance(s, c.monthlyUsd)
@@ -199,8 +244,8 @@ export function createXReader({ dir, token = '', UA, fetchImpl = fetch, price } 
       const label = `X write-ups${c.cashtags.length ? ` (${c.cashtags.map(t => `$${t}`).join(', ')})` : ''} · $${a.monthSpent.toFixed(2)} of $${c.monthlyUsd} this month`
       const h = { feed: label, source: 'X', ok: false, count: 0, latest: null }
       if (c.problem) return { items: [], health: { ...h, error: c.problem } }
-      if (!token) return { items: [], health: { ...h, error: 'off: add X_BEARER_TOKEN to .env' } }
-      if (!c.cashtags.length) return { items: [], health: { ...h, error: 'off: list the cashtags in news-x.json' } }
+      // not connected, or nothing to follow: no feed row (the tab's X panel says how to set it up)
+      if (!token || !c.cashtags.length) return { items: [], health: null }
       const fits = Math.floor(a.today / perPost + 1e-9)
       if (fits < MIN_RESULTS) return { items: [], health: { ...h, ok: true, skipped: true, error: `paused: today's share of the $${c.monthlyUsd} month is used ($${a.daySpent.toFixed(2)} spent today)` } }
 

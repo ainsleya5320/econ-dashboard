@@ -79,6 +79,7 @@
 //     byTicker { SYMBOL: ids }, byCategory { id: ids } (each card's items: the
 //       ones about it by score, then second-order ones by confidence; see targetsOf),
 //     writeups: ids (Seeking Alpha write-ups about a holding, or scored relevant; newest first),
+//     x: the X reader's status (xposts.js): { on, cashtags, monthlyUsd, monthSpent, todayLeft, perPost, posts, lastRun, lastError } (never the token),
 //     proposals: [{ itemId, index, file, row, evidence, quoted, status }],
 //     profile: { tickers: [{ symbol, name }], categories: [{ id, label, description }],
 //                tensions: [{ id, title, domain }] },
@@ -113,7 +114,7 @@ import { buildProfile, readWatchlist, loadCategories } from './profile.js'
 import { createStore, writeJsonAtomic, readJsonSafe, setAside, TEXT_CAP, FULL_TEXT_MIN } from './store.js'
 import { createBudget, localDay } from './budget.js'
 import { createAnalyzer } from './analyzer.js'
-import { createXReader, attachShares } from './xposts.js'
+import { createXReader, attachShares, normalizeToken, saveEnvVar } from './xposts.js'
 
 const MIN = 60e3, HOUR = 3600e3, DAY = 864e5
 const AUTO_AFTER = 30 * MIN          // a GET from this computer refreshes when the last began longer ago than this
@@ -721,11 +722,11 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, X_TOKEN = '', 
       ])
       // write-ups shared on X: a new article joins the items; one the desk has gains the share
       const items = attachShares(fed, x.items, id => store.get(id))
-      const health = [...feedHealth, x.health]
+      const health = [...feedHealth, ...(x.health ? [x.health] : [])]
       meta.data.health = health
       sum.fetched = items.length
-      sum.feedsDown = health.filter(h => !h.ok && !(h.source === 'X' && /^off:/.test(h.error || ''))).length
-      if (x.health.usd) sum.xUsd = x.health.usd
+      sum.feedsDown = health.filter(h => !h.ok).length
+      if (x.health?.usd) sum.xUsd = x.health.usd
       sum.added = store.upsert(items).added.length
 
       if (analyzer.enabled) {
@@ -1053,6 +1054,7 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, X_TOKEN = '', 
       byTicker,
       byCategory,
       writeups,
+      x: xReader.status(),
       proposals,
       profile,
       health: meta.data.health || [],
@@ -1061,6 +1063,21 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, X_TOKEN = '', 
       lastRun: meta.data.lastRun,
       local,
     }
+  }
+
+  // The X token, pasted into the tab (so nobody has to edit .env by hand): tried
+  // with X first, then written to .env as X_BEARER_TOKEN on this computer only.
+  // The token is never logged, returned or put in a message.
+  async function saveXToken(body) {
+    const tok = normalizeToken(body?.token)
+    if (!tok) return { ok: false, saved: false, message: "That doesn't look like an X Bearer Token. Copy the whole token (Keys and tokens → Bearer Token) and paste it with nothing else." }
+    const r = await xReader.check(tok)
+    if (r.status === 401) return { ok: false, saved: false, message: 'X rejected that token. Copy the Bearer Token again from the developer console and paste it here. Nothing was saved.' }
+    try { saveEnvVar(path.join(dir, '.env'), 'X_BEARER_TOKEN', tok) } catch (e) {
+      return { ok: false, saved: false, message: `X answered, but the token could not be saved to .env (${e.code || 'write failed'}).` }
+    }
+    xReader.setToken(tok)
+    return { ok: r.ok, saved: true, message: r.ok ? `Saved. ${r.message} Write-ups shared on X appear after the next refresh.` : `Saved, but the test search did not work: ${r.message}` }
   }
 
   // ── routes ──
@@ -1086,6 +1103,7 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, X_TOKEN = '', 
       }
       if (pathname === '/clip') return sendJson(res, 200, await clip(await readJsonBody(req, CLIP_BODY_MAX)))
       if (pathname === '/proposal') return sendJson(res, 200, decide(await readJsonBody(req, SMALL_BODY_MAX)))
+      if (pathname === '/x-token') return sendJson(res, 200, await saveXToken(await readJsonBody(req, SMALL_BODY_MAX)))
       req.resume?.()
       return sendJson(res, 404, { error: 'There is no such News Desk route.' })
     } catch (e) {

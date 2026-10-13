@@ -568,6 +568,54 @@ function WriteupList({ items, held, show = 8 }) {
   );
 }
 
+// ── X: the token box (pasted here, stored by the server in .env on this computer) and the reader's status ──
+function XConnect({ x, onSaved }) {
+  const [tok, setTok] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [open, setOpen] = useState(!x?.on);
+  const tags = arr(x?.cashtags).map(t => `$${t}`).join(", ");
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await postJson("/api/news-desk/x-token", { token: tok });
+      if (!res.ok) setMsg({ ok: false, text: failText(res, "Saving the token") });
+      else {
+        setMsg({ ok: !!res.j.ok, text: res.j.message });
+        if (res.j.saved) { setTok(""); setOpen(false); setTimeout(onSaved, 2500); }
+      }
+    } catch (e) { setMsg({ ok: false, text: `Saving failed: ${e.message}` }); }
+    setBusy(false);
+  };
+  return (
+    <>
+      <div style={{ fontSize: 11.5, fontFamily: fonts.heading, color: "var(--text-primary)", lineHeight: 1.5 }}>
+        {x?.on
+          ? <>Searching X for write-ups on {tags || "your cashtags"}: <b>${fin(x.monthSpent) ? x.monthSpent.toFixed(2) : "0.00"}</b> of ${x.monthlyUsd} spent this month.</>
+          : !tags ? <>Not set up: list the cashtags to follow in news-x.json.</>
+          : <>Not connected yet. Paste your X Bearer Token below to search X for write-ups on {tags}, capped at ${x?.monthlyUsd ?? 10} a month.</>}
+      </div>
+      {x?.lastError && x?.on && <Note style={{ color: T.amber }}>Last try: {x.lastError}</Note>}
+      {open ? (
+        <div style={{ display: "grid", gap: 6, marginTop: 8, maxWidth: 560 }}>
+          <div style={{ ...note, fontSize: 10.5 }}>In the X developer console, open your app, then Keys and tokens, then Bearer Token, and copy it.</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <input type="password" autoComplete="off" spellCheck={false} value={tok} onChange={e => setTok(e.target.value)}
+              placeholder="Paste the Bearer Token" aria-label="X Bearer Token" style={{ ...inputStyle, flex: "1 1 240px", width: "auto" }} />
+            <button type="button" onClick={save} disabled={busy || !tok.trim()} style={btn(T.indigo, { opacity: busy || !tok.trim() ? 0.55 : 1 })}>
+              {busy ? "Checking with X…" : "Save"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} style={{ ...btn(T.slate), marginTop: 6 }}>Replace the token</button>
+      )}
+      {msg && <Note style={{ color: msg.ok ? T.green : T.amber }}>{msg.text}</Note>}
+      <Note>The token is saved only in the .env file on this computer, which never goes to GitHub. Saving first tries it with a search that matches nothing, which should cost nothing.</Note>
+    </>
+  );
+}
+
 // ── the reader's clips, newest first: every clip shows here, whether or not it bears on a holding ──
 function ClipList({ clips, show = 5 }) {
   const [all, setAll] = useState(false);
@@ -837,6 +885,12 @@ export default function NewsDeskTab() {
         <ClipTools bookmarklet={d.bookmarklet} left={left} canRead={analysisOn ? b.canDeepRead !== false && !b.paused : null}
           minChars={fin(d.limits?.clipMinChars) ? d.limits.clipMinChars : 200} onDone={() => load()} />
       </Panel>
+
+      {d.x && (
+        <Panel title="Write-ups shared on X" right={d.x.on ? "connected" : "not connected"}>
+          <XConnect x={d.x} onSaved={() => load()} />
+        </Panel>
+      )}
 
       <FeedHealth health={d.health} notes={d.notes} />
     </Desk.Provider>
