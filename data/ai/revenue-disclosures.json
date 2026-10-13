@@ -6,6 +6,7 @@
     {"d": "2024-06", "co": "OpenAI", "arr": 3.4, "src": "reported ARR"},
     {"d": "2025-06", "co": "OpenAI", "arr": 10, "src": "reported ARR"},
     {"d": "2025-12", "co": "OpenAI", "arr": 20, "src": "reported ~$20B ARR"},
+    {"d": "2026-09", "co": "OpenAI", "arr": 50, "src": "told investors ~$50B annualized at end of September (CNBC, Oct 8, 2026)", "approx": true},
     {"d": "2024-12", "co": "Anthropic", "arr": 1, "src": "reported ARR"},
     {"d": "2025-03", "co": "Anthropic", "arr": 2, "src": "reported ARR"},
     {"d": "2025-08", "co": "Anthropic", "arr": 5, "src": "reported ARR"},
