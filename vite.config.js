@@ -55,6 +55,8 @@ const ANTHROPIC_KEY = env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || 
 const CHAT_MODEL = 'claude-opus-5'
 // News Desk: the hard daily cap on its Claude spending, in dollars (server/newsDesk/budget.js)
 const NEWS_DAILY_BUDGET = Number(env.NEWS_DAILY_BUDGET_USD || process.env.NEWS_DAILY_BUDGET_USD) || 2
+// X API bearer token for the News Desk's X reader (server/newsDesk/xposts.js); .env only, never committed
+const X_TOKEN = env.X_BEARER_TOKEN || process.env.X_BEARER_TOKEN || ''
 
 /* ── BEA PCE Price Index (monthly index levels, compute YoY) ── */
 let beaPceCache = { data: null, ts: 0 }
@@ -4007,7 +4009,7 @@ export default defineConfig({
         // refresh, clip and proposal POSTs spend that budget or write files, so index.js takes
         // them from this computer only. /news-clip is the window the clip bookmarklet opens.
         const newsDesk = createNewsDesk({
-          UA, dir: __dirname, FMP_KEY, ANTHROPIC_KEY, dailyUsd: NEWS_DAILY_BUDGET,
+          UA, dir: __dirname, FMP_KEY, ANTHROPIC_KEY, X_TOKEN, dailyUsd: NEWS_DAILY_BUDGET,
           tensions: () => Promise.all(['ai', 'economy'].map(domain => tensions.get({ url: `/api/tensions?domain=${domain}` }))),
         })
         server.middlewares.use('/api/news-desk', (req, res) => { newsDesk.handle(req, res) })

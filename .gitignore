@@ -89,6 +89,8 @@ long-run.json
 /news-desk*.json
 /news-usage*.json
 /news-profile*.json
+# the X reader's settings (the cashtags it searches, the monthly cap) and its spend and since_id
+/news-x*.json
 /news-*.tmp
 # a temp file left only if the server dies while appending an approved News Desk row to a data/ai table
 /data/ai/*.tmp-*.json

@@ -275,6 +275,12 @@ function ItemRow({ item, also = [], focus, focusLabel, startOpen = false, tags =
             <span title={clock(item.published)}>{meta}</span>
             {!direct && <Tag color={T.slate} title={`${secondOrder}.`}>{via ? `via ${via}` : "second-order"}</Tag>}
             {item.kind === "clip" && <Tag color={T.violet}>Clip</Tag>}
+            {arr(item.xShares).length > 0 && (
+              <a href={`https://x.com/i/web/status/${item.xShares[0].id}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}
+                title={`Shared on X ${item.xShares.length === 1 ? "once" : `${item.xShares.length} times`}; opens the latest post`}>
+                <Tag color={T.cyan}>{item.xShares.length === 1 ? "On X" : `On X ×${item.xShares.length}`}</Tag>
+              </a>
+            )}
             {a && <Tag color={a.basis === "full-text" ? T.green : T.cyan} title={a.basis === "full-text" ? "Read in full" : "Read from the headline and summary"}>{a.basis === "full-text" ? "Full read" : "Deep read"}</Tag>}
             {a?.novelty && NOVELTY[a.novelty] && a.novelty !== "new" && <Tag color={NOVELTY[a.novelty].color} title={NOVELTY[a.novelty].title}>{NOVELTY[a.novelty].label}</Tag>}
             {item.error && !a && <Tag color={T.amber} title={item.error}>Read failed</Tag>}
@@ -786,9 +792,9 @@ export default function NewsDeskTab() {
       )}
 
       {writeups.length > 0 && (
-        <Panel title="Write-ups" right={`${writeups.length} from Seeking Alpha, newest first`}>
+        <Panel title="Write-ups" right={`${writeups.length}, newest first`}>
           <WriteupList items={writeups} held={held} />
-          <Note>Contributor analysis about your holdings (and any other Claude scored relevant): the author&apos;s view, not news. The headline opens the article; clip it while you read it for a full read.</Note>
+          <Note>Contributor analysis about your holdings (and any other Claude scored relevant), from Seeking Alpha and from write-ups shared on X: the author&apos;s view, not news. The headline opens the article; &quot;On X&quot; opens the post that shared it; clip an article while you read it for a full read.</Note>
         </Panel>
       )}
 

@@ -122,6 +122,12 @@ export function mergeItem(old, inc) {
   if (isClip(old) && !isClip(inc)) { out.kind = old.kind; out.source = old.source; out.outlet = old.outlet }
   out.tickers = [...new Set([...(old.tickers || []), ...(inc.tickers || [])])]
   out.paywalled = Boolean(old.paywalled || inc.paywalled)
+  // posts on X that shared it: the union of both copies, newest first (xposts.js)
+  if (old.xShares || inc.xShares) {
+    const seen = new Set()
+    out.xShares = [...(inc.xShares || []), ...(old.xShares || [])].filter(s => s?.id && !seen.has(s.id) && seen.add(s.id))
+      .sort((x, y) => String(y.at).localeCompare(String(x.at))).slice(0, 20)
+  }
   // text: incoming only when it brings some (and the longer of two copies,
   // unless it is a clip or the complete read of a filing stored in part)
   const ot = typeof old.text === 'string' ? old.text : '', it = typeof inc.text === 'string' ? inc.text : ''
@@ -209,8 +215,11 @@ export function createStore({ dir }) {
     const added = [], updated = []
     let skipped = 0
     for (const inc of list || []) {
-      if (!inc || typeof inc.id !== 'string' || !inc.id || (!inc.url && !inc.title)) { skipped++; continue }
+      if (!inc || typeof inc.id !== 'string' || !inc.id) { skipped++; continue }
       const old = items.get(inc.id)
+      // a new item needs an address or a headline; an update to one already here
+      // (an X share on a stored article) may carry only what it adds
+      if (!old && !inc.url && !inc.title) { skipped++; continue }
       const next = mergeItem(old, inc)
       if (!next.tickers) next.tickers = []
       items.set(inc.id, next)

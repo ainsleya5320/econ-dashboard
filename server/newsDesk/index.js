@@ -113,6 +113,7 @@ import { buildProfile, readWatchlist, loadCategories } from './profile.js'
 import { createStore, writeJsonAtomic, readJsonSafe, setAside, TEXT_CAP, FULL_TEXT_MIN } from './store.js'
 import { createBudget, localDay } from './budget.js'
 import { createAnalyzer } from './analyzer.js'
+import { createXReader, attachShares } from './xposts.js'
 
 const MIN = 60e3, HOUR = 3600e3, DAY = 864e5
 const AUTO_AFTER = 30 * MIN          // a GET from this computer refreshes when the last began longer ago than this
@@ -472,13 +473,16 @@ a { color: var(--accent); }
 
 // ── the desk ────────────────────────────────────────────────────────────────
 // client: a stand-in for the Anthropic SDK client, for tests only (analyzer.js).
-export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dailyUsd = 2, client } = {}) {
+// X_TOKEN: the X API bearer token (X_BEARER_TOKEN in .env); without it, or without
+// cashtags in news-x.json, the X reader is off (xposts.js).
+export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, X_TOKEN = '', tensions, dailyUsd = 2, client } = {}) {
   if (!dir) throw new Error('createNewsDesk needs dir')
   const INSTANCE = crypto.randomBytes(4).toString('hex')
   const store = createStore({ dir })
   const meta = createMeta(dir)
   const budget = createBudget({ dir, dailyUsd })
   const analyzer = createAnalyzer({ ANTHROPIC_KEY, budget, dir, client })
+  const xReader = createXReader({ dir, token: X_TOKEN, UA })
   let lastProfile = null, lastProfileAt = 0
   let seenSeq = SHARED.doneSeq
 
@@ -711,10 +715,17 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
       stage('reading the watchlist')
       const profile = await currentProfile()
       stage('reading the feeds')
-      const { items, health } = await fetchAll({ UA, FMP_KEY, profile, known: id => store.get(id) })
+      const [{ items: fed, health: feedHealth }, x] = await Promise.all([
+        fetchAll({ UA, FMP_KEY, profile, known: id => store.get(id) }),
+        xReader.read(),
+      ])
+      // write-ups shared on X: a new article joins the items; one the desk has gains the share
+      const items = attachShares(fed, x.items, id => store.get(id))
+      const health = [...feedHealth, x.health]
       meta.data.health = health
       sum.fetched = items.length
-      sum.feedsDown = health.filter(h => !h.ok).length
+      sum.feedsDown = health.filter(h => !h.ok && !(h.source === 'X' && /^off:/.test(h.error || ''))).length
+      if (x.health.usd) sum.xUsd = x.health.usd
       sum.added = store.upsert(items).added.length
 
       if (analyzer.enabled) {
