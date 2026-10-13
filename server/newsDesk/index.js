@@ -21,7 +21,10 @@
 //   { id         16 hex characters of the SHA-1 of the canonical URL (SEC: of
 //                the accession number); a clip of a feed article shares its id
 //     url, title, dek (the publisher's summary, or null)
-//     source     'WSJ' | 'NYT' | 'Economist' | 'FMP' | 'SEC' | 'clip'
+//     source     'WSJ' | 'NYT' | 'Economist' | 'SeekingAlpha' | 'FMP' | 'SEC' | 'clip'
+//     writeup?   true for a Seeking Alpha analysis article (author? its byline):
+//                listed under Write-ups with its link and never deep-read from
+//                its headline (a clip of it is read in full)
 //     outlet     the display name; section: string or null
 //     published, fetched (ISO); kind: 'article' | 'filing' | 'clip'; paywalled
 //     tickers    from the source's metadata only (FMP's symbol, the SEC filer)
@@ -70,11 +73,12 @@
 //     budget (budget.today() plus deepEstimate and canDeepRead: whether a deep
 //       read or a brief still fits under today's cap),
 //     limits (the constants above the tab shows, clipMinChars among them),
-//     counts: { items, today, relevant, analysed, clips, waiting, unscorable },
+//     counts: { items, today, relevant, analysed, clips, writeups, waiting, unscorable },
 //     brief: { at, model, headline, sections: [{ title, target?, text, itemIds }] } | null,
 //     items (without their text; triageGaveUp on an unscored item Claude failed on),
 //     byTicker { SYMBOL: ids }, byCategory { id: ids } (each card's items: the
 //       ones about it by score, then second-order ones by confidence; see targetsOf),
+//     writeups: ids (Seeking Alpha write-ups about a holding, or scored relevant; newest first),
 //     proposals: [{ itemId, index, file, row, evidence, quoted, status }],
 //     profile: { tickers: [{ symbol, name }], categories: [{ id, label, description }],
 //                tensions: [{ id, title, domain }] },
@@ -119,6 +123,7 @@ const WINDOW_DAYS = 7                // what the tab shows, and what gets scored
 const KEEP_DAYS = 30                 // store.prune
 const REL_MIN = 40                   // relevant: a triage score at least this, with a holding or category
 const DEEP_MIN = 70                  // deep-read candidates
+const WRITEUPS_MAX = 60              // write-ups listed in the payload
 const DEEP_RECENT_DAYS = 4
 const DEEP_PER_DAY = 20
 const DEEP_PER_REFRESH = 8
@@ -627,6 +632,9 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
       // a filing whose text the feed does not read (10-K, 10-Q, proxies, 13G) has only its form name,
       // and one read in part (an exhibit failed) waits until feeds.js has read all of it
       if (it.kind === 'filing' && (!hasText(it) || it.textPartial)) return false
+      // a write-up (contributor analysis) is listed with its link, not read from its headline:
+      // it is opinion behind a paywall, and a clip of it gets the full read
+      if (it.writeup) return false
       const t = it.triage
       return t && t.relevance >= DEEP_MIN && (t.tickers?.length || t.categories?.length) && timeOf(it) >= cutoff
     }).sort((a, b) => isClip(b) - isClip(a) || trackedFiling(b) - trackedFiling(a)
@@ -966,6 +974,7 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
     const groupsT = {}, groupsC = {}
     let relevant = 0
     for (const it of ordered) {
+      if (it.writeup) continue // write-ups have their own list (below), not a place on the news cards
       const { t, c } = targetsOf(it)
       if ((it.triage || it.analysis) && t.size + c.size) relevant++
       for (const [s, how] of t) if (syms.has(s)) (groupsT[s] ||= []).push({ id: it.id, rank: CONF_RANK[how] ?? 3 })
@@ -976,6 +985,13 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
     const byCategory = Object.fromEntries(Object.entries(groupsC).map(([k, v]) => [k, card(v)]))
     const ids = new Set([...Object.values(byTicker).flat(), ...Object.values(byCategory).flat()])
     for (const it of all) if (isClip(it)) ids.add(it.id)
+
+    // write-ups (Seeking Alpha analysis articles): every one about a holding, and any other that
+    // Claude scored relevant, newest first, listed with their links whether scored yet or not
+    const holdingOf = it => [...(it.tickers || []), ...(it.triage?.tickers || [])].some(s => syms.has(String(s).toUpperCase()))
+    const writeups = win.filter(it => it.writeup && (holdingOf(it) || rel(it) >= REL_MIN))
+      .sort((a, b) => timeOf(b) - timeOf(a)).slice(0, WRITEUPS_MAX).map(it => it.id)
+    for (const id of writeups) ids.add(id)
 
     const br = meta.data.brief
     const brief = br && Date.now() - Date.parse(br.at) < BRIEF_HOURS * HOUR ? br : null
@@ -996,6 +1012,7 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
       relevant,
       analysed: win.filter(it => it.analysis).length,
       clips: all.filter(isClip).length,
+      writeups: writeups.length,
       waiting: analyzer.enabled ? untriaged().length : 0,
       unscorable: analyzer.enabled ? unscorable() : 0,
     }
@@ -1024,6 +1041,7 @@ export function createNewsDesk({ UA, dir, FMP_KEY, ANTHROPIC_KEY, tensions, dail
       items: [...ids].map(id => strip(store.get(id))).filter(Boolean),
       byTicker,
       byCategory,
+      writeups,
       proposals,
       profile,
       health: meta.data.health || [],

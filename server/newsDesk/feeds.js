@@ -19,6 +19,13 @@
 //   FMP        /stable/news/stock?symbols=<one symbol> for each watchlist name
 //              (a combined call lets the most-covered name crowd out the rest).
 //              FMP's publishedDate is New York wall-clock time.
+//   Seeking Alpha  write-ups only (the user wants analysis, not its news wire):
+//              the public per-ticker feed, api/sa/combined/<SYMBOL>.xml, keeping
+//              its /article/ items (it also carries news items, which are
+//              dropped), plus the site-wide Editors' Picks. Each item is marked
+//              writeup: true with its author; FMP's copies of the same articles
+//              are marked too. Article pages sit behind bot protection and a
+//              Premium paywall and are never fetched: clip one to read it.
 //   SEC        data.sec.gov submissions for each watchlist CIK, last 14 days:
 //              8-K, 6-K, 10-Q, 10-K, 20-F, 40-F, DEF 14A, Schedules 13D and 13G,
 //              tender-offer schedules, and their amendments. Schedule 13D/G
@@ -176,7 +183,7 @@ const TRACKING = /^(utm_.*|mod|cid|smid|smtyp|partner|ref|referrer|refsrc|fbclid
 // Subscriber news sites whose article addresses need no query at all: every
 // parameter goes, so a clip opened from a newsletter (which carries the
 // reader's subscriber ids) matches its feed copy and stores no ids.
-const NO_QUERY_HOSTS = /(^|\.)(wsj\.com|barrons\.com|nytimes\.com|economist\.com)$/
+const NO_QUERY_HOSTS = /(^|\.)(wsj\.com|barrons\.com|nytimes\.com|economist\.com|seekingalpha\.com)$/
 // The address to show and link to: https, tracking parameters and fragment removed.
 export function cleanUrl(raw) {
   let u
@@ -209,7 +216,7 @@ export function siteInfo(url) {
 }
 
 // ── polite fetching ─────────────────────────────────────────────────────────
-const LANE_CFG = { 'sec.gov': { max: 2, gap: 120 }, 'financialmodelingprep.com': { max: 3, gap: 0 } }
+const LANE_CFG = { 'sec.gov': { max: 2, gap: 120 }, 'financialmodelingprep.com': { max: 3, gap: 0 }, 'seekingalpha.com': { max: 2, gap: 250 } }
 const lanes = new Map()
 const laneKey = host => (/(^|\.)sec\.gov$/.test(host) ? 'sec.gov' : host)
 function pump(l, cfg) {
@@ -351,13 +358,79 @@ async function fmpSymbol(symbol, ctx) {
     const host = siteOf(n.url), site = String(n.site || '').toLowerCase().replace(/^www\./, '')
     const known = SITES[host] || SITES[site] || SITES[host.split('.').slice(-2).join('.')]
     const dek = plain(n.text)
+    const writeup = isWriteup(n.url)
     items.push({
       id: idForUrl(n.url), url: cleanUrl(n.url), title: plain(n.title), dek: dek ? cut(dek, DEK_MAX) : null,
-      source: 'FMP', outlet: known?.[0] || plain(n.publisher) || site || host || 'FMP', section: null,
-      published, fetched: ctx.fetched, kind: 'article', paywalled: Boolean(known?.[1]), tickers: [symbol],
+      source: 'FMP', outlet: known?.[0] || plain(n.publisher) || site || host || 'FMP', section: writeup ? 'Contributor analysis' : null,
+      published, fetched: ctx.fetched, kind: 'article', paywalled: Boolean(known?.[1]) || writeup, tickers: [symbol],
+      ...(writeup ? { writeup: true } : {}),
     })
   }
   return { items, cached }
+}
+
+// ── Seeking Alpha write-ups ─────────────────────────────────────────────────
+// A write-up is a Seeking Alpha analysis article (seekingalpha.com/article/...),
+// as opposed to its news wire (/news/...), which the desk leaves out.
+const SA = 'https://seekingalpha.com/'
+const SA_PICKS = { feed: "Seeking Alpha Editors' Picks", path: 'tag/editors-picks.xml' }
+const SA_ACCEPT = 'application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5'
+export const isWriteup = url => /^https?:\/\/(www\.)?seekingalpha\.com\/article\/\d/i.test(String(url || ''))
+// One Seeking Alpha feed's write-ups. The feed tags each item with the symbols it
+// covers (<sa:symbol>); those on the watchlist become the item's tickers, plus the
+// symbol whose feed it is.
+function saWriteups(xml, ctx, watch, symbol = null) {
+  const blocks = [...String(xml).matchAll(/<item\b[^>]*>([\s\S]*?)<\/item\s*>/gi)].map(m => m[1])
+  if (!blocks.length && !/<rss\b/i.test(xml)) throw new Error('not an RSS feed')
+  const items = []
+  for (const b of blocks) {
+    const title = plain(xmlText(tagInner(b, 'title')))
+    const link = decodeEntities(plain(xmlText(tagInner(b, 'link'))))
+    if (!title || !isWriteup(link)) continue
+    const t = Date.parse(plain(xmlText(tagInner(b, 'pubDate'))))
+    const when = Number.isFinite(t) ? t : ctx.now
+    if (when < ctx.cutoff) continue
+    const syms = [...b.matchAll(/<sa:symbol>([^<]+)<\/sa:symbol>/gi)].map(m => plain(m[1]).toUpperCase()).filter(s => watch.has(s))
+    const author = plain(xmlText(tagInner(b, 'sa:author_name'))) || null
+    items.push({
+      id: idForUrl(link), url: cleanUrl(link), title, dek: null,
+      source: 'SeekingAlpha', outlet: 'Seeking Alpha', section: 'Contributor analysis',
+      published: iso(Math.min(when, ctx.now + 3600e3)), fetched: ctx.fetched,
+      kind: 'article', paywalled: true, tickers: [...new Set([...(symbol ? [symbol] : []), ...syms])],
+      writeup: true, ...(author ? { author } : {}),
+    })
+  }
+  return items
+}
+async function saAll(tickers, ctx, scrub, latestOf) {
+  const watch = new Set(tickers.map(t => t.symbol))
+  // Seeking Alpha's bot protection now and then answers a single request 403; one
+  // more try two seconds later usually gets the feed
+  const get1 = url => getText(url, { UA: ctx.UA, accept: SA_ACCEPT })
+  const get = url => get1(url).catch(e => (/HTTP 403/.test(e.message) ? new Promise(r => setTimeout(r, 2000)).then(() => get1(url)) : Promise.reject(e)))
+  const picks = await (async () => {
+    try {
+      const { body, cached } = await get(SA + SA_PICKS.path)
+      const items = saWriteups(body, ctx, watch)
+      return { items, health: { feed: SA_PICKS.feed, source: 'SeekingAlpha', ok: true, count: items.length, latest: latestOf(items), cached } }
+    } catch (e) {
+      return { items: [], health: { feed: SA_PICKS.feed, source: 'SeekingAlpha', ok: false, count: 0, latest: null, error: scrub(e.message) } }
+    }
+  })()
+  const h = { feed: 'Seeking Alpha write-ups by ticker', source: 'SeekingAlpha', ok: false, count: 0, latest: null }
+  if (!tickers.length) return { items: picks.items, health: [picks.health, { ...h, error: 'watchlist is empty' }] }
+  const failed = [], per = []
+  let cachedAll = true
+  await Promise.all(tickers.map(async t => {
+    try {
+      const { body, cached } = await get(`${SA}api/sa/combined/${encodeURIComponent(t.symbol)}.xml`)
+      per.push(...saWriteups(body, ctx, watch, t.symbol))
+      if (!cached) cachedAll = false
+    } catch (e) { failed.push(`${t.symbol} (${scrub(e.message)})`) }
+  }))
+  const byTicker = { ...h, ok: failed.length < tickers.length, count: per.length, latest: latestOf(per), cached: cachedAll }
+  if (failed.length) byTicker.error = `${failed.length} of ${tickers.length} symbols failed: ${failed.join('; ')}`
+  return { items: [...picks.items, ...per], health: [picks.health, byTicker] }
 }
 
 // ── SEC EDGAR ───────────────────────────────────────────────────────────────
@@ -700,6 +773,7 @@ function mergeFetched(a, b) {
   if (!a.section && b.section) a.section = b.section
   if (!a.text && b.text) a.text = b.text
   a.paywalled = a.paywalled || b.paywalled
+  if (b.writeup) { a.writeup = true; if (!a.author && b.author) a.author = b.author }
   if (Date.parse(b.published) < Date.parse(a.published)) a.published = b.published
   return a
 }
@@ -747,14 +821,15 @@ async function run({ UA, FMP_KEY, profile, known, maxAgeDays = 7, secDays = 14, 
   })()
 
   const secJob = secAll(tickers, ctx).catch(e => ({ items: [], health: { feed: 'SEC EDGAR filings', source: 'SEC', ok: false, count: 0, latest: null, error: scrub(e.message) } }))
+  const saJob = saAll(tickers, ctx, scrub, latestOf).catch(e => ({ items: [], health: [{ feed: 'Seeking Alpha write-ups', source: 'SeekingAlpha', ok: false, count: 0, latest: null, error: scrub(e.message) }] }))
 
-  const [rss, fmp, sec] = await Promise.all([rssJob, fmpJob, secJob])
-  // outlets first, so an FMP copy of a WSJ story folds into the WSJ item
+  const [rss, fmp, sec, sa] = await Promise.all([rssJob, fmpJob, secJob, saJob])
+  // outlets first, so an FMP copy of a WSJ story (or of a Seeking Alpha write-up) folds into the outlet's item
   const byId = new Map()
-  for (const it of [...rss.flatMap(r => r.items), ...fmp.items, ...sec.items]) {
+  for (const it of [...rss.flatMap(r => r.items), ...sa.items, ...fmp.items, ...sec.items]) {
     const prev = byId.get(it.id)
     byId.set(it.id, prev ? mergeFetched(prev, it) : it)
   }
   const items = [...byId.values()].sort((a, b) => Date.parse(b.published) - Date.parse(a.published) || a.id.localeCompare(b.id))
-  return { items, health: [...rss.map(r => r.health), fmp.health, sec.health] }
+  return { items, health: [...rss.map(r => r.health), ...sa.health, fmp.health, sec.health] }
 }

@@ -245,7 +245,7 @@ function ItemDetail({ item, focus }) {
 }
 
 // one story: the lead item, collapsed to a line or two; other outlets on the same story ride along
-function ItemRow({ item, also = [], focus, focusLabel, startOpen = false }) {
+function ItemRow({ item, also = [], focus, focusLabel, startOpen = false, tags = [] }) {
   const [open, setOpen] = useState(startOpen);
   const { catLabel, relMin } = useContext(Desk);
   const tr = item.triage || {};
@@ -254,7 +254,7 @@ function ItemRow({ item, also = [], focus, focusLabel, startOpen = false }) {
   const via = direct ? null : viaOf(item, focus, catLabel);
   const meta = [
     item.outlet || item.source,
-    item.section,
+    item.author ? `by ${item.author}` : item.section,
     item.kind === "filing" && item.form ? `Form ${item.form}` : null,
     ago(item.published),
   ].filter(Boolean).join(" · ");
@@ -271,6 +271,7 @@ function ItemRow({ item, also = [], focus, focusLabel, startOpen = false }) {
             {item.title}
           </a>
           <div style={{ ...note, marginTop: 2, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+            {tags.map(s => <Tag key={s} color={T.indigo}>{s}</Tag>)}
             <span title={clock(item.published)}>{meta}</span>
             {!direct && <Tag color={T.slate} title={`${secondOrder}.`}>{via ? `via ${via}` : "second-order"}</Tag>}
             {item.kind === "clip" && <Tag color={T.violet}>Clip</Tag>}
@@ -543,6 +544,24 @@ function ClipTools({ bookmarklet, left, canRead, minChars = 200, onDone }) {
   );
 }
 
+// ── write-ups: Seeking Alpha analysis about the holdings, newest first, each tagged with the
+// holdings it covers; the headline opens the article (clip it there for a full read) ──
+function WriteupList({ items, held, show = 8 }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, show);
+  const tagsOf = it => [...new Set([...arr(it.tickers), ...arr(it.triage?.tickers)].map(s => String(s).toUpperCase()))].filter(s => held.has(s));
+  return (
+    <>
+      {shown.map(it => <ItemRow key={it.id} item={it} tags={tagsOf(it)} />)}
+      {items.length > show && (
+        <button type="button" onClick={() => setAll(v => !v)} style={{ ...btn(T.slate), border: "none", background: "transparent", padding: "4px 0 6px" }}>
+          {all ? "Show fewer" : `Show ${items.length - show} more`}
+        </button>
+      )}
+    </>
+  );
+}
+
 // ── the reader's clips, newest first: every clip shows here, whether or not it bears on a holding ──
 function ClipList({ clips, show = 5 }) {
   const [all, setAll] = useState(false);
@@ -693,6 +712,9 @@ export default function NewsDeskTab() {
     }
     return { withNews: withNews.sort(sortGroups(relMin)), quiet, scored: withNews.filter(g => g.status === "scored").length };
   }, [d, byId, catLabel, relMin]);
+  // write-ups, in the server's order (newest first), and the holdings their tags are checked against
+  const writeups = useMemo(() => arr(d?.writeups).map(id => byId.get(id)).filter(Boolean), [d, byId]);
+  const held = useMemo(() => new Set(arr(d?.profile?.tickers).map(t => String(t.symbol).toUpperCase())), [d]);
   // the reader's clips, newest clipped first
   const clips = useMemo(() => items.filter(it => it.kind === "clip" || it.source === "clip")
     .sort((a, b) => String(b.clipped || b.fetched || "").localeCompare(String(a.clipped || a.fetched || ""))), [items]);
@@ -733,7 +755,7 @@ export default function NewsDeskTab() {
       <DenseHeader
         eyebrow={`News Desk${b.day ? ` · ${b.day}` : ""}`}
         headline={d.brief?.headline || status}
-        blurb={<>Headlines and summaries from the WSJ, NYT and The Economist, FMP stock news and SEC filings, scored by Claude for what they mean to your holdings and categories; the most relevant get a deep read.
+        blurb={<>Headlines and summaries from the WSJ, NYT and The Economist, FMP stock news and SEC filings, scored by Claude for what they mean to your holdings and categories; the most relevant get a deep read. Seeking Alpha write-ups on your holdings are listed with their links.
           Subscriber articles are read in full only when you clip one from your own browser.</>}
         meta={<button onClick={refresh} disabled={running} title="Read the feeds now and score what is new" style={btn(T.indigo, { opacity: running ? 0.55 : 1 })}>{running ? "Refreshing…" : "Refresh"}</button>}
         chips={[
@@ -760,6 +782,13 @@ export default function NewsDeskTab() {
       {d.brief && arr(d.brief.sections).length > 0 && (
         <Panel title="Daily brief" right={d.brief.at ? `written ${clock(d.brief.at)}` : null}>
           {d.brief.sections.map((s, i) => <BriefSection key={i} s={s} byId={byId} catLabel={catLabel} tickerName={tickerName} />)}
+        </Panel>
+      )}
+
+      {writeups.length > 0 && (
+        <Panel title="Write-ups" right={`${writeups.length} from Seeking Alpha, newest first`}>
+          <WriteupList items={writeups} held={held} />
+          <Note>Contributor analysis about your holdings (and any other Claude scored relevant): the author&apos;s view, not news. The headline opens the article; clip it while you read it for a full read.</Note>
         </Panel>
       )}
 
