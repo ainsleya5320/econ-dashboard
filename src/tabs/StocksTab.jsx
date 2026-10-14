@@ -16,6 +16,7 @@ import MarketFairValuePanel from "../components/MarketFairValue.jsx";
 import SP500Overview from "./stocks/SP500Overview.jsx";
 import PeopleScreener from "./stocks/PeopleScreener.jsx";
 import SpecialSituations from "./stocks/SpecialSituations.jsx";
+import ClosedEndFunds from "./stocks/ClosedEndFunds.jsx";
 import FlipBook from "./stocks/FlipBook.jsx";
 import Accounting from "./stocks/Accounting.jsx";
 import SinFolly from "./stocks/SinFolly.jsx";
@@ -1310,7 +1311,7 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
   // View toggle
   const viewToggle = (
     <div style={{ display: "flex", borderRadius: 10, overflow: "hidden", marginBottom: 16, background: "rgba(255,255,255,0.03)", padding: 3 }}>
-      {[["overview", "🗺️ S&P Overview"], ["sp500", "📋 S&P 500"], ["book", "📖 Value book"], ["people", "👥 Per Employee"], ["screener", "📊 Watchlist"], ["special", "🎯 Special Situations"], ["sin", "🔎 Sin & Folly"]].map(([id, label]) => (
+      {[["overview", "🗺️ S&P Overview"], ["sp500", "📋 S&P 500"], ["book", "📖 Value book"], ["people", "👥 Per Employee"], ["screener", "📊 Watchlist"], ["special", "🎯 Special Situations"], ["cef", "🏦 Closed-end funds"], ["sin", "🔎 Sin & Folly"]].map(([id, label]) => (
         <button key={id} onClick={() => setStockView(id)} style={{
           flex: 1, padding: "10px 16px", border: "none", borderRadius: 8,
           background: stockView === id ? "linear-gradient(135deg, #1e293b, #1a1a2e)" : "transparent",
@@ -1406,6 +1407,13 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
     return (<>
       {viewToggle}
       <SpecialSituations onSelectStock={openDetail} />
+    </>);
+  }
+
+  if (stockView === "cef") {
+    return (<>
+      {viewToggle}
+      <ClosedEndFunds />
     </>);
   }
 

@@ -100,3 +100,7 @@ long-run.json
 # data/options/cboe-put-call.json is the tracked, market-wide put/call archive.
 /options-market*
 /data/options/*.tmp
+# CEF discounts (server/cefDiscounts.js): the CEFConnect snapshot, weekly price/NAV and distribution
+# history and the daily price/NAV archive. CEFConnect (Nuveen/Morningstar) data is licensed and this
+# repo is public: never commit any of it. The pattern covers the .tmp and .corrupt-* files too.
+/cef-*

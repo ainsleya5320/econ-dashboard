@@ -32,7 +32,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/rentalConcessions.js](../../server/rentalConcessions.js): Zillow rent-report concession parser
 - [server/municipalities.js](../../server/municipalities.js): one metro at a time: labor, housing, WARN notices
 - [server/bankruptcy.js](../../server/bankruptcy.js): U.S. Courts F-2 tables, CM/ECF feeds, CourtListener, 8-K Item 1.03
-- [server/specialSituations.js](../../server/specialSituations.js): spinoffs, mergers, tenders, insider buys from SEC EDGAR and FMP
+- [server/specialSituations.js](../../server/specialSituations.js): spinoffs, mergers, tenders, odd-lot tenders (priority clause read from the Offer to Purchase, fund tenders valued with cefDiscounts.lookup), insider buys from SEC EDGAR and FMP; tickerEvents() feeds the closed-end fund screener. EDGAR full-text search: name the root form only ('SC TO-I' includes its amendments; 'SC TO-I,SC TO-I/A' returns amendments only)
 - [server/specialScore.js](../../server/specialScore.js): 0-100 score for special-situation ideas
 - [server/accountingFlags.js](../../server/accountingFlags.js): the stock page's Accounting tab, filings half: restatements, auditor changes, late filings, weaknesses, comment letters, Friday-night 8-Ks and footnote lines from EDGAR, per company (/api/accounting-flags)
 - [server/sinMonitor.js](../../server/sinMonitor.js): Stocks → Sin & Folly: serves the sin-monitor seed and rebuilds its recent years weekly in the background (/api/sin-monitor)
@@ -44,6 +44,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/peopleScreener.js](../../server/peopleScreener.js): S&P 500 revenue and profit per employee (FMP)
 - [server/optionsContext.js](../../server/optionsContext.js): earnings and dividend events for the options views
 - [server/optionsMarket.js](../../server/optionsMarket.js): Options → Market: Cboe volatility indices and the VIX term structure, put/call ratios, and an implied-volatility, skew and activity scan of index, macro and sector ETFs, the 15 largest stocks and the watchlist, with unusual activity (/api/options-market, stale-while-revalidate every 30 minutes)
+- [server/cefDiscounts.js](../../server/cefDiscounts.js): closed-end fund discounts from CEFConnect: screener rows (same-day discount, z-scores, own five-year percentile, distribution rate, coverage, return of capital), the weekly cross-section of discounts, month-by-month seasonality and a monthly panel for the in-browser backtest; backfills five years of weekly price/NAV and distributions in the background (/api/cef and /api/cef?fund=, stale-while-revalidate every 6 hours)
 - [server/sfcModel.js](../../server/sfcModel.js): serves the SFC model JSON to the SFC Model tab
 
 ## State

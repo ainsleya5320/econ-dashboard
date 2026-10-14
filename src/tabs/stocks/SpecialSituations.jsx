@@ -25,9 +25,9 @@ const GREEN = "#4ade80", AMBER = "#fbbf24", RED = "#f87171", INDIGO = "#818cf8",
 const CAT = {
   spinoff: { label: "Spinoff", color: INDIGO }, merger: { label: "Merger arb", color: CYAN }, reorg: { label: "Post-reorg", color: ORANGE },
   rights: { label: "Rights", color: GREEN }, recap: { label: "Recap", color: AMBER }, insider: { label: "Insider", color: VIOLET }, "13D": { label: "13D", color: PINK },
-  spac: { label: "SPAC", color: SKY }, buyback: { label: "Buyback", color: YELLOW },
+  spac: { label: "SPAC", color: SKY }, buyback: { label: "Buyback", color: YELLOW }, oddlot: { label: "Odd lot", color: CYAN },
 };
-const VIEW_ACCENT = { ideas: GREEN, book: INDIGO, spinoffs: INDIGO, mergers: CYAN, reorg: ORANGE, rights: GREEN, recaps: AMBER, insider: VIOLET, activist: PINK, spacs: SKY, buybacks: YELLOW };
+const VIEW_ACCENT = { ideas: GREEN, book: INDIGO, spinoffs: INDIGO, mergers: CYAN, reorg: ORANGE, rights: GREEN, recaps: AMBER, oddlots: CYAN, insider: VIOLET, activist: PINK, spacs: SKY, buybacks: YELLOW };
 const fin = v => v != null && isFinite(v);
 const card = { background: cardBg, border: cardBorder, borderRadius: 14, padding: "12px 14px" };
 const label = { fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase" };
@@ -71,6 +71,7 @@ const CHECKLIST = {
   insider: ["Open-market purchases only — no option exercises, no plan buys?", "Cluster or lone buyer? CEO/CFO or a 10% holder averaging down?", "Size relative to the buyer's holdings and pay?", "What weakness are they buying into, and do they know something structural?", "Any 10b5-1 plan disclosed?"],
   "13D": ["The filer's track record — do they win, and how?", "Item 4 purpose: board seats, sale process, capital return?", "Is the stake still being built (amendments) or complete?", "What is the valuation gap they cite, and is it real?", "Who else is in the register — allies or defenders?"],
   spac: ["Price below trust — what is the yield to the deadline, and is the trust really $10 (read the 10-Q)?", "Deadline and extension votes: will the sponsor extend, and does the trust get topped up or drained?", "If a target is announced — would you own the de-SPAC? Most trade down; redeem unless you would.", "Warrant and founder-share dilution on the pro forma?", "Sponsor track record on prior vehicles?"],
+  oddlot: ["Fewer than 100 shares in total across every account you beneficially own? The priority is per owner, so splitting a position does not qualify.", "Tender all of them, and tick the odd-lot box on the letter of transmittal (or tell your broker)", "Your broker's tender deadline: usually a day or more before the offer's expiry", "Dutch auction: tender at the purchase price so the shares are taken whatever the final price", "Conditions and outs: financing, a minimum tender, a market-out — could the offer be withdrawn and leave you holding the stock?", "Your firm's personal-trading rules: preclearance, minimum holding period, restricted list"],
   buyback: ["New authorisation, or a re-announcement of an old one in an earnings release?", "Size against market cap and against free cash flow — can they actually execute it?", "Funded from cash or from new debt?", "Are insiders buying alongside, or selling into it?", "Is the share count actually falling, net of stock comp (check the 10-Q cover)?"],
 };
 
@@ -84,6 +85,8 @@ export default function SpecialSituations({ onSelectStock }) {
   const [catFilter, setCatFilter] = useState(null);
   const [showDismissed, setShowDismissed] = useState(false);
   const [ideaLimit, setIdeaLimit] = useState(25);
+  const [oddFee, setOddFee] = useState(() => { try { return Number(localStorage.getItem("special-odd-fee")) || 0; } catch { return 0; } });
+  useEffect(() => { try { localStorage.setItem("special-odd-fee", String(oddFee)); } catch {} }, [oddFee]);
   const saveTimer = useRef(null);
 
   useEffect(() => {
@@ -101,7 +104,7 @@ export default function SpecialSituations({ onSelectStock }) {
     for (const r of d.spinoffs) { if (r.ticker && fin(r.price)) q[r.ticker] = r.price; if (r.parentTicker && fin(r.price)) q[r.parentTicker] = r.price; }
     for (const r of d.mergers) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     for (const r of d.reorg) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
-    for (const r of [...d.rights, ...d.recaps, ...d.activist]) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
+    for (const r of [...d.rights, ...d.recaps, ...(d.oddlots || []), ...d.activist]) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     for (const r of d.insider) if (r.symbol && fin(r.price)) q[r.symbol] = r.price;
     for (const r of [...(d.spacs || []), ...(d.buybacks || [])]) if (r.ticker && fin(r.price)) q[r.ticker] = r.price;
     return q;
@@ -164,6 +167,7 @@ export default function SpecialSituations({ onSelectStock }) {
         {chip("emerged, 90d", P.reorg.emerged90, ORANGE)}
         {chip("rights open", `${P.rights.open} · ${P.rights.backstopped} backstopped`, GREEN)}
         {chip("self-tenders open", `${P.recaps.tenders} · ${P.recaps.dutch} Dutch`, AMBER)}
+        {chip("odd-lot tenders open", `${P.oddlots?.open ?? 0} · ${P.oddlots?.positive ?? 0} with an edge`, CYAN)}
         {chip("insider clusters", `${P.insider.clusters} of ${P.insider.symbols}`, VIOLET)}
         {chip("13Ds, 30d", `${P.activist.n30} · ${P.activist.board} seek board`, PINK)}
         {chip("SPACs below trust", `${PS.belowTrust ?? 0} of ${PS.searching ?? 0}${fin(PS.medianYield) ? ` · median ${pc(PS.medianYield, 1)} to trust` : ""}`, SKY)}
@@ -360,6 +364,62 @@ export default function SpecialSituations({ onSelectStock }) {
               {td(<>{pc(r.premium, 1)}{fin(r.premium) && r.premium > 15 && r.kind === "self-tender" && <Pill color={AMBER}>verify</Pill>}</>, fin(r.premium) && r.premium > 15 && r.kind === "self-tender" ? AMBER : fin(r.premium) && r.premium > 0 ? GREEN : SLATE)}
               {td(<span style={{ display: "inline-flex", gap: 4 }}><Flag on={r.debtFunded} color={AMBER}>debt-funded</Flag><Flag on={r.oddLot} color={CYAN}>odd-lot</Flag><Flag on={r.preferred} color={SLATE}>preferred</Flag><Parsed ok={r.parsed} /></span>, SLATE, { textAlign: "left" })}
               {td(<A href={r.url}>{fd(r.filed)} ↗</A>)}
+            </tr>
+          );
+        })}
+      </Board>
+    );
+  };
+
+  // ── odd lots ──────────────────────────────────────────────────────────────
+  const oddlots = () => {
+    const cols = [["", "left"], ["Issuer", "left"], ["Offer", "left"], ["Odd-lot clause", "left"], ["Stage", "left"], ["Price", "right"], ["Tender at", "right"], ["Edge / sh", "right"], ["99 shares, net", "right"], ["Capital", "right"], ["Return", "right"], ["Expiry", "right"], ["Annualised", "right"], ["Flags", "left"], ["Filing", "right"]];
+    const rows = d.oddlots || [];
+    const CLAUSE = {
+      stated: ["stated", GREEN, "The Offer to Purchase says odd lots are bought in full, ahead of proration"],
+      "in letter": ["in the letter", GREEN, "The priority is stated in another exhibit (usually the letter of transmittal), not the offer itself"],
+      mentioned: ["mentioned", AMBER, "The offer mentions odd lots but no priority sentence was matched: read Section 1 of the offer"],
+      "other exhibit": ["not in the offer", RED, "Only another exhibit (an agreement, a form) mentions odd lots; the offer itself does not promise priority"],
+      withheld: ["no priority", RED, "The offer says odd lots get no priority"],
+      "not found": ["not found", SLATE, "No odd-lot language was matched in the documents read"],
+      unread: ["unread", DIM, "The offer document has not been read yet (it is read on a later build)"],
+    };
+    const net = r => (fin(r.gross) ? r.gross - (oddFee || 0) : null);
+    const ret = r => (fin(net(r)) && fin(r.capital) && r.capital > 0 ? (net(r) / r.capital) * 100 : null);
+    // paid a few days after expiry; the annualised figure is a cash yield on the 99 shares for that wait
+    const ann = r => (fin(ret(r)) && fin(r.daysToExpiry) && r.daysToExpiry >= 0 ? (ret(r) * 365) / Math.max(1, r.daysToExpiry + 3) : null);
+    const terms = r => r.type === "Dutch auction" ? `Dutch $${r.low}–$${r.high}` : r.type === "fixed price" ? `fixed ${px(r.fixed)}` : r.type === "price range" ? `$${r.low}–$${r.high}` : r.type;
+    return (
+      <Board cols={cols}
+        intro={<>The odd-lot trade. Under SEC Rule 13e-4(f)(3) an issuer buying back its own shares may take everything tendered by holders of <b>fewer than 100 shares</b> in full, before prorating everyone else, and most Dutch auctions and many closed-end-fund tenders do. Buy 99 shares below the tender price, tender all 99, and none come back. Each row prices that trade at the worst price the offer guarantees: the bottom of a Dutch range, the fixed price, or a fund&apos;s percentage of today&apos;s NAV (the fund pays NAV on the expiry date, so that edge moves with the portfolio). It is small by design: a few hundred dollars a trade.
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 8 }}>broker fee per tender $<input type="number" min="0" step="1" value={oddFee} onChange={e => setOddFee(Math.max(0, Number(e.target.value) || 0))} aria-label="Broker fee per tender, dollars" style={{ width: 54, background: "var(--page-bg)", border: "1px solid var(--border-subtle)", borderRadius: 5, color: "var(--text-primary)", fontFamily: fonts.mono, fontSize: 10.5, padding: "2px 5px" }} /></span></>}
+        foot="SC TO-I issuer tenders and amendments, 120 days, whose documents contain “odd lot(s)” or “fewer than 100 shares”, listed securities only. The Offer to Purchase is read for the price terms, expiry and conditions; the issuer’s latest SC TO-I/A for an extension, results or withdrawal; fund NAVs come from the closed-end-fund feed (Stocks → Closed-end funds). Net is 99 × (tender price − quote) less the broker fee above; the annualised return assumes payment three days after expiry. The priority is per beneficial owner across all accounts, so splitting a holding does not qualify, and tendering a borrowed or short position is barred (Rule 14e-4). Exchange offers pay in another company’s shares and are not priced here.">
+        {rows.length === 0 && empty(cols.length, "No odd-lot tender offers in the last 120 days.")}
+        {rows.map(r => {
+          const key = String(r.cik);
+          const [cl, clColor, clTip] = CLAUSE[r.priority] || CLAUSE["not found"];
+          const tone = r.stage === "open" ? GREEN : r.stage === "withdrawn" ? RED : SLATE;
+          // the trade only exists while the offer is open; a closed offer's "edge" is just where the stock went afterwards
+          // ...and the 99-share math only holds where the offer gives odd lots priority
+          const live = r.stage === "open", priced = live && ["stated", "in letter", "mentioned"].includes(r.priority);
+          const n = priced ? net(r) : null, rt = priced ? ret(r) : null, an = priced ? ann(r) : null, edge = live ? r.edge : null;
+          return (
+            <tr key={key} style={{ ...rowStyle, opacity: r.stage === "open" ? 1 : 0.6 }}>
+              {td(<PinBtn cat="oddlot" k={key} fields={{ name: r.name, ticker: r.ticker, url: r.url, dates: [{ label: "expiry", date: r.expiry }] }} />, DIM, { textAlign: "left" })}
+              {td(<><Dot color={tone} /><Tk t={r.ticker} /><span style={{ marginLeft: 6, color: "#cbd5e1" }}>{r.name.slice(0, 30)}</span>{r.fund && <Pill color={SKY}>fund{fin(r.fundDiscount) ? ` ${pc(r.fundDiscount)}` : ""}</Pill>}{r.amendments > 0 && <Pill>A×{r.amendments}</Pill>}</>, "#cbd5e1", { textAlign: "left" })}
+              {td(<span title={r.size ? `up to ${r.size}` : undefined}>{terms(r)}</span>, r.type === "Dutch auction" ? AMBER : SLATE, { textAlign: "left" })}
+              {td(<span title={clTip}>{cl}</span>, clColor, { textAlign: "left" })}
+              {td(r.stage, tone, { textAlign: "left" })}
+              {td(px(r.price))}
+              {td(<span title={r.basisNote || undefined}>{px(r.basis)}{r.type?.includes("NAV") && fin(r.nav) && <span style={{ color: DIM }}> · NAV {px(r.nav)}</span>}</span>)}
+              {td(fin(edge) ? `${sgn(edge)}$${Math.abs(edge).toFixed(2)}` : "—", upGood(edge))}
+              {td(fin(n) ? `${sgn(n)}$${Math.abs(n).toFixed(0)}` : "—", upGood(n), { fontWeight: 700 })}
+              {td(priced && fin(r.capital) ? `$${Math.round(r.capital).toLocaleString()}` : live && !priced ? <span title="Without odd-lot priority a tender of 99 shares is prorated like everyone else's, so most may come back">prorated</span> : "—", live && !priced ? RED : undefined)}
+              {td(pc(rt, 2), upGood(rt))}
+              {td(<>{fd(r.expiry)}{fin(r.daysToExpiry) && r.daysToExpiry >= 0 && <span style={{ color: DIM }}> · {days(r.daysToExpiry)}</span>}{r.extended && <Pill color={AMBER}>extended</Pill>}</>)}
+              {td(pc(an, 0), upGood(an))}
+              {td(<span style={{ display: "inline-flex", gap: 4 }}><Flag on={r.financing} color={AMBER}>financing cond.</Flag><Flag on={r.minimum} color={AMBER}>minimum cond.</Flag>{live && fin(r.upside) && r.upside > 0 && <Pill color={GREEN} ml={0}>top of range +${r.upside.toFixed(2)}</Pill>}<Parsed ok={r.parsed} /></span>, SLATE, { textAlign: "left" })}
+              {td(<><A href={r.doc}>offer ↗</A>{r.phraseDoc && <> · <A href={r.phraseDoc}>clause ↗</A></>}{r.amendUrl && <> · <A href={r.amendUrl}>latest /A ↗</A></>}</>)}
             </tr>
           );
         })}
@@ -613,6 +673,7 @@ export default function SpecialSituations({ onSelectStock }) {
     { id: "reorg", label: `Post-reorg · ${d.reorg.length}`, render: reorg },
     { id: "rights", label: `Rights · ${d.rights.length}`, render: rights },
     { id: "recaps", label: `Recaps · ${d.recaps.length}`, render: recaps },
+    { id: "oddlots", label: `Odd lots · ${(d.oddlots || []).filter(x => x.stage === "open").length} open`, render: oddlots },
     { id: "insider", label: `Insider buying · ${d.insider.length}`, render: insider },
     { id: "activist", label: `13Ds · ${d.activist.length}`, render: activist },
     { id: "spacs", label: `SPACs · ${SQ.length}`, render: spacs },

@@ -8,6 +8,7 @@ import { createMetroComparison } from './server/metroComparison.js'
 import { createMetroEmployment } from './server/metroEmployment.js'
 import { createOptionsContext } from './server/optionsContext.js'
 import { createOptionsMarket } from './server/optionsMarket.js'
+import { createCefDiscounts } from './server/cefDiscounts.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
@@ -3790,7 +3791,8 @@ const bankruptcy = createBankruptcy({ fetchFredSeries, UA, dir: __dirname })
 const municipalities = createMunicipalities({ fetchFredSeries, fetchYahooQuote, fetchYahooSparkline, unzipEntries, UA, dir: __dirname, reMetro: code => reFeeds.metro(code), bankruptcy: () => bankruptcy.get() })
 // Special situations (server/specialSituations.js): EDGAR sweeps for spinoffs, merger arb, restructurings,
 // rights offerings and recaps; FMP insider purchases and 13Ds. Joins the bankruptcy tracker for petitions.
-const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get() })
+// cefLookup values closed-end-fund tenders priced at a % of NAV on the odd-lot board (cefDiscounts is created below; called at request time)
+const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir: __dirname, bankruptcy: () => bankruptcy.get(), cefLookup: t => cefDiscounts.lookup(t) })
 // FX fundamentals (server/fxFundamentals.js): Donnelly's valuation lenses and drivers, fourteen currencies vs USD.
 // Joins the International pulse feed (Big Mac, equity in dollars) and the central-bank rates route.
 const fxFundamentals = createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse: () => intlPulse.get(), UA, dir: __dirname })
@@ -3826,6 +3828,9 @@ const optionsContext = createOptionsContext({ dir: __dirname, fmpKey: FMP_KEY })
 // Options market (server/optionsMarket.js): Cboe volatility indices and term structure, put/call
 // ratios, and an IV/skew/activity scan of index, sector and macro ETFs, the largest stocks and the watchlist
 const optionsMarket = createOptionsMarket({ UA, dir: __dirname, FMP_KEY, context: symbol => optionsContext.context(symbol) })
+// CEF discounts (server/cefDiscounts.js): CEFConnect closed-end fund screener, weekly history, seasonality and
+// the monthly backtest panel; lookup(ticker) gives a fund's latest price and NAV
+const cefDiscounts = createCefDiscounts({ UA, dir: __dirname, events: () => specialSituations.tickerEvents() })
 
 export default defineConfig({
   plugins: [
@@ -4046,6 +4051,12 @@ export default defineConfig({
         reRoute('/api/sin-monitor', () => sinMonitor.get())
         reRoute('/api/folly-markets', () => follyMarkets.get())
         reRoute('/api/options-market', () => optionsMarket.get())
+        // CEF discounts: reRoute, except that a malformed or unknown ?fund= answers with the error's status (400, 404)
+        server.middlewares.use('/api/cef', async (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          try { res.end(JSON.stringify(await cefDiscounts.get(req))) } catch (e) { res.statusCode = e.status || 500; res.end(JSON.stringify({ error: e.message })) }
+        })
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')

@@ -19,6 +19,16 @@
 //   recaps     SC TO-I issuer self-tenders (Dutch auctions and fixed-price,
 //              interval-fund repurchases filtered out) and 8-K special
 //              dividends — the leveraged-recap / stub setups.
+//   oddlots    the odd-lot trade: listed issuer tenders (companies and
+//              closed-end funds) whose offer documents take holders of fewer
+//              than 100 shares in full, without proration. Full-text sweeps
+//              for "odd lot(s)" and "fewer than 100 shares" in SC TO-I
+//              filings; the Offer to Purchase is read for the priority clause,
+//              price terms (Dutch range, fixed price, or a % of NAV valued with
+//              the closed-end fund feed's NAV), expiry and conditions, and the
+//              issuer's latest SC TO-I/A (EDGAR submissions) for extensions,
+//              results or a withdrawal. Trade math: 99 shares bought at the live
+//              quote and tendered at the price the offer guarantees at worst.
 //   insider    FMP open-market purchases (Form 4 code P), archived so clusters
 //              build over 30 and 90 days.
 //   activist   SCHEDULE 13D initial filings by fund-like filers.
@@ -121,14 +131,43 @@ const RX = {
   },
   toi: {
     upTo: /(?:purchase|repurchase|tender)[^.]{0,160}?up to\s+(\$?[\d,.]+\s*(?:million|billion)|[\d,]+\s+shares)/i,
-    range: /not (?:less|lower) than \$\s?([\d.]+)[^.]{0,60}?(?:not (?:greater|more|higher) than|up to|and not more than|to) \$\s?([\d.]+)/i,
-    fixed: /(?:purchase price of|at a price of|price of)\s+\$\s?([\d.]+)\s+per share/i,
-    dutch: /(?:modified )?dutch auction/i,
+    range: /not (?:less|lower) than (?:US)?\$\s?([\d.]+)[^.]{0,60}?(?:not (?:greater|more|higher) than|up to|and not more than|to) (?:US)?\$\s?([\d.]+)/i,
+    fixed: /(?:purchase price of|at a price of|price of)\s+(?:US)?\$\s?([\d.]+)\s+per share/i,
+    dutch: /(?:modified )?dutch auction|auction tenders?\b/i,
     expiry: new RegExp(`(?:expire|expiration)[^.]{0,120}?(${MON})`, 'i'),
     oddLot: /odd lot/i,
     recap: /recapitalization|term loan|notes offering|senior notes|credit facility/i,
     optionExchange: /option exchange|eligible options|exchange (?:offer|program)[^.]{0,60}(?:stock options|option holders)|outstanding options? for/i,
     preferredOnly: /depositary shares?|preferred (?:stock|shares)[^.]{0,40}tender/i,
+  },
+  odd: {
+    // the clause that gives odd lots priority, and the rare one that withholds it
+    priority: /(?:fewer than|less than)\s+(?:one hundred \()?100\)?\s+shares[^.]{0,400}?(?:without (?:regard to |any )?proration|not be subject to (?:the )?proration|(?:will|shall) not be prorated|priority|before (?:any )?proration|prior to (?:any )?proration)/i,
+    priority2: /odd lots?\b[^.]{0,400}?(?:without (?:regard to |any )?proration|not (?:be )?subject to (?:the )?proration|(?:will|shall) not be prorated|priority|before (?:any )?proration)/i,
+    priority3: /preferential acceptance of odd lots|first,?[^.]{0,80}(?:purchase|accept)[^.]{0,40}\ball\b[^.]{0,160}(?:fewer than|less than) (?:one hundred \()?100\)? shares/i,
+    // e.g. an activist settlement requiring "odd lot tenders to be subject to the same proration terms as tenders of 100 shares or more"
+    noPriority: /(?:odd lots?|fewer than 100 shares)[^.]{0,120}?\b(?:will not|shall not)\b[^.]{0,20}?(?:receive|be given|have|be entitled to)[^.]{0,20}?(?:priority|preferen)|no odd[- ]lot priority|odd[- ]lot (?:tenders?|shares|holders)?[^.]{0,60}?(?:subject to the same proration|same proration terms)/i,
+    range: /not (?:less|lower) than (?:US)?\$\s?([\d.]+)[^.]{0,60}?(?:not (?:greater|more|higher) than|up to|and not more than|to|nor greater than) (?:US)?\$\s?([\d.]+)/i,
+    rangeRev: /not (?:greater|more|higher) than (?:US)?\$\s?([\d.]+)[^.]{0,60}?(?:not|nor) (?:less|lower) than (?:US)?\$\s?([\d.]+)/i,
+    fixed: /(?:purchase price of|at a price of|price of|cash price of)\s+(?:US)?\$\s?([\d.]+)\s+per (?:share|Share)/i,
+    navPct: /(\d{2,3}(?:\.\d{1,2})?)\s?%\)?\s+of\s+(?:the\s+)?(?:Fund['’]s\s+|its\s+)?(?:net asset value|NAV)/i,
+    dutch: /(?:modified )?dutch auction|auction tenders?\b/i,
+    exchange: /offer(?:ing)? to exchange|offer by [^.]{0,80}? to exchange|\b(?:the|this) exchange offer\b/i,
+    mention: /odd lots?\b|fewer than (?:one hundred \()?100\)? shares/i,
+    upTo: /(?:purchase|repurchase|tender)[^.]{0,160}?up to\s+(\$?[\d,.]+\s*(?:million|billion)|[\d,]+\s+(?:of its |of the )?(?:outstanding )?(?:common )?shares|\d{1,2}(?:\.\d+)?%\s+of (?:its|the)[^.]{0,30}?outstanding)/i,
+    expiry: new RegExp(`(?:expire|expiration)[^.]{0,160}?(${MON})`, 'i'),
+    // conditions keep the words before them, so "not subject to any financing condition" reads as no condition
+    financing: /([^.]{0,80})\bfinancing condition/i,
+    minimum: /([^.]{0,80})\b(?:minimum (?:tender |share )?condition|conditioned (?:up)?on[^.]{0,120}?minimum (?:number|amount))/i,
+    optionExchange: /option exchange|eligible options|exchange (?:offer|program)[^.]{0,60}(?:stock options|option holders)|outstanding options? for/i,
+    preferredOnly: /depositary shares?|preferred (?:stock|shares)[^.]{0,40}tender|tender[^.]{0,60}(?:notes|debentures) due/i,
+  },
+  // an issuer's latest SC TO-I/A: an extension, the results, or a withdrawal
+  oddA: {
+    extended: new RegExp(`extend(?:s|ed|ing)? (?:the )?(?:expiration (?:date|time)|offer|tender offer)[^.]{0,200}?(${MON})`, 'i'),
+    results: /final (?:results|proration factor)|preliminary (?:results|count)|(?:offer|tender offer) expired|has expired|expired at/i,
+    withdrawn: /terminat(?:ed|es|ion of) the (?:tender )?offer|withdr[ae]w(?:n|s)? the (?:tender )?offer/i,
+    finalPrice: /(?:final )?purchase price of \$\s?([\d.]+)\s+per (?:share|Share)/i,
   },
   div: {
     amount: /special (?:cash )?dividend of \$\s?([\d.]+)\s+per share/i,
@@ -173,6 +212,10 @@ const RX = {
   },
 }
 
+// the odd-lot clauses alone, for the exhibit that mentioned odd lots when the offer itself did not
+// (a letter of transmittal, an agreement with an activist)
+RX.oddP = { priority: RX.odd.priority, priority2: RX.odd.priority2, priority3: RX.odd.priority3, noPriority: RX.odd.noPriority, mention: RX.odd.mention }
+
 function parse(text, rx) {
   const out = {}
   for (const [k, re] of Object.entries(rx)) {
@@ -185,7 +228,7 @@ function parse(text, rx) {
 const strip = html => html
   .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ')
   .replace(/<[^>]+>/g, ' ')
-  .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&#8217;|&rsquo;|&#x2019;/g, '’').replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
+  .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/\b([ap])\.m\./gi, '$1m') // "5:00 p.m." would end a [^.] clause early.replace(/&#8217;|&rsquo;|&#x2019;/g, '’').replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
   .replace(/\s+/g, ' ')
 
 // "NAME  (TICK, TICK2)  (CIK 0000123)" → { name, tickers, ticker, cik }
@@ -205,14 +248,14 @@ function row(h) {
   const p = parties[0] || { name: '?', tickers: [], ticker: null, cik: (s.ciks || [])[0] ? +(s.ciks || [])[0] : null }
   const cik = p.cik || ((s.ciks || [])[0] ? +(s.ciks || [])[0] : null)
   return {
-    adsh, form: s.form, date: s.file_date, items: s.items || [], parties, name: p.name, ticker: p.ticker, cik,
+    adsh, form: s.form, fileType: s.file_type || null, date: s.file_date, items: s.items || [], parties, name: p.name, ticker: p.ticker, cik,
     state: (s.biz_states || [])[0] || null, sic: (s.sics || [])[0] || null,
     doc: cik && adsh && fname ? `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}/${fname}` : null,
     index: cik && adsh ? `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}/${adsh}-index.htm` : null,
   }
 }
 
-export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir, bankruptcy }) {
+export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir, bankruptcy, cefLookup = null }) {
   const file = n => path.join(dir, n)
   const load = n => { try { if (fs.existsSync(file(n))) return JSON.parse(fs.readFileSync(file(n), 'utf8')) } catch {} return null }
   const save = (n, o) => { try { fs.writeFileSync(file(n), JSON.stringify(o)) } catch (e) { console.error(`${n} save:`, e.message) } }
@@ -222,7 +265,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // insider: open-market purchases by key, pruned at 120 days
   const archive = load(ARCHIVE) || { docs: {}, insider: {} }
   archive.docs = archive.docs || {}; archive.insider = archive.insider || {}
-  for (const k of Object.keys(archive.docs)) if (/^(13d|conf|eff):/.test(k)) delete archive.docs[k] // parsed under earlier rules
+  for (const k of Object.keys(archive.docs)) if (/^(13d|conf|eff|toi|odd|oddA|ol|ol2|olP):/.test(k)) delete archive.docs[k] // parsed under earlier rules
 
   const EH = { 'User-Agent': UA, Accept: 'application/json' }
   let edgarNext = 0
@@ -243,13 +286,16 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   }
 
   // full-text search, paged; q must be non-empty on this endpoint so form-only
-  // sweeps use a stop word
-  async function fts({ q = 'a', forms, days = 180, pages = 1 }) {
+  // sweeps use a stop word. A root form already includes its amendments
+  // ('SC TO-I' returns SC TO-I and SC TO-I/A), while listing both
+  // ('SC TO-I,SC TO-I/A') silently returns the amendments only, so sweeps name
+  // the root form alone. ciks narrows the search to those filers.
+  async function fts({ q = 'a', forms, days = 180, pages = 1, ciks = null }) {
     const end = today(), start = ymd(Date.now() - days * DAY)
     const out = []
     for (let p = 0; p < pages; p++) {
       let j
-      try { j = await edgar(`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}${forms ? `&forms=${encodeURIComponent(forms)}` : ''}&dateRange=custom&startdt=${start}&enddt=${end}&from=${p * 100}`) }
+      try { j = await edgar(`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}${forms ? `&forms=${encodeURIComponent(forms)}` : ''}${ciks?.length ? `&ciks=${ciks.map(c => String(c).padStart(10, '0')).join(',')}` : ''}&dateRange=custom&startdt=${start}&enddt=${end}&from=${p * 100}`) }
       catch (e) { if (p === 0) throw e; console.warn(`special fts page ${p} of ${forms || q}:`, e.message); break }
       const hits = j.hits?.hits || []
       out.push(...hits.map(row))
@@ -268,7 +314,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // fetch-and-parse once per filing per category. Budgeted per category per
   // build, newest first, so a cold start spends about a minute on documents and
   // the archive fills in over the following builds.
-  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, conf2: 8, eff2: 10, rights: 16, toi: 10, div: 12, '13dx': 16, spac: 16, bca: 14, bb: 40 }
+  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, conf2: 8, eff2: 10, rights: 16, toi2: 12, div: 12, '13dx': 16, spac: 16, bca: 14, bb: 40, ol3: 24, olP2: 16, olA: 16 }
   let budget = {}
   async function terms(cat, r, rx, { xml = false, post = null } = {}) {
     const key = `${cat}:${r.adsh}`
@@ -347,14 +393,32 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
 
   const dedupeBy = (rows, keyOf) => { const m = new Map(); for (const r of rows) { const k = keyOf(r); if (!m.has(k)) m.set(k, r) } return [...m.values()] }
   const newest = rows => [...rows].sort((a, b) => b.date.localeCompare(a.date))
+  // Full-text hits are documents, several per filing. For a tender offer (SC TO-I / SC TO-T) keep one
+  // per filer: the Offer to Purchase ((a)(1)(A) or (a)(1)(i)) of the newest original filing, which
+  // carries the terms, plus when the offer was first filed and how many amendments followed.
+  const OFFER = r => /\(A\)\(1\)\((?:A|I)\)$/i.test(r.fileType || '')
+  function offerDocs(rows, root) {
+    const byCik = new Map()
+    for (const r of newest(rows)) { const a = byCik.get(r.cik) || []; a.push(r); byCik.set(r.cik, a) }
+    const out = []
+    for (const docs of byCik.values()) {
+      const orig = docs.filter(r => r.form === root)
+      const pool = orig.length ? orig.filter(r => r.adsh === orig[0].adsh) : docs.filter(r => r.adsh === docs[0].adsh)
+      const doc = pool.find(OFFER) || pool.find(r => /\(A\)\(1\)/i.test(r.fileType || '')) || pool.find(r => r.fileType === r.form) || pool[0]
+      out.push({ ...doc, firstFiled: orig.length ? orig.reduce((m, r) => (r.date < m ? r.date : m), doc.date) : doc.date, latestFiled: docs[0].date, amendCount: new Set(docs.filter(r => r.form === `${root}/A`).map(r => r.adsh)).size })
+    }
+    return out
+  }
 
   // ── spinoffs ──────────────────────────────────────────────────────────────
   async function spinoffs() {
-    const [f10, ann] = await Promise.all([fts({ forms: '10-12B,10-12B/A', days: 240, pages: 2 }).then(newest), fts({ q: '"spin-off" "separation"', forms: '8-K', days: 180, pages: 2 }).then(newest)])
+    const [f10, ann] = await Promise.all([fts({ forms: '10-12B', days: 240, pages: 5 }).then(newest), fts({ q: '"spin-off" "separation"', forms: '8-K', days: 180, pages: 2 }).then(newest)])
     const byCik = new Map()
     for (const r of f10) {
       const g = byCik.get(r.cik) || { spinco: r.name, ticker: r.ticker, cik: r.cik, filings: [], first: r.date, latest: r.date }
-      if (!g.filings.some(f => f.adsh === r.adsh)) g.filings.push(r); g.first = r.date < g.first ? r.date : g.first; g.latest = r.date > g.latest ? r.date : g.latest
+      const at = g.filings.findIndex(f => f.adsh === r.adsh)
+      if (at < 0) g.filings.push(r); else if (/^EX-99\.?1$/i.test(r.fileType || '') && !/^EX-99\.?1$/i.test(g.filings[at].fileType || '')) g.filings[at] = r // the information statement carries the terms
+      g.first = r.date < g.first ? r.date : g.first; g.latest = r.date > g.latest ? r.date : g.latest
       if (r.ticker && !g.ticker) g.ticker = r.ticker
       byCik.set(r.cik, g)
     }
@@ -406,23 +470,24 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // ── merger arb ────────────────────────────────────────────────────────────
   async function mergers() {
     const [tot, k8, proxies, cvrs, fmpMa] = await Promise.all([
-      fts({ forms: 'SC TO-T,SC TO-T/A', days: 180, pages: 2 }).then(rows => newest(rows).filter(r => !SPAC.test(r.name))),
+      fts({ forms: 'SC TO-T', days: 180, pages: 3 }).then(rows => newest(rows).filter(r => !SPAC.test(r.name))),
       fts({ q: '"Agreement and Plan of Merger"', forms: '8-K', days: 120, pages: 3 }).then(rows => newest(rows).filter(r => r.items.includes('1.01') && !r.items.includes('2.01') && !SPAC.test(r.name))),
       proxiesAll().then(rows => rows.filter(r => !SPAC.test(r.name))),
       fts({ q: '"contingent value right"', forms: '8-K', days: 180, pages: 1 }).then(newest),
       maList(),
     ])
-    await Promise.all([prefetchDocs('tot', dedupeBy(tot, r => r.cik), RX.merger), prefetchDocs('m8k', dedupeBy(k8, r => r.cik), RX.merger), prefetchDocs('defm', dedupeBy(proxies, r => r.cik), RX.merger)])
+    const tenders = offerDocs(tot, 'SC TO-T')
+    await Promise.all([prefetchDocs('tot', tenders, RX.merger), prefetchDocs('m8k', dedupeBy(k8, r => r.cik), RX.merger), prefetchDocs('defm', dedupeBy(proxies, r => r.cik), RX.merger)])
     const byAcq = new Map(fmpMa.map(m => [+m.cik, m])), byTgt = new Map(fmpMa.map(m => [+m.targetedCik, m]))
 
     const deals = new Map() // key: target cik
     const upsert = (cik, patch) => { const d = deals.get(cik) || { targetCik: cik, filings: [], flags: {}, consideration: {} }; Object.assign(d, patch, { flags: { ...d.flags, ...(patch.flags || {}) }, consideration: { ...d.consideration, ...(patch.consideration || {}) } }); deals.set(cik, d); return d }
 
     // tenders: target first, bidder second
-    for (const r of dedupeBy(tot, r => r.cik)) {
+    for (const r of tenders) {
       const bidder = r.parties[1] || null
       const t = await terms('tot', r, RX.merger)
-      const d = upsert(r.cik, { target: r.name, ticker: r.ticker, acquirer: bidder?.name || null, acquirerTicker: bidder?.ticker || null, stage: 'tender', announced: r.date, tenderExpiry: t ? toIso(t.expiry) : null, url: r.index, role: 'filing' })
+      const d = upsert(r.cik, { target: r.name, ticker: r.ticker, acquirer: bidder?.name || null, acquirerTicker: bidder?.ticker || null, stage: 'tender', announced: r.firstFiled, tenderExpiry: t ? toIso(t.expiry) : null, url: r.index, role: 'filing' })
       if (t) Object.assign(d.consideration, { cash: num(t.cash || t.cash2 || t.cash3), stock: t.stock ? num(t.stock) : null, cvr: !!t.cvr, warrant: !!t.warrant, preferred: !!t.preferred }), Object.assign(d.flags, { hsr: !!t.hsr, cfius: !!t.cfius, financing: !!t.financing })
       d.filings.push({ form: r.form, date: r.date, url: r.index })
     }
@@ -510,10 +575,9 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     // Item 1.03 is where plan confirmation and effectiveness get reported; an
     // 8-K without it and without a petition on file is an incentive-plan 8-K
     const bankrupt = r => r.items.includes('1.03') || petitionCiks.has(r.cik)
-    const [eff, conf, listings] = await Promise.all([
+    const [eff, conf] = await Promise.all([
       fts({ q: '"effective date of the plan" "reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
       fts({ q: '"confirmation order" "plan of reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
-      fts({ forms: '8-A12B,8-A12B/A', days: 240, pages: 2 }).then(newest),
     ])
     await Promise.all([prefetchDocs('conf2', dedupeBy(conf, r => r.cik), RX.reorg), prefetchDocs('eff2', dedupeBy(eff, r => r.cik), RX.reorg)])
     const byCik = new Map()
@@ -527,7 +591,10 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
       g.filings.push({ form: '8-K effective', date: r.date, url: r.index })
     }
     const known = new Set(byCik.keys())
-    for (const r of listings) if (known.has(r.cik)) { const g = byCik.get(r.cik); g.listed = g.listed && g.listed < r.date ? g.listed : r.date; if (r.ticker) g.tickers.add(r.ticker); g.filings.push({ form: r.form, date: r.date, url: r.index }) }
+    // new-equity registrations (8-A12B) by the filers already in hand, a hundred CIKs a query
+    const ids = [...known], listings = []
+    for (let i = 0; i < ids.length; i += 100) listings.push(...await fts({ forms: '8-A12B', days: 240, pages: 1, ciks: ids.slice(i, i + 100) }).catch(() => []))
+    for (const r of newest(listings)) if (known.has(r.cik)) { const g = byCik.get(r.cik); g.listed = g.listed && g.listed < r.date ? g.listed : r.date; if (r.ticker) g.tickers.add(r.ticker); g.filings.push({ form: r.form, date: r.date, url: r.index }) }
     const out = []
     for (const g of byCik.values()) {
       if (!g.emerged && !g.confirmed && !g.listed) continue // plain petitions stay on the bankruptcy tab
@@ -576,17 +643,18 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // ── recaps: self-tenders and special dividends ────────────────────────────
   async function recaps() {
     const [toi, divs] = await Promise.all([
-      fts({ forms: 'SC TO-I,SC TO-I/A', days: 90, pages: 4 }).then(rows => newest(rows).filter(r => r.ticker && !INTERVAL.test(r.name) && !SPAC.test(r.name))),
+      // most SC TO-I filings are interval-fund repurchases with no ticker, so a Dutch-auction phrase sweep backs up the generic one
+      Promise.all([fts({ forms: 'SC TO-I', days: 90, pages: 4 }), fts({ q: '"dutch auction"', forms: 'SC TO-I', days: 90, pages: 1 })]).then(([a, b]) => newest([...a, ...b]).filter(r => r.ticker && !INTERVAL.test(r.name) && !SPAC.test(r.name))),
       fts({ q: '"special dividend"', forms: '8-K', days: 150, pages: 2 }).then(rows => newest(rows).filter(r => r.ticker)),
     ])
-    const tenders = dedupeBy(toi, r => r.cik), dividends = dedupeBy(divs, r => r.cik)
-    await Promise.all([prefetchDocs('toi', tenders, RX.toi), prefetchDocs('div', dividends, RX.div)])
+    const tenders = offerDocs(toi, 'SC TO-I'), dividends = dedupeBy(divs, r => r.cik)
+    await Promise.all([prefetchDocs('toi2', tenders, RX.toi), prefetchDocs('div', dividends, RX.div)])
     const divRead = []
     for (const [i, r] of dividends.entries()) { const t = await terms('div', r, RX.div); divRead.push({ r, t, needs: (t != null && num(t.amount || t.amount2) != null) || i < 30 }) }
     await prefetchQuotes([...tenders.map(r => r.ticker), ...divRead.filter(x => x.needs).map(x => x.r.ticker)])
     const out = []
     for (const r of tenders) {
-      const t = await terms('toi', r, RX.toi)
+      const t = await terms('toi2', r, RX.toi)
       if (t && t.optionExchange) continue // an employee option repricing, not a buyback
       const range = t?.range ? [num(t.range[0]), num(t.range[1])] : null
       const fixed = t ? num(t.fixed) : null
@@ -595,7 +663,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
       const top = range ? range[1] : fixed
       const premium = fin(top) && q?.price ? (top / q.price - 1) * 100 : null
       out.push({
-        kind: 'self-tender', name: r.name, ticker: r.ticker, cik: r.cik, filed: r.date, stage: expiry && expiry < today() ? 'closed' : 'open', amendments: toi.filter(x => x.cik === r.cik).length - 1,
+        kind: 'self-tender', name: r.name, ticker: r.ticker, cik: r.cik, filed: r.firstFiled, stage: expiry && expiry < today() ? 'closed' : 'open', amendments: r.amendCount,
         type: t?.dutch ? 'Dutch auction' : fixed ? 'fixed price' : 'tender', size: t?.upTo || null, low: range?.[0] ?? null, high: top ?? null, expiry, daysToExpiry: expiry ? daysBetween(today(), expiry) : null,
         oddLot: !!t?.oddLot, debtFunded: !!t?.recap, preferred: !!t?.preferredOnly, price: q?.price ?? null, premium: r1(premium), parsed: !!t, url: r.index, state: r.state,
       })
@@ -610,6 +678,114 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
       })
     }
     return out.sort((a, b) => b.filed.localeCompare(a.filed))
+  }
+
+  // ── odd lots: tenders that take holders of fewer than 100 shares in full ──
+  // Rule 13e-4(f)(3) lets an issuer buy odd lots ahead of proration, and most
+  // Dutch auctions and many fund tenders do. The trade: hold 99 shares, tender
+  // all of them, and the priority means none come back. One row per issuer,
+  // listed securities only (interval funds and non-traded REITs have no
+  // ticker), funds kept: a listed closed-end fund tendering at 98% of NAV
+  // while it trades at a 10% discount is the classic case.
+  // The latest SC TO-I/A per issuer, from the EDGAR submissions list, memoised per build
+  const submissions = {}
+  function latestAmendment(cik, after) {
+    if (!cik) return Promise.resolve(null)
+    if (submissions[cik] === undefined) submissions[cik] = edgar(`https://data.sec.gov/submissions/CIK${String(cik).padStart(10, '0')}.json`).catch(() => null)
+    return submissions[cik].then(j => {
+      const f = j?.filings?.recent
+      if (!f?.form) return null
+      for (let i = 0; i < f.form.length; i++) {
+        if (f.form[i] !== 'SC TO-I/A' || f.filingDate[i] < after) continue
+        const adsh = f.accessionNumber[i], dir = `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}`
+        return { adsh, date: f.filingDate[i], doc: f.primaryDocument[i] ? `${dir}/${f.primaryDocument[i]}` : null, index: `${dir}/${adsh}-index.htm`, count: f.form.slice(0, i + 1).filter((x, k) => x === 'SC TO-I/A' && f.filingDate[k] >= after).length }
+      }
+      return null
+    })
+  }
+  // the Offer to Purchase in a filing, from its EDGAR index page when full-text search did not
+  // return it (it only returns documents containing the searched phrase)
+  const indexes = {}
+  function offerFromIndex(r) {
+    if (!r.index) return Promise.resolve(null)
+    if (indexes[r.adsh] === undefined) indexes[r.adsh] = edgar(r.index, false).then(html => {
+      const rows = html.split(/<tr[\s>]/i).slice(1).map(row => ({ href: row.match(/href="(\/Archives\/[^"]+)"/i)?.[1], cells: [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => m[1].replace(/<[^>]+>/g, '').trim()) }))
+      const hit = rows.find(x => x.href && x.cells.some(c => /^EX-99\.?\(?A\)?\(1\)\((?:A|I)\)$/i.test(c))) || rows.find(x => x.href && x.cells.some(c => /^EX-99\.?\(?A\)?\(1\)/i.test(c)))
+      return hit ? `https://www.sec.gov${hit.href}` : null
+    }).catch(() => null)
+    return indexes[r.adsh]
+  }
+  async function oddlots() {
+    const phrases = ['"odd lot"', '"odd lots"', '"fewer than 100 shares"']
+    const hits = (await Promise.all(phrases.map(q => fts({ q, forms: 'SC TO-I', days: 120, pages: 2 }).catch(() => [])))).flat()
+      .filter(r => r.ticker && !/-/.test(r.ticker) && !SPAC.test(r.name))
+    // per issuer: the Offer to Purchase (terms), and the document where the odd-lot language was found
+    const found = offerDocs(hits, 'SC TO-I')
+    const offers = await pmap(found, 3, async r => {
+      if (OFFER(r)) return { ...r, phraseDoc: null }
+      const url = await offerFromIndex(r)
+      return url ? { ...r, doc: url, fileType: 'offer to purchase', phraseDoc: r.doc } : { ...r, phraseDoc: null }
+    })
+    await prefetchDocs('ol3', offers, RX.odd)
+    const read = []
+    for (const r of offers) {
+      const t = await terms('ol3', r, RX.odd)
+      if (t && (t.optionExchange || t.preferredOnly) && !t.navPct && !t.range && !t.fixed) continue // option repricing, preferred or notes tender
+      // the offer itself is silent on odd lots: read the exhibit that mentioned them (often the letter of transmittal)
+      const p = t && !(t.priority || t.priority2 || t.priority3) && r.phraseDoc ? await terms('olP2', { ...r, doc: r.phraseDoc }, RX.oddP) : null
+      read.push({ r, t, p })
+    }
+    await prefetchQuotes(read.map(x => x.r.ticker))
+    const out = []
+    for (const { r, t, p } of read) {
+      const amend = await latestAmendment(r.cik, r.firstFiled)
+      const a = amend?.doc ? await terms('olA', { ...amend, doc: amend.doc }, RX.oddA) : null
+      const q = await quote(r.ticker)
+      const fund = cefLookup ? cefLookup(r.ticker) : null
+      const range = t?.range ? [num(t.range[0]), num(t.range[1])] : t?.rangeRev ? [num(t.rangeRev[1]), num(t.rangeRev[0])] : null
+      const lo = range ? Math.min(...range) : null, hi = range ? Math.max(...range) : null
+      const fixed = t ? num(t.fixed) : null, navPct = t ? num(t.navPct) : null
+      const nav = fin(fund?.nav) ? fund.nav : null
+      let type = 'tender', basis = null, basisNote = null
+      if (fin(navPct) && navPct >= 80 && navPct <= 100) { type = `${navPct}% of NAV`; basis = fin(nav) ? (navPct / 100) * nav : null; basisNote = fin(nav) ? `${navPct}% of today's NAV; the offer pays ${navPct}% of NAV on the expiry date` : `${navPct}% of NAV; no NAV on file for this fund` }
+      else if (t?.dutch && fin(lo) && fin(hi)) { type = 'Dutch auction'; basis = lo; basisNote = 'bottom of the Dutch range: the final price can only be at or above it' }
+      else if (fin(fixed)) { type = 'fixed price'; basis = fixed; basisNote = 'the fixed offer price' }
+      else if (fin(lo) && fin(hi)) { type = 'price range'; basis = lo; basisNote = 'bottom of the offered range' }
+      else if (t?.exchange) { type = 'exchange offer'; basisNote = 'an exchange offer pays in another company’s shares, usually at a discount (often about 7%) to the value of the shares tendered: read the final exchange ratio' }
+      const finalPrice = a ? num(a.finalPrice) : null
+      // an expiry before the filing is a date quoted from something else
+      const valid = d => (d && d >= r.firstFiled ? d : null)
+      const ext = valid(a?.extended ? toIso(a.extended) : null)
+      const own = valid(t ? toIso(t.expiry) : null)
+      const expiry = ext && (!own || ext >= own) ? ext : own
+      const stage = a?.withdrawn ? 'withdrawn' : a?.results ? 'results' : expiry && expiry < today() ? 'closed' : 'open'
+      const price = q?.price ?? null
+      const edge = fin(basis) && fin(price) ? basis - price : null
+      const daysToExpiry = expiry ? daysBetween(today(), expiry) : null
+      const priority = !t ? 'unread'
+        : t.priority || t.priority2 || t.priority3 ? 'stated'
+        : p && (p.priority || p.priority2 || p.priority3) ? 'in letter'
+        : t.noPriority || p?.noPriority ? 'withheld'
+        : t.mention ? 'mentioned'
+        : p?.mention ? 'other exhibit' : 'not found'
+      out.push({
+        name: r.name, ticker: r.ticker, cik: r.cik, fund: !!fund || fin(navPct), filed: r.firstFiled, amended: amend?.date || null, amendments: amend?.count || 0,
+        type, low: lo, high: hi, fixed, navPct, nav, navDate: fund?.navDate || null, fundDiscount: fin(fund?.disc) ? r2(fund.disc) : null,
+        basis: r2(basis), basisNote, finalPrice, price, edge: r2(edge), edgePct: fin(edge) && price ? r2((edge / price) * 100) : null,
+        upside: fin(hi) && fin(price) && type === 'Dutch auction' ? r2(hi - price) : null,
+        shares: 99, gross: fin(edge) ? r2(edge * 99) : null, capital: fin(price) ? r2(price * 99) : null,
+        expiry, daysToExpiry, extended: !!ext, stage, size: t?.upTo || null, priority,
+        financing: cond(t?.financing), minimum: cond(t?.minimum), dutch: !!t?.dutch,
+        parsed: !!t, url: r.index, doc: r.doc, phraseDoc: r.phraseDoc || null, amendUrl: amend?.index || null,
+      })
+    }
+    const rank = x => (x.stage === 'open' ? 0 : x.stage === 'results' ? 1 : 2)
+    return out.sort((a, b) => rank(a) - rank(b) || (b.edgePct ?? -99) - (a.edgePct ?? -99) || b.filed.localeCompare(a.filed))
+  }
+  // a condition clause counts unless the words before it negate it
+  function cond(before) {
+    if (before == null) return false
+    return !/\b(?:not|no|without|neither|nor)\b[^.]{0,40}$/i.test(String(before))
   }
 
   // ── insider buying (FMP Form 4 purchases, archived) ───────────────────────
@@ -806,6 +982,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     const rg = await run('reorg', reorg, [])
     const rt = await run('rights', rights, [])
     const rc = await run('recaps', recaps, [])
+    const ol = await run('oddlots', oddlots, [])
     const ins = await run('insider', insider, { list: [], archived: 0 })
     const act = await run('activist', activist, [])
     const sq = await run('spacs', spacs, [])
@@ -821,6 +998,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
       reorg: { n: rg.length, emerged90: rg.filter(r => r.emerged && r.emerged >= ymd(Date.now() - 90 * DAY) && r.emerged <= today()).length, confirmed: rg.filter(r => r.stage === 'plan confirmed').length },
       rights: { n: rt.length, open: rt.filter(r => r.stage === 'open').length, backstopped: rt.filter(r => r.backstop).length },
       recaps: { n: rc.length, tenders: rc.filter(r => r.kind === 'self-tender' && r.stage === 'open').length, dutch: rc.filter(r => r.type === 'Dutch auction').length, dividends: rc.filter(r => r.kind === 'special dividend').length },
+      oddlots: { n: ol.length, open: ol.filter(x => x.stage === 'open').length, positive: ol.filter(x => x.stage === 'open' && fin(x.edge) && x.edge > 0 && ['stated', 'in letter', 'mentioned'].includes(x.priority)).length, funds: ol.filter(x => x.stage === 'open' && x.fund).length },
       insider: { clusters: ins.list.filter(i => i.cluster).length, symbols: ins.list.length, ceoCfo: ins.list.filter(i => i.ceoCfo).length, archived: ins.archived },
       activist: { n: act.length, n30: act.filter(a => a.filed >= ymd(Date.now() - 30 * DAY)).length, board: act.filter(a => a.board).length },
       spacs: { n: sq.length, searching: sq.filter(x => x.stage === 'searching' || x.stage === 'extension vote').length, belowTrust: sq.filter(x => fin(x.discount) && x.discount > 0 && !x.verify && (x.stage === 'searching' || x.stage === 'extension vote')).length, medianYield: r1(median(sq.filter(x => fin(x.discount) && x.discount > 0 && !x.verify && x.stage === 'searching').map(x => x.yieldToTrust))), deals: sq.filter(x => x.stage === 'deal announced' || x.stage === 'vote').length, liquidating: sq.filter(x => x.stage === 'liquidating').length, completed: sq.completed || 0 },
@@ -832,6 +1010,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
       ...rg.filter(r => (r.emerged || r.confirmed || '') >= wk).map(r => ({ cat: 'reorg', name: r.name, ticker: r.ticker, date: r.emerged || r.confirmed, note: r.stage })),
       ...rt.filter(r => r.filed >= wk).map(r => ({ cat: 'rights', name: r.name, ticker: r.ticker, date: r.filed, note: fin(r.subPrice) ? `$${r.subPrice} sub` : r.stage })),
       ...rc.filter(r => r.filed >= wk).map(r => ({ cat: 'recap', name: r.name, ticker: r.ticker, date: r.filed, note: r.type })),
+      ...ol.filter(x => x.filed >= wk && x.stage === 'open').map(x => ({ cat: 'oddlot', name: x.name, ticker: x.ticker, date: x.filed, note: fin(x.gross) ? `odd lot ${x.gross >= 0 ? '+' : '−'}$${Math.abs(Math.round(x.gross))}` : 'odd-lot tender' })),
       ...act.filter(a => a.filed >= wk).map(a => ({ cat: '13D', name: a.name, ticker: a.ticker, date: a.filed, note: a.filer })),
       ...sq.filter(x => x.deal && x.deal >= wk).map(x => ({ cat: 'spac', name: x.name, ticker: x.ticker, date: x.deal, note: x.target ? `→ ${x.target}` : 'deal' })),
       ...bb.filter(x => x.filed >= wk && fin(x.pctCap) && x.pctCap >= 3 && !x.verify).map(x => ({ cat: 'buyback', name: x.name, ticker: x.ticker, date: x.filed, note: `${x.pctCap}% of cap` })),
@@ -840,9 +1019,9 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     return {
       ts: Date.now(), built: new Date().toISOString(), buildSecs: Math.round((Date.now() - t0) / 1000), ttlHours: TTL / H, status, timing,
       docsRead: Object.values(BUDGET).reduce((a, b) => a + b, 0) - Object.values(budget).reduce((a, b) => a + b, 0), quotesFetched: Object.keys(quotes).length,
-      pipeline, newThisWeek, spinoffs: sp, mergers: mg, securities, reorg: rg, rights: rt, recaps: rc, insider: ins.list, insiderWindow: ins.window || null, activist: act, spacs: sq, buybacks: bb,
+      pipeline, newThisWeek, spinoffs: sp, mergers: mg, securities, reorg: rg, rights: rt, recaps: rc, oddlots: ol, insider: ins.list, insiderWindow: ins.window || null, activist: act, spacs: sq, buybacks: bb,
       docsCached: Object.keys(archive.docs).length,
-      source: 'SEC EDGAR full-text search (Form 10-12B, SC TO-T, SC TO-I, DEFM14A, SCHEDULE 13D, 8-A12B, and 8-K phrase sweeps), with deal terms parsed from the primary document of each filing; FMP mergers-acquisitions, insider-trading (Form 4 open-market purchases) and beneficial-ownership endpoints; Yahoo Finance quotes; the bankruptcy tracker’s 8-K Item 1.03 list. SPAC trust values assume $10.00 a unit and a 24-month deadline until the prospectus is read, and accrete at an assumed 4% a year. Buyback sizes are set against FMP market cap. Every parsed field is a regex match on filing text and is labelled as such.',
+      source: 'SEC EDGAR full-text search (Form 10-12B, SC TO-T, SC TO-I, DEFM14A, SCHEDULE 13D, 8-A12B, and 8-K phrase sweeps), with deal terms parsed from the primary document of each filing (for odd-lot tenders, the Offer to Purchase and the issuer’s latest SC TO-I/A from the EDGAR submissions list; fund NAVs from CEFConnect); FMP mergers-acquisitions, insider-trading (Form 4 open-market purchases) and beneficial-ownership endpoints; Yahoo Finance quotes; the bankruptcy tracker’s 8-K Item 1.03 list. SPAC trust values assume $10.00 a unit and a 24-month deadline until the prospectus is read, and accrete at an assumed 4% a year. Buyback sizes are set against FMP market cap. Every parsed field is a regex match on filing text and is labelled as such.',
     }
   }
 
@@ -872,5 +1051,19 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     },
   }
 
-  return { get, build, dealBook }
+  // Events on tickers, from the last build without starting one: open tenders (the odd-lot board,
+  // which keeps closed-end funds) and activist 13Ds from the past 180 days. The closed-end fund
+  // screener tags its rows with these.
+  function tickerEvents() {
+    const d = mem || load(FILE)
+    const out = {}
+    if (!d) return out
+    const put = (t, e) => { if (t) (out[t] ||= []).push(e) }
+    for (const x of d.oddlots || []) if (x.stage === 'open') put(x.ticker, { type: 'tender', label: `tender ${x.type}${x.expiry ? ` to ${x.expiry.slice(5)}` : ''}`, url: x.doc || x.url })
+    const since = ymd(Date.now() - 180 * DAY)
+    for (const x of d.activist || []) if (x.filed >= since) put(x.ticker, { type: 'activist', label: `13D ${String(x.filer || '').split(' / ')[0].slice(0, 18)}`, url: x.url })
+    return out
+  }
+
+  return { get, build, dealBook, tickerEvents }
 }
