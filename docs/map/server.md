@@ -43,6 +43,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/newsDesk/](../../server/newsDesk): the News Desk (/api/news-desk, /news-clip). index.js is the integrator: routes, the refresh cycle, the clip window and bookmarklet, and the this-computer-only guard on the routes that spend or write; feeds.js the WSJ, NYT and Economist RSS, Seeking Alpha write-ups (per-ticker feeds and Editors' Picks; links only, never deep-read from the headline), FMP stock news and SEC filings; profile.js the watchlist, categories and Tensions checks the news is read against; store.js the item store; analyzer.js Claude's triage, deep reads and daily brief; budget.js the hard daily cap on Claude spending. xposts.js reads write-ups shared on X for the cashtags in the gitignored news-x.json (X_BEARER_TOKEN in .env), under a monthly cap kept in the gitignored news-x-state.json. Each file's header documents its part
 - [server/peopleScreener.js](../../server/peopleScreener.js): S&P 500 revenue and profit per employee (FMP)
 - [server/optionsContext.js](../../server/optionsContext.js): earnings and dividend events for the options views
+- [server/optionsMarket.js](../../server/optionsMarket.js): Options → Market: Cboe volatility indices and the VIX term structure, put/call ratios, and an implied-volatility, skew and activity scan of index, macro and sector ETFs, the 15 largest stocks and the watchlist, with unusual activity (/api/options-market, stale-while-revalidate every 30 minutes)
 - [server/sfcModel.js](../../server/sfcModel.js): serves the SFC model JSON to the SFC Model tab
 
 ## State
@@ -52,6 +53,7 @@ Back to the [master map](../../CLAUDE.md).
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)
 - News Desk state at the root, gitignored because it names the watchlist: `news-desk.json` (items and Claude's reads), `news-desk-meta.json` (the brief, feed health, the last run), `news-usage.json` (Claude spend per day), `news-profile.json` (company names and CIKs; other names for a company go in its `aliases` list)
+- Options → Market state at the root, gitignored because it names the watchlist: `options-market-scan.json` (the last scan), `options-market-history.json` (each name's daily IV, skew and put/call, 400 days; an archive, never written over when unreadable) and `options-market-indices.json` (the Cboe index histories)
 - Other feed caches (us-pulse.json, redfin.json, gpu-economics.json, accounting-flags.json, sin-monitor.json, folly-markets.json, intelligence-mw-cache.json …) are gitignored; see [.gitignore](../../.gitignore)
 - Tracked archives these modules append to: [data snapshots](data.md)
 

@@ -131,3 +131,92 @@ export function earningsWindows(events,closes) {
   return (events||[]).map(e=>{const before=prices.filter(p=>p.date<e.date).at(-1),after=prices.find(p=>p.date>e.date);const valid=before&&after&&daysBetween(before.date,e.date)<=5&&daysBetween(e.date,after.date)<=5;
     return {...e,from:valid?before.date:null,to:valid?after.date:null,move:valid?100*(after.close/before.close-1):null};});
 }
+
+// ── Options → Market helpers (server/optionsMarket.js reads chains with these) ──
+// IVs here are decimals, as Cboe quotes them; the server turns them into percent.
+
+// The model's rate and dividend yield: the Treasury tenor nearest the expiry
+// and the trailing year's dividends over spot. The same selection as
+// modelInputs in src/tabs/options/DecisionWorkbench.jsx, importable without JSX.
+export function marketInputs(context,spot,dte=90) {
+  const tenors=[['month1',30],['month2',60],['month3',90],['month6',180],['year1',365]];
+  const available=tenors.filter(([key])=>finite(context?.rates?.[key]));
+  const match=available.sort((a,b)=>Math.abs(a[1]-dte)-Math.abs(b[1]-dte))[0];
+  const dividend=context?.status?.dividends==='available'&&spot>0?(context.dividends||[]).reduce((s,d)=>s+(d.adjustedAmount??d.amount??0),0)/spot:null;
+  return {rate:match?context.rates[match[0]]/100:null,dividend,rateDate:context?.rates?.date??null};
+}
+// usable quotes (quoteQuality, with its defaults unless settings say otherwise)
+// with a positive IV, grouped by days to expiry
+export function quotesByExpiry(options,settings) {
+  const out=new Map();
+  for(const o of options||[]){if(!(o.iv>0)||!quoteQuality(o,settings).usable)continue;const a=out.get(o.dte);a?a.push(o):out.set(o.dte,[o]);}
+  return out;
+}
+// ATM IV at one expiry: the call and the put at the strike nearest spot, averaged
+// (the pair constantMaturityIv uses: within 10% of spot). rows: one expiry's usable quotes.
+export function atmIvOf(rows,spot) {
+  const pair=['C','P'].map(type=>(rows||[]).filter(o=>o.type===type).sort((a,b)=>Math.abs(a.strike-spot)-Math.abs(b.strike-spot))[0]).filter(o=>o&&Math.abs(o.strike/spot-1)<.1);
+  return pair.length?pair.reduce((s,o)=>s+o.iv,0)/pair.length:null;
+}
+// ATM IV at every listed expiry up to maxDte days: [{dte, expiryDate, iv}]
+export function atmTerm(options,spot,maxDte=365,byExpiry=quotesByExpiry(options)) {
+  return [...byExpiry.keys()].filter(d=>d<=maxDte).sort((a,b)=>a-b).map(dte=>({dte,expiryDate:byExpiry.get(dte)[0].expiryDate,iv:atmIvOf(byExpiry.get(dte),spot)})).filter(p=>p.iv!=null);
+}
+// IV at a target delta on one expiry, linear in delta between out-of-the-money
+// quotes (puts for a negative target such as -0.25, calls for a positive one)
+export function ivAtDelta(rows,spot,target) {
+  const type=target<0?'P':'C';
+  const otm=(rows||[]).filter(o=>o.type===type&&finite(o.delta)&&(type==='P'?o.strike<=spot:o.strike>=spot)).sort((a,b)=>a.delta-b.delta);
+  for(let i=1;i<otm.length;i++){const a=otm[i-1],b=otm[i];if(a.delta<=target&&target<=b.delta)return b.delta===a.delta?(a.iv+b.iv)/2:a.iv+(target-a.delta)/(b.delta-a.delta)*(b.iv-a.iv);}
+  return null;
+}
+// 25-delta put and call IV and ATM IV at a constant maturity (30 days by default),
+// interpolated in total variance between the nearest expiries on either side, like
+// constantMaturityIv. The near expiry must be at least minDte days out, so a
+// few-day smile does not stand in for a month's; with an expiry on one side only,
+// that one is used. rr25 = put25 - call25: positive when puts are dearer.
+export function skewAt(options,spot,days=30,minDte=7,byExpiry=quotesByExpiry(options)) {
+  const dtes=[...byExpiry.keys()].sort((a,b)=>a-b);
+  const before=dtes.filter(d=>d>=minDte&&d<=days).at(-1),after=dtes.find(d=>d>=days&&d<=3*days);
+  const at=dte=>{if(dte==null)return null;const rows=byExpiry.get(dte);return {put25:ivAtDelta(rows,spot,-.25),call25:ivAtDelta(rows,spot,.25),atm:atmIvOf(rows,spot)};};
+  const a=at(before),b=at(after);
+  const mix=k=>{const x=a?.[k],y=b?.[k];if(x!=null&&y!=null&&before!==after){const w=(days-before)/(after-before);return Math.sqrt(((1-w)*x*x*before+w*y*y*after)/days);}return y??x??null;};
+  const put25=mix('put25'),call25=mix('call25'),atm=mix('atm');
+  return {put25,call25,atm,rr25:put25!=null&&call25!=null?put25-call25:null,expiries:[...new Set([before,after].filter(d=>d!=null))]};
+}
+// One expiry's out-of-the-money smile: puts below spot, calls from spot up,
+// |delta| at least 0.02, thinned to at most `max` points spread evenly in
+// moneyness. m = strike/spot.
+export function smilePoints(rows,spot,max=41) {
+  const pts=(rows||[]).filter(o=>finite(o.delta)&&Math.abs(o.delta)>=.02&&(o.type==='P'?o.strike<spot:o.strike>=spot)).map(o=>({m:o.strike/spot,strike:o.strike,delta:o.delta,iv:o.iv})).sort((a,b)=>a.m-b.m);
+  if(pts.length<=max)return pts;
+  const lo=pts[0].m,hi=pts.at(-1).m,out=[];let j=0;
+  for(let i=0;i<max;i++){const t=lo+(hi-lo)*i/(max-1);while(j<pts.length-1&&Math.abs(pts[j+1].m-t)<=Math.abs(pts[j].m-t))j++;if(out.at(-1)!==pts[j])out.push(pts[j]);}
+  return out;
+}
+// The market's implied move to an expiry: the at-the-money straddle's mid (call
+// plus put at the strike nearest spot, both two-sided) over spot, at the nearest
+// standard expiry at least minDte days out. pct is percent of spot.
+export function straddleMove(options,spot,minDte=5) {
+  const two=o=>o.bid>0&&finite(o.ask)&&o.ask>=o.bid&&o.standard!==false;
+  const dtes=[...new Set((options||[]).filter(o=>o.dte>=minDte&&two(o)).map(o=>o.dte))].sort((a,b)=>a-b);
+  for(const dte of dtes.slice(0,3)){
+    const rows=options.filter(o=>o.dte===dte&&two(o)),strikes=[...new Set(rows.map(o=>o.strike))].sort((a,b)=>Math.abs(a-spot)-Math.abs(b-spot));
+    for(const k of strikes.slice(0,3)){const c=rows.find(o=>o.type==='C'&&o.strike===k),p=rows.find(o=>o.type==='P'&&o.strike===k);
+      if(c&&p){const straddle=(c.bid+c.ask)/2+(p.bid+p.ask)/2;return {expiryDate:c.expiryDate,dte,strike:k,straddle,pct:100*straddle/spot};}}
+  }
+  return null;
+}
+// Unusual activity: standard contracts whose volume today is at least minVol and
+// above volOi × open interest (or open interest is zero), with premium (volume ×
+// mid × 100; the last price when there is no two-sided quote) of at least
+// minPremium, largest premium first. The snapshot holds the day's cumulative
+// volume, not trades, so direction is unknown: side is only where the last trade
+// printed against the current bid and ask.
+export function unusualContracts(options,spot,{minVol=500,volOi=1.5,minPremium=1e5}={}) {
+  return (options||[]).filter(o=>o.standard!==false&&o.vol>=minVol&&(!(o.oi>0)||o.vol>volOi*o.oi)).map(o=>{
+    const two=o.bid>0&&finite(o.ask)&&o.ask>=o.bid,mid=two?(o.bid+o.ask)/2:o.lastPrice;
+    const side=two&&finite(o.lastPrice)?(o.lastPrice>=o.ask?'ask':o.lastPrice<=o.bid?'bid':'mid'):null;
+    return {sym:o.sym,type:o.type,strike:o.strike,expiryDate:o.expiryDate,dte:o.dte,m:spot>0?o.strike/spot:null,vol:o.vol,oi:o.oi??0,ratio:o.oi>0?o.vol/o.oi:null,premium:finite(mid)?o.vol*mid*100:null,iv:o.iv,delta:o.delta,last:o.lastPrice,side};
+  }).filter(u=>u.premium>=minPremium).sort((a,b)=>b.premium-a.premium);
+}

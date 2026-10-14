@@ -32,6 +32,13 @@
 // reads the FRED and FMP keys from .env. Ritter's yearly loss-making-IPO share
 // is a separate step: python -I scripts/ritter-ipos.py (each January).
 //
+// Options → Market's put/call archive (putcall) is data/options/cboe-put-call.json,
+// not a seed in data/seeds/: Cboe's daily market statistics for every trading day
+// of the past two years (VIX's history is the calendar; ~520 requests, 4 at a
+// time, about a minute). server/optionsMarket.js appends each new day by itself,
+// so this is only for building it the first time or filling a long gap; rows
+// already in the file are kept and not requested again.
+//
 // Run after each WEO release (April, October), after the Census releases
 // (ACS 5-year in December/January, SAIPE in December, population estimates in
 // March, permits in May), or when BLS redefines metro series; commit
@@ -42,6 +49,7 @@
 //   node scripts/refresh-seeds.mjs long-run
 //   node scripts/refresh-seeds.mjs sin
 //   node scripts/refresh-seeds.mjs folly
+//   node scripts/refresh-seeds.mjs putcall
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
@@ -53,11 +61,12 @@ import { buildMarketMapSeed, SEED_NAME } from '../server/marketMapSeed.js'
 import { buildLongRunSeed, SEED_NAME as LONG_RUN_SEED } from '../server/longRunSeed.js'
 import { buildSinMonitor, SEED_NAME as SIN_SEED } from '../server/sinMonitorSeed.js'
 import { fetchLight, buildStreetGap, SEED_NAME as FOLLY_SEED } from '../server/follyMarkets.js'
+import { fetchIndexHistory, fetchPutCallDays, formatPutCall, PUTCALL_REL } from '../server/optionsMarket.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const out = path.join(root, 'data', 'seeds')
 fs.mkdirSync(out, { recursive: true })
-const SECTIONS = ['bls', 'imf', 'market-map', 'long-run', 'sin', 'folly']
+const SECTIONS = ['bls', 'imf', 'market-map', 'long-run', 'sin', 'folly', 'putcall']
 const asked = process.argv.slice(2)
 const unknown = asked.filter(a => !SECTIONS.includes(a))
 if (unknown.length) { console.error(`unknown section(s): ${unknown.join(', ')} — choose from ${SECTIONS.join(', ')}`); process.exit(1) }
@@ -141,4 +150,30 @@ if (run('folly')) {
   const streetGap = await buildStreetGap({ fmpKey: env.VITE_FMP_KEY, symbols })
   if (streetGap.companies < 400 || streetGap.quarters.length < 40) throw new Error(`street gap looks short: ${streetGap.companies} companies, ${streetGap.quarters.length} quarters`)
   write(FOLLY_SEED, { built: new Date().toISOString(), ...light, streetGap })
+}
+
+// ── Options → Market, Cboe put/call ratios ──
+// The trading days come from VIX's history; a day Cboe has no file for is
+// reported and left out. Existing rows are kept (the file is an archive).
+if (run('putcall')) {
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  const file = path.join(root, PUTCALL_REL)
+  let prior = []
+  if (fs.existsSync(file)) {
+    prior = JSON.parse(fs.readFileSync(file, 'utf8')).rows // an unreadable archive stops the script rather than being replaced
+    if (!Array.isArray(prior)) throw new Error(`${PUTCALL_REL} has no rows array; fix or move it first`)
+  }
+  const have = new Set(prior.map(r => r.d))
+  const from = new Date(Date.now() - 2 * 365.25 * 864e5).toISOString().slice(0, 10)
+  const days = (await fetchIndexHistory('VIX', UA)).map(r => r[0]).filter(d => d >= from && !have.has(d))
+  console.log(`putcall: ${days.length} trading days to fetch since ${from} (${prior.length} already in the file)`)
+  const got = await fetchPutCallDays(days, UA, console.log)
+  if (got.missing.length) console.log(`  no Cboe file for ${got.missing.length} day(s): ${got.missing.slice(0, 10).join(', ')}${got.missing.length > 10 ? ' …' : ''}`)
+  if (got.failed.length) console.log(`  failed: ${got.failed.slice(0, 5).join('; ')}`)
+  const rows = [...prior, ...got.rows].sort((a, b) => a.d.localeCompare(b.d))
+  if (rows.length < 450) throw new Error(`put/call archive looks short: ${rows.length} days`)
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(`${file}.tmp`, formatPutCall(rows))
+  fs.renameSync(`${file}.tmp`, file)
+  console.log(`wrote ${PUTCALL_REL} (${rows.length} days, ${rows[0].d} to ${rows[rows.length - 1].d}, ${(fs.statSync(file).size / 1024).toFixed(0)} KB)`)
 }

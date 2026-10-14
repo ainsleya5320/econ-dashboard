@@ -7,6 +7,7 @@ import { createRealEstateFeeds, unzipEntries } from './server/realEstateFeeds.js
 import { createMetroComparison } from './server/metroComparison.js'
 import { createMetroEmployment } from './server/metroEmployment.js'
 import { createOptionsContext } from './server/optionsContext.js'
+import { createOptionsMarket } from './server/optionsMarket.js'
 import { createPeopleScreener } from './server/peopleScreener.js'
 import { createUsPulse } from './server/usPulse.js'
 import { createIntlPulse } from './server/intlPulse.js'
@@ -3819,6 +3820,12 @@ const sinMonitor = createSinMonitor({ UA, dir: __dirname })
 // Folly markets (server/follyMarkets.js): Shiller CAPE, margin loans, Ritter IPOs, the S&P street-vs-GAAP gap,
 // and the Sin & Folly gauge that joins them to the Sin monitor's series
 const follyMarkets = createFollyMarkets({ UA, dir: __dirname, fetchFredSeries, sinMonitor: () => sinMonitor.get() })
+// Options context (server/optionsContext.js): earnings, dividends and Treasury rates per symbol, one
+// instance shared by /api/options-context and the options-market scan
+const optionsContext = createOptionsContext({ dir: __dirname, fmpKey: FMP_KEY })
+// Options market (server/optionsMarket.js): Cboe volatility indices and term structure, put/call
+// ratios, and an IV/skew/activity scan of index, sector and macro ETFs, the largest stocks and the watchlist
+const optionsMarket = createOptionsMarket({ UA, dir: __dirname, FMP_KEY, context: symbol => optionsContext.context(symbol) })
 
 export default defineConfig({
   plugins: [
@@ -3828,7 +3835,7 @@ export default defineConfig({
       configureServer(server) {
         createMetroComparison({dir: __dirname, getRents: () => reFeeds.rents()}).register(server)
         createMetroEmployment({dir: __dirname, blsKey: BLS_KEY}).register(server)
-        createOptionsContext({dir: __dirname, fmpKey: FMP_KEY}).register(server)
+        optionsContext.register(server)
         // Central bank rates endpoint (FMP calendar + FRED live series)
         server.middlewares.use('/api/cb-rates', async (_req, res) => {
           res.setHeader('Content-Type', 'application/json')
@@ -4038,6 +4045,7 @@ export default defineConfig({
         reRoute('/api/accounting-flags', req => accountingFlags.get(req))
         reRoute('/api/sin-monitor', () => sinMonitor.get())
         reRoute('/api/folly-markets', () => follyMarkets.get())
+        reRoute('/api/options-market', () => optionsMarket.get())
         // the Deal Book: the user's pins, notes, dates and checklists, one JSON file
         server.middlewares.use('/api/special-dealbook', (req, res) => {
           res.setHeader('Content-Type', 'application/json')

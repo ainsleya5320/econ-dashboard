@@ -94,3 +94,9 @@ long-run.json
 /news-*.tmp
 # a temp file left only if the server dies while appending an approved News Desk row to a data/ai table
 /data/ai/*.tmp-*.json
+# Options → Market (server/optionsMarket.js): the last option scan with its realized-vol cache, the
+# daily per-name IV/skew/put-call archive and the Cboe index-history cache. The first two name the
+# watchlist, so all stay on this machine (the pattern covers their .tmp files too).
+# data/options/cboe-put-call.json is the tracked, market-wide put/call archive.
+/options-market*
+/data/options/*.tmp
