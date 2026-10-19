@@ -6,6 +6,7 @@ import ForecastPanel from "../components/ForecastPanel.jsx";
 import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker.jsx";
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
+import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
 import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
@@ -2071,6 +2072,8 @@ function ComputeTab() {
       pace, and the silicon and memory supply behind it.
     </div>
     <GpuRentalsPanel />
+    <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
+    <NebiusSpot />
     <GpuEconomicsPanel />
     <SH>Intelligence per Megawatt</SH>
     <IntelligencePerMwPanel />

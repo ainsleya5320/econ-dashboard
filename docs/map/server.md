@@ -15,6 +15,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/commodityPulse.js](../../server/commodityPulse.js): 15 commodity contracts, real-price fair value, CFTC positioning
 - [server/aiPulse.js](../../server/aiPulse.js): AI Economy landing feed: token tracker, Artificial Analysis, GPU rentals
 - [server/gpuEconomics.js](../../server/gpuEconomics.js): GPU-hour cost vs revenue by generation (InferenceX)
+- [server/nebiusSpot.js](../../server/nebiusSpot.js): Nebius preemptible (spot) GPU prices by market from its public billing API, 30 days hourly (the API limit), floor/ceiling states since market pricing began (2026-10-08), and the daily archive
 - [server/intelligencePerMw.js](../../server/intelligencePerMw.js): intelligence per megawatt: Artificial Analysis score × InferenceX tokens per provisioned MW, frontier-class models (/api/intelligence-mw)
 - [server/tokenEstimates.js](../../server/tokenEstimates.js): bounding OpenAI and Anthropic token volume four ways
 - [server/tokenSpot.js](../../server/tokenSpot.js): $/token derived from GPU rental prices

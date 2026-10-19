@@ -21,6 +21,7 @@ import { createBankruptcy } from './server/bankruptcy.js'
 import { createSpecialSituations } from './server/specialSituations.js'
 import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createGpuEconomics } from './server/gpuEconomics.js'
+import { createNebiusSpot } from './server/nebiusSpot.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3798,6 +3799,8 @@ const specialSituations = createSpecialSituations({ fetchYahooSparkline, FMP_KEY
 const fxFundamentals = createFxFundamentals({ fetchFredSeries, fetchCbRates, intlPulse: () => intlPulse.get(), UA, dir: __dirname })
 // GPU unit economics (server/gpuEconomics.js): InferenceX throughput per generation against the AI pulse's rentals and data/ai/gpu-econ.json cost lines
 const gpuEconomics = createGpuEconomics({ aiPulse: () => aiPulse.get(), UA, dir: __dirname })
+// Nebius spot (server/nebiusSpot.js): preemptible GPU prices by market, 30 days hourly, and the daily archive data/ai/nebius-spot-daily.json
+const nebiusSpot = createNebiusSpot({ UA, dir: __dirname })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4041,6 +4044,7 @@ export default defineConfig({
         reRoute('/api/special-situations', () => specialSituations.get())
         reRoute('/api/fx-fundamentals', () => fxFundamentals.get())
         reRoute('/api/gpu-economics', () => gpuEconomics.get())
+        reRoute('/api/nebius-spot', () => nebiusSpot.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())
@@ -4093,6 +4097,7 @@ export default defineConfig({
         setTimeout(() => { specialSituations.get().catch(() => {}) }, 150 * 1000)
         setTimeout(() => { fxFundamentals.get().catch(() => {}) }, 330 * 1000) // after the intl pulse it joins
         setTimeout(() => { gpuEconomics.get().catch(() => {}) }, 540 * 1000) // after the AI pulse it joins
+        setTimeout(() => { nebiusSpot.get().catch(() => {}) }, 200 * 1000) // its daily archive backfills any gap of up to 30 days
         setTimeout(() => { tokenEstimates.get().catch(() => {}) }, 660 * 1000) // after the GPU economics it joins
         setTimeout(() => { ownerWealth.get().catch(() => {}) }, 780 * 1000)
         setTimeout(() => { householdWealth.get().catch(() => {}) }, 810 * 1000)

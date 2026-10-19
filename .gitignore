@@ -104,3 +104,5 @@ long-run.json
 # history and the daily price/NAV archive. CEFConnect (Nuveen/Morningstar) data is licensed and this
 # repo is public: never commit any of it. The pattern covers the .tmp and .corrupt-* files too.
 /cef-*
+# Nebius spot (server/nebiusSpot.js): the 30-minute feed cache; data/ai/nebius-spot-daily.json is the tracked daily archive
+/nebius-spot.json
