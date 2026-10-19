@@ -15,6 +15,9 @@ Back to the [master map](../../CLAUDE.md).
 - [server/commodityPulse.js](../../server/commodityPulse.js): 15 commodity contracts, real-price fair value, CFTC positioning
 - [server/aiPulse.js](../../server/aiPulse.js): AI Economy landing feed: token tracker, Artificial Analysis, GPU rentals
 - [server/gpuEconomics.js](../../server/gpuEconomics.js): GPU-hour cost vs revenue by generation (InferenceX)
+- [server/gpuFutures.js](../../server/gpuFutures.js): CME Silicon Data H100/B200 rental-index futures settlements, archived daily in the gitignored gpu-futures.json (CME terms: personal use; CME serves only ~5 trade days, so a timer reads it every 3 hours)
+- [server/gpuHyperscalers.js](../../server/gpuHyperscalers.js): AWS spot (spot.json) vs on-demand (price maps) and Azure spot/list/1- and 3-year reserved, per GPU-hour
+- [server/gpuMarketData.js](../../server/gpuMarketData.js): Shadeform availability across ~18 clouds, GetDeploying weekly price history (CC BY 4.0), AmCompute used-GPU resale index
 - [server/nebiusSpot.js](../../server/nebiusSpot.js): Nebius preemptible (spot) GPU prices by market from its public billing API, 30 days hourly (the API limit), floor/ceiling states since market pricing began (2026-10-08), and the daily archive
 - [server/intelligencePerMw.js](../../server/intelligencePerMw.js): intelligence per megawatt: Artificial Analysis score × InferenceX tokens per provisioned MW, frontier-class models (/api/intelligence-mw)
 - [server/tokenEstimates.js](../../server/tokenEstimates.js): bounding OpenAI and Anthropic token volume four ways

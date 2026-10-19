@@ -22,6 +22,9 @@ import { createSpecialSituations } from './server/specialSituations.js'
 import { createFxFundamentals } from './server/fxFundamentals.js'
 import { createGpuEconomics } from './server/gpuEconomics.js'
 import { createNebiusSpot } from './server/nebiusSpot.js'
+import { createGpuFutures } from './server/gpuFutures.js'
+import { createGpuHyperscalers } from './server/gpuHyperscalers.js'
+import { createGpuMarketData } from './server/gpuMarketData.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3801,6 +3804,12 @@ const fxFundamentals = createFxFundamentals({ fetchFredSeries, fetchCbRates, int
 const gpuEconomics = createGpuEconomics({ aiPulse: () => aiPulse.get(), UA, dir: __dirname })
 // Nebius spot (server/nebiusSpot.js): preemptible GPU prices by market, 30 days hourly, and the daily archive data/ai/nebius-spot-daily.json
 const nebiusSpot = createNebiusSpot({ UA, dir: __dirname })
+// GPU futures (server/gpuFutures.js): CME Silicon Data H100/B200 rental-index futures settlements, archived daily (personal use; gitignored)
+const gpuFutures = createGpuFutures({ UA, dir: __dirname })
+// GPU hyperscalers (server/gpuHyperscalers.js): AWS spot vs on-demand and Azure spot/list/reserved per GPU-hour, with a tracked daily summary
+const gpuHyperscalers = createGpuHyperscalers({ UA, dir: __dirname })
+// GPU market data (server/gpuMarketData.js): Shadeform availability across ~18 clouds, GetDeploying's weekly price history (CC BY 4.0) and the AmCompute used-GPU resale index
+const gpuMarketData = createGpuMarketData({ UA, dir: __dirname })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4045,6 +4054,9 @@ export default defineConfig({
         reRoute('/api/fx-fundamentals', () => fxFundamentals.get())
         reRoute('/api/gpu-economics', () => gpuEconomics.get())
         reRoute('/api/nebius-spot', () => nebiusSpot.get())
+        reRoute('/api/gpu-futures', () => gpuFutures.get())
+        reRoute('/api/gpu-hyperscalers', () => gpuHyperscalers.get())
+        reRoute('/api/gpu-market-data', () => gpuMarketData.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())
@@ -4098,6 +4110,13 @@ export default defineConfig({
         setTimeout(() => { fxFundamentals.get().catch(() => {}) }, 330 * 1000) // after the intl pulse it joins
         setTimeout(() => { gpuEconomics.get().catch(() => {}) }, 540 * 1000) // after the AI pulse it joins
         setTimeout(() => { nebiusSpot.get().catch(() => {}) }, 200 * 1000) // its daily archive backfills any gap of up to 30 days
+        // CME keeps only about five trade days of settlements, so the archive must be read while the server runs
+        setTimeout(() => { gpuFutures.get().catch(() => {}) }, 60 * 1000)
+        // one timer per process: Vite reloads this config in place on server edits, and a stale interval would keep a second instance writing the archive
+        clearInterval(globalThis.__gpuFuturesTimer)
+        globalThis.__gpuFuturesTimer = setInterval(() => { gpuFutures.get().catch(() => {}) }, 3 * 3600 * 1000)
+        setTimeout(() => { gpuHyperscalers.get().catch(() => {}) }, 230 * 1000)
+        setTimeout(() => { gpuMarketData.get().catch(() => {}) }, 260 * 1000) // its availability archive records a day only when read
         setTimeout(() => { tokenEstimates.get().catch(() => {}) }, 660 * 1000) // after the GPU economics it joins
         setTimeout(() => { ownerWealth.get().catch(() => {}) }, 780 * 1000)
         setTimeout(() => { householdWealth.get().catch(() => {}) }, 810 * 1000)

@@ -71,13 +71,43 @@ export function createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, 
     if (!per.length) return { gpu, n: 0 }
     return { gpu, n: per.length, median: r2(median(per)), min: r2(per[0]), p25: r2(per[Math.floor(per.length / 4)]), verified: offers.filter(o => o.verified).length }
   }
+  // ── RunPod: on-demand $/GPU-hour per GPU from its public GraphQL (no key) ──
+  // The "from" rate = the cheaper of Secure Cloud and Community Cloud, counting a cloud only where
+  // RunPod offers the GPU in it (secureCloud / communityCloud): for a cloud that does not carry it the
+  // API returns a placeholder ($0.50 community, $0 secure). Matched on the API id, display name as the
+  // fallback. Keys keep the names the page and gpu-rentals.json already use: 'H100 80GB' is the H100
+  // SXM 80GB, 'A100 80GB' the A100 SXM 80GB. The spot fields exist but come back null without a key.
+  // If GraphQL fails, the old pricing-page scrape (its SEO line: H100 80GB and RTX 4090 only).
+  const RP_GPUS = [
+    ['NVIDIA H100 80GB HBM3', 'H100 SXM', 'H100 80GB'], ['NVIDIA H100 PCIe', 'H100 PCIe', 'H100 PCIe'], ['NVIDIA H200', 'H200 SXM', 'H200'],
+    ['NVIDIA B200', 'B200', 'B200'], ['NVIDIA B300 SXM6 AC', 'B300', 'B300'], ['AMD Instinct MI300X OAM', 'MI300X', 'MI300X'], ['AMD Instinct MI350 OAM', 'MI350X', 'MI350X'],
+    ['NVIDIA A100-SXM4-80GB', 'A100 SXM', 'A100 80GB'], ['NVIDIA L40S', 'L40S', 'L40S'], ['NVIDIA RTX PRO 6000 Blackwell Server Edition', 'RTX PRO 6000', 'RTX PRO 6000'],
+    ['NVIDIA GeForce RTX 5090', 'RTX 5090', 'RTX 5090'], ['NVIDIA GeForce RTX 4090', 'RTX 4090', 'RTX 4090'],
+  ]
   async function runpod() {
-    const r = await fetch('https://www.runpod.io/pricing', { headers: { 'User-Agent': UA } })
-    if (!r.ok) throw new Error(`RunPod HTTP ${r.status}`)
-    const t = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ')
-    const out = {}
-    for (const m of t.matchAll(/([A-Z][A-Za-z0-9 ]{2,24}?) from \$(\d+\.\d+)\/hr/g)) out[m[1].replace(/^Rent /, '').trim()] = +m[2]
-    return out
+    try {
+      const r = await fetch('https://api.runpod.io/graphql', { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ query: '{ gpuTypes { id displayName secureCloud communityCloud securePrice communityPrice } }' }), signal: AbortSignal.timeout(30_000) })
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const j = await r.json()
+      if (j.errors?.length) throw new Error(j.errors[0]?.message || 'GraphQL error')
+      const types = j.data?.gpuTypes || []
+      const out = {}
+      for (const [id, name, key] of RP_GPUS) {
+        const g = types.find(t => t.id === id) || types.find(t => t.displayName === name)
+        const px = g ? [g.secureCloud ? g.securePrice : null, g.communityCloud ? g.communityPrice : null].filter(v => fin(v) && v > 0) : []
+        if (px.length) out[key] = Math.min(...px)
+      }
+      if (!Object.keys(out).length) throw new Error(`none of the tracked GPUs priced (${types.length} types listed)`)
+      return out
+    } catch (e) {
+      console.warn('RunPod GraphQL:', e.message, '— falling back to the pricing page')
+      const r = await fetch('https://www.runpod.io/pricing', { headers: { 'User-Agent': UA } })
+      if (!r.ok) throw new Error(`RunPod HTTP ${r.status}`)
+      const t = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ')
+      const out = {}
+      for (const m of t.matchAll(/([A-Z][A-Za-z0-9 ]{2,24}?) from \$(\d+\.\d+)\/hr/g)) out[m[1].replace(/^Rent /, '').trim()] = +m[2]
+      return out
+    }
   }
 
   async function build() {

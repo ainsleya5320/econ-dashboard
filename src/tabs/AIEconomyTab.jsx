@@ -7,6 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import NebiusSpot from "./ai/NebiusSpot.jsx";
+import GpuMarkets from "./ai/GpuMarkets.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
 import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
@@ -2074,6 +2075,8 @@ function ComputeTab() {
     <GpuRentalsPanel />
     <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
     <NebiusSpot />
+    <SH>The GPU-Hour, Every Way It's Sold — Spot, List, Contract, Futures</SH>
+    <GpuMarkets />
     <GpuEconomicsPanel />
     <SH>Intelligence per Megawatt</SH>
     <IntelligencePerMwPanel />

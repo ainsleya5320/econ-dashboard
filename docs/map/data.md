@@ -14,6 +14,9 @@ Back to the [master map](../../CLAUDE.md).
 - [usage-signals-history.json](../../usage-signals-history.json): Stack Overflow, GitHub stars, Cloudflare Radar AI signals, daily
 - [usage-signals-so-monthly.json](../../usage-signals-so-monthly.json): Stack Overflow monthly tag counts backfill
 - [ai-prices.json](../../ai-prices.json): token and GPU price snapshots (also read by server/gpuEconomics.js)
+- [data/ai/gpu-hyperscalers-daily.json](../../data/ai/gpu-hyperscalers-daily.json): daily AWS/Azure per-GPU summary (server/gpuHyperscalers.js)
+- [data/ai/gpu-availability-daily.json](../../data/ai/gpu-availability-daily.json): daily Shadeform launchable share and list prices per GPU (server/gpuMarketData.js)
+- `gpu-futures.json`, `gpu-hyperscalers.json`, `gpu-market-data.json` at the root are gitignored caches; gpu-futures.json is the only copy of CME settlement history and must never be committed
 - [data/ai/nebius-spot-daily.json](../../data/ai/nebius-spot-daily.json): Nebius spot price archive, one row per market per day, with the fixed prices that applied before market pricing (server/nebiusSpot.js rebuilds the last 30 days each refresh)
 - [ai-pulse-archive.json](../../ai-pulse-archive.json): Artificial Analysis daily history (server/aiPulse.js)
 - [gpu-rentals.json](../../gpu-rentals.json): GPU rental spot prices, daily (server/aiPulse.js)

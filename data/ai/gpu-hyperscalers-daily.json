@@ -1,0 +1,14 @@
+{"source":"AWS (website.spot.ec2.aws.a2z.com/spot.json; b0.p.awsstatic.com on-demand price maps) and Azure Retail Prices (prices.azure.com) public list prices, USD per GPU-hour; built by server/gpuHyperscalers.js",
+"fields":"d = UTC day of the refresh (the last of the day wins); spotMin, spotMedian = cheapest and median spot across regions (AWS: full-node instance types pooled; Azure: regions whose spot is under 97% of on-demand, else null); od = AWS us-east-1 on-demand of the cheapest full-node type, Azure median on-demand across regions; r1y, r3y = Azure 1- and 3-year reservation median, per hour",
+"rows":[
+{"d":"2026-10-19","provider":"aws","gpu":"H100","spotMin":2.225,"spotMedian":3.408,"od":6.88,"r1y":null,"r3y":null},
+{"d":"2026-10-19","provider":"aws","gpu":"H200","spotMin":1.092,"spotMedian":3.975,"od":7.912,"r1y":null,"r3y":null},
+{"d":"2026-10-19","provider":"aws","gpu":"B200","spotMin":1.795,"spotMedian":6.219,"od":14.242,"r1y":null,"r3y":null},
+{"d":"2026-10-19","provider":"aws","gpu":"B300","spotMin":2.51,"spotMedian":5.845,"od":17.802,"r1y":null,"r3y":null},
+{"d":"2026-10-19","provider":"aws","gpu":"A100","spotMin":0.506,"spotMedian":1.79,"od":2.745,"r1y":null,"r3y":null},
+{"d":"2026-10-19","provider":"azure","gpu":"H100","spotMin":2.271,"spotMedian":2.953,"od":15.977,"r1y":10.225,"r3y":7.014},
+{"d":"2026-10-19","provider":"azure","gpu":"H200","spotMin":null,"spotMedian":null,"od":13.78,"r1y":7.56,"r3y":6.861},
+{"d":"2026-10-19","provider":"azure","gpu":"GB200","spotMin":null,"spotMedian":null,"od":33.8,"r1y":21.632,"r3y":14.872},
+{"d":"2026-10-19","provider":"azure","gpu":"MI300X","spotMin":1.109,"spotMedian":1.386,"od":7.5,"r1y":4.8,"r3y":3.292},
+{"d":"2026-10-19","provider":"azure","gpu":"A100","spotMin":0.954,"spotMedian":1.509,"od":5.325,"r1y":3.408,"r3y":2.343}
+]}

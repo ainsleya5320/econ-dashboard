@@ -106,3 +106,10 @@ long-run.json
 /cef-*
 # Nebius spot (server/nebiusSpot.js): the 30-minute feed cache; data/ai/nebius-spot-daily.json is the tracked daily archive
 /nebius-spot.json
+# GPU futures (server/gpuFutures.js): the CME settlement archive. CME's terms are personal use only and
+# this repo is public, so it never gets committed (nor published by the Netlify fork)
+/gpu-futures.json
+# GPU hyperscalers and market data (server/gpuHyperscalers.js, server/gpuMarketData.js): full-response caches;
+# the tracked daily summaries live in data/ai/
+/gpu-hyperscalers.json
+/gpu-market-data*

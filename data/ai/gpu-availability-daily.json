@@ -1,0 +1,14 @@
+{"source":"Shadeform instance types (api.shadeform.ai/v1/instances/types), on-demand rows only. One row per UTC day per GPU model, from the last refresh of the day: rows = instance-type × region rows, available = rows launchable at that moment, share = available / rows, listMin / listMedian = list price per GPU-hour (USD) over listings, availMin = cheapest per-GPU price among listings available at that moment.","rows":[
+{"d":"2026-10-19","gpu":"B300","rows":9,"available":0,"share":0,"listMin":4.5,"listMedian":7.91,"availMin":null},
+{"d":"2026-10-19","gpu":"B200","rows":15,"available":0,"share":0,"listMin":3.74,"listMedian":6.52,"availMin":null},
+{"d":"2026-10-19","gpu":"H200","rows":36,"available":1,"share":0.028,"listMin":2.25,"listMedian":4.47,"availMin":4},
+{"d":"2026-10-19","gpu":"GH200","rows":2,"available":0,"share":0,"listMin":2.29,"listMedian":3.26,"availMin":null},
+{"d":"2026-10-19","gpu":"H100","rows":87,"available":8,"share":0.092,"listMin":1.66,"listMedian":2.664,"availMin":2.5},
+{"d":"2026-10-19","gpu":"H100 NVL","rows":5,"available":0,"share":0,"listMin":3.16,"listMedian":3.16,"availMin":null},
+{"d":"2026-10-19","gpu":"A100","rows":91,"available":10,"share":0.11,"listMin":1.35,"listMedian":1.525,"availMin":1.35},
+{"d":"2026-10-19","gpu":"A100 40GB","rows":61,"available":4,"share":0.066,"listMin":1.36,"listMedian":1.99,"availMin":1.4},
+{"d":"2026-10-19","gpu":"RTX PRO 6000","rows":42,"available":2,"share":0.048,"listMin":0.99,"listMedian":1.875,"availMin":2.19},
+{"d":"2026-10-19","gpu":"L40S","rows":44,"available":10,"share":0.227,"listMin":0.69,"listMedian":1.5,"availMin":0.88},
+{"d":"2026-10-19","gpu":"RTX 5090","rows":4,"available":1,"share":0.25,"listMin":0.65,"listMedian":0.675,"availMin":0.65},
+{"d":"2026-10-19","gpu":"RTX 4090","rows":7,"available":3,"share":0.429,"listMin":0.4,"listMedian":0.6,"availMin":0.4}
+]}
