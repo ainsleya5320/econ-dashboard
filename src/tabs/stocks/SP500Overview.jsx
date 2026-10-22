@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import TopCompanyGdp from "./TopCompanyGdp.jsx";
 import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ReferenceLine, BarChart, Bar, Cell } from "recharts";
 import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 import { SH, InfoBox } from "../../components/shared.jsx";
@@ -267,6 +268,9 @@ function SP500Overview({ onSelectStock }) {
         </tbody>
       </table>
     </div>
+
+    <SH>Concentration — the Biggest Company ÷ GDP</SH>
+    <TopCompanyGdp />
 
     <InfoBox color="#818cf8">
       <strong style={{ color: "var(--text-primary)" }}>How to read this page.</strong>

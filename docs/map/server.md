@@ -36,6 +36,9 @@ Back to the [master map](../../CLAUDE.md).
 - [server/rentalConcessions.js](../../server/rentalConcessions.js): Zillow rent-report concession parser
 - [server/municipalities.js](../../server/municipalities.js): one metro at a time: labor, housing, WARN notices
 - [server/bankruptcy.js](../../server/bankruptcy.js): U.S. Courts F-2 tables, CM/ECF feeds, CourtListener, 8-K Item 1.03
+- [server/shareOfWorld.js](../../server/shareOfWorld.js): assets and countries as a share of world GDP in USD (IMF WEO, World Bank market caps, Damodaran annual returns), with tracked seeds in data/seeds/
+- [server/topCompanyGdp.js](../../server/topCompanyGdp.js): the most valuable US company ÷ US GDP since 1984 (FMP daily market caps, spin-off-corrected; FRED GDP)
+- [server/chinaMonitor.js](../../server/chinaMonitor.js): China objective (manufacturing, technology) vs cost (housing, households) series
 - [server/specialSituations.js](../../server/specialSituations.js): spinoffs, mergers, tenders, odd-lot tenders (priority clause read from the Offer to Purchase, fund tenders valued with cefDiscounts.lookup), insider buys from SEC EDGAR and FMP; tickerEvents() feeds the closed-end fund screener. EDGAR full-text search: name the root form only ('SC TO-I' includes its amendments; 'SC TO-I,SC TO-I/A' returns amendments only)
 - [server/specialScore.js](../../server/specialScore.js): 0-100 score for special-situation ideas
 - [server/accountingFlags.js](../../server/accountingFlags.js): the stock page's Accounting tab, filings half: restatements, auditor changes, late filings, weaknesses, comment letters, Friday-night 8-Ks and footnote lines from EDGAR, per company (/api/accounting-flags)

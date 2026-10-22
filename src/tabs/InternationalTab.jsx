@@ -8,6 +8,8 @@ import WorldBankSubTab from "./intl/WorldBankSubTab.jsx";
 import LiquiditySubTab from "./intl/LiquiditySubTab.jsx";
 import IntlPulseTab from "./intl/IntlPulseTab.jsx";
 import ForexFundamentals from "./intl/ForexTab.jsx";
+import ShareOfWorld from "./intl/ShareOfWorld.jsx";
+import ChinaMonitor from "./intl/ChinaMonitor.jsx";
 
 const INTL_ETFS = [
   { symbol: "EFA",  label: "EAFE (Developed ex-US)", flag: "INTL", color: "#818cf8" },
@@ -46,6 +48,8 @@ const INTL_SUB_TABS = [
   { id: "forex",     label: "Forex" },
   { id: "liquidity", label: "Liquidity & Debt" },
   { id: "gdp",       label: "GDP" },
+  { id: "share",     label: "Share of the World" },
+  { id: "china",     label: "China" },
   { id: "debt",      label: "Debt" },
   { id: "infl",      label: "Inflation" },
   { id: "demo",      label: "Demographics" },
@@ -395,6 +399,8 @@ function InternationalTab({ fmpKey, fredKey, gd }) {
 
     {/* ===== MARKETS SUB-TAB ===== */}
     {intlSub === "pulse" && <IntlPulseTab go={setIntlSub} />}
+    {intlSub === "share" && <ShareOfWorld />}
+    {intlSub === "china" && <ChinaMonitor />}
 
     {intlSub === "markets" && (<>
       {!quotes ? <div style={{ textAlign: "center", padding: 40, color: "#64748b", fontFamily: fonts.mono, fontSize: 12 }}>Loading international market data...</div> : (<>

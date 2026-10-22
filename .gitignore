@@ -113,3 +113,8 @@ long-run.json
 # the tracked daily summaries live in data/ai/
 /gpu-hyperscalers.json
 /gpu-market-data*
+# Share of the world, biggest company ÷ GDP, China monitor (server/shareOfWorld.js, topCompanyGdp.js,
+# chinaMonitor.js): full-response caches; the share-of-world seeds in data/seeds/ are tracked
+/share-of-world.json
+/top-company-gdp.json*
+/china-monitor.json

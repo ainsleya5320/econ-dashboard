@@ -25,6 +25,9 @@ import { createNebiusSpot } from './server/nebiusSpot.js'
 import { createGpuFutures } from './server/gpuFutures.js'
 import { createGpuHyperscalers } from './server/gpuHyperscalers.js'
 import { createGpuMarketData } from './server/gpuMarketData.js'
+import { createShareOfWorld } from './server/shareOfWorld.js'
+import { createTopCompanyGdp } from './server/topCompanyGdp.js'
+import { createChinaMonitor } from './server/chinaMonitor.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3827,6 +3830,12 @@ const gpuFutures = createGpuFutures({ UA, dir: __dirname })
 const gpuHyperscalers = createGpuHyperscalers({ UA, dir: __dirname })
 // GPU market data (server/gpuMarketData.js): Shadeform availability across ~18 clouds, GetDeploying's weekly price history (CC BY 4.0) and the AmCompute used-GPU resale index
 const gpuMarketData = createGpuMarketData({ UA, dir: __dirname })
+// Share of the world (server/shareOfWorld.js): Li Lu's measure, value ÷ world GDP in USD — IMF WEO, World Bank market caps, Damodaran annual returns
+const shareOfWorld = createShareOfWorld({ UA, dir: __dirname })
+// Biggest company ÷ GDP (server/topCompanyGdp.js): the most valuable US company's market value as a share of US GDP since 1984, FMP history spin-off-corrected
+const topCompanyGdp = createTopCompanyGdp({ FMP_KEY, FRED_KEY, UA, dir: __dirname })
+// China monitor (server/chinaMonitor.js): Li Lu's objective (manufacturing, tech) vs cost (housing, households) — BIS, PBoC, Eastmoney/NBS, DBnomics, World Bank, UN Comtrade, OWID
+const chinaMonitor = createChinaMonitor({ UA, dir: __dirname, FRED_KEY })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4074,6 +4083,9 @@ export default defineConfig({
         reRoute('/api/gpu-futures', () => gpuFutures.get())
         reRoute('/api/gpu-hyperscalers', () => gpuHyperscalers.get())
         reRoute('/api/gpu-market-data', () => gpuMarketData.get())
+        reRoute('/api/share-of-world', () => shareOfWorld.get())
+        reRoute('/api/top-company-gdp', () => topCompanyGdp.get())
+        reRoute('/api/china-monitor', () => chinaMonitor.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())
