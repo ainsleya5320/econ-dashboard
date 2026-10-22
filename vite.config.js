@@ -33,6 +33,7 @@ import { createGlobalHousing } from './server/globalHousing.js'
 import { createPolicyRates, applyDecisions } from './server/policyRates.js'
 import { createWorldEconomy } from './server/worldEconomy.js'
 import { createOilMarket } from './server/oilMarket.js'
+import { createCotReport } from './server/cotReport.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3753,6 +3754,8 @@ const policyRates = createPolicyRates({ UA, dir: __dirname })
 const worldEconomy = createWorldEconomy({ UA, dir: __dirname, fred: fetchFredSeries, FMP_KEY })
 // Oil (server/oilMarket.js): Commodities → Oil — EIA spot prices, cracks, weekly stocks/SPR/refining/supply/demand, STEO balance; CME WTI/Brent curves (personal use, gitignored cache only)
 const oilMarket = createOilMarket({ UA, dir: __dirname, EIA_KEY })
+// Commitments of Traders (server/cotReport.js): Commodities → CFTC Positioning — CFTC Disaggregated + TFF reports for 35 markets, COT index, flows, price/OI read, backtest
+const cotReport = createCotReport({ UA, dir: __dirname, fetchYahooSparkline })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4007,6 +4010,7 @@ export default defineConfig({
         reRoute('/api/global-housing', () => globalHousing.get())
         reRoute('/api/world-economy', () => worldEconomy.get())
         reRoute('/api/oil-market', () => oilMarket.get())
+        reRoute('/api/cot-report', () => cotReport.get())
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())

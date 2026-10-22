@@ -31,7 +31,7 @@ const IMF = { 'CL=F': 'POILWTIUSDM', 'BZ=F': 'POILBREUSDM', 'NG=F': 'PNGASUSUSDM
 const YAHOO_MONTHLY = ['GC=F', 'SI=F', 'PL=F', 'PA=F']
 const INDEXES = { all: 'PALLFNFINDEXM', nonfuel: 'PNFUELINDEXM', food: 'PFOODINDEXM', metals: 'PMETAINDEXM' }
 // CFTC contract codes (verified against the disaggregated report, 2026-09); Brent trades on ICE Europe and has no CFTC report
-const COT = { 'CL=F': '067651', 'NG=F': '03565B', 'GC=F': '088691', 'SI=F': '084691', 'HG=F': '085692', 'PL=F': '076651', 'PA=F': '075651', 'ZC=F': '002602', 'ZW=F': '001602', 'ZS=F': '005602', 'CT=F': '033661', 'KC=F': '083731', 'CC=F': '073732', 'SB=F': '080732' }
+const COT = { 'CL=F': '067651', 'NG=F': '023651', 'GC=F': '088691', 'SI=F': '084691', 'HG=F': '085692', 'PL=F': '076651', 'PA=F': '075651', 'ZC=F': '002602', 'ZW=F': '001602', 'ZS=F': '005602', 'CT=F': '033661', 'KC=F': '083731', 'CC=F': '073732', 'SB=F': '080732' }
 
 // EIA weekly petroleum and natural-gas balances (needs EIA_API_KEY in .env — free at eia.gov/opendata)
 const EIA = [
