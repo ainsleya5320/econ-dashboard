@@ -27,6 +27,13 @@ const paint = s => (s === "transparent" ? "var(--oc-mid)" : s); // divBg leaves 
 const qOrd = k => +k.slice(0, 4) * 4 + (+k.slice(6) - 1);
 const qKey = o => `${Math.floor(o / 4)}-Q${(o % 4) + 1}`;
 const dec = e => (e?.s ? e.v.map((v, i) => [qKey(qOrd(e.s) + i), v]).filter(p => finite(p[1])) : []);
+// rebase [[q, v]] to its 2019 average = 100 (commercial series arrive that way; residential is 2010 = 100)
+const rebase19 = pts => { const b = pts.filter(p => p[0].startsWith("2019")).map(p => p[1]); const m = b.length ? b.reduce((x, y) => x + y, 0) / b.length : null; return m ? pts.map(([q, v]) => [q, (v / m) * 100]) : []; };
+// commercial vs residential rows for one economy: real where the CPI exists, else nominal
+const cppRows = c => {
+  const k = c.commercial, realC = !!k?.realSeries, cm = new Map(dec(realC ? k.realSeries : k?.series)), rm = new Map(rebase19(dec(c.series?.real)));
+  return { real: realC, rows: [...new Set([...cm.keys(), ...rm.keys()])].sort().map(p => ({ p, cpp: cm.get(p) ?? null, res: rm.get(p) ?? null })) };
+};
 const REGIONS = ["Americas", "Europe", "Asia-Pacific", "Middle East & Africa"];
 const REGION_C = { Americas: C[1], Europe: C[2], "Asia-Pacific": C[3], "Middle East & Africa": C[4] };
 
@@ -172,14 +179,23 @@ function Detail({ c, aggregates }) {
         <Kpi label="Valuation" value={pctS(c.valuation)} sub={finite(c.valuation) ? `vs own norm · ${qLbl(c.valuationAsOf)}` : "no OECD ratios"} />
         <Kpi label="Rents, 1 yr" value={pctS(c.rent1y)} sub={c.rentAsOf ? `OECD · ${qLbl(c.rentAsOf)}` : "no OECD rents"} />
         <Kpi label="Household debt" value={finite(c.hhDebt?.v) ? `${c.hhDebt.v.toFixed(0)}% GDP` : "—"} sub={c.hhDebt ? `5 yr ${signed(c.hhDebt.chg5y, 1, " pts")} · peak ${fx(c.hhDebt.peak, 0)}%` : "not in BIS credit"} />
+        {c.commercial && <Kpi label="Commercial, 1 yr" value={pctS(c.commercial.real?.chg1y ?? c.commercial.nominal?.chg1y)} sub={`${c.commercial.real ? "real" : "nominal"} · ${c.commercial.label.toLowerCase()} · ${qLbl(c.commercial.asOf)}`} />}
         <Kpi label="Debt service" value={finite(c.dsr?.v) ? `${c.dsr.v.toFixed(1)}% inc.` : "—"} sub={c.dsr ? `${signed(c.dsr.gap, 1, " pts")} vs its avg ${fx(c.dsr.avg, 1)}%` : "BIS covers 17 countries"} />
       </div>
       <div className="ogrid ogrid-3">
         <div>
           <div className="ocard-eyebrow">Real house prices · 2010 = 100</div>
           <Legend items={[[c.name, C[1]], [ref?.name || "Peer group", "var(--text-muted)", true]]} />
-          {chart(priceRows, [["v", c.name, C[1]], ["ref", ref?.name || "Peer group", "var(--text-muted)", true]], { ref100: true })}
+          {priceRows.length ? chart(priceRows, [["v", c.name, C[1]], ["ref", ref?.name || "Peer group", "var(--text-muted)", true]], { ref100: true }) : <p className="onote">BIS has no residential price series for {c.name}.</p>}
         </div>
+        {c.commercial && (() => { const { real, rows } = cppRows(c); return (
+          <div>
+            <div className="ocard-eyebrow">Commercial vs housing · {real ? "after inflation" : "nominal"} · 2019 = 100</div>
+            <Legend items={[[`Commercial: ${c.commercial.label.toLowerCase()}`, C[4]], ["Housing (real)", C[1], true]]} />
+            {chart(rows, [["cpp", "Commercial", C[4]], ["res", "Housing (real)", C[1], true]], { ref100: true })}
+            {c.commercial.parts.length > 0 && <p className="onote">1 yr, nominal: {c.commercial.parts.map(p => `${p.label} ${pctS(p.chg1y)}`).join(" · ")}</p>}
+          </div>
+        ); })()}
         <div>
           <div className="ocard-eyebrow">Valuation · own long-run average = 100</div>
           {valRows.length ? <><Legend items={[["Price-to-income", C[2]], ["Price-to-rent", C[3]]]} />{chart(valRows, [["pti", "Price-to-income", C[2]], ["ptr", "Price-to-rent", C[3]]], { ref100: true })}</> : <p className="onote">The OECD does not publish valuation ratios for {c.name}.</p>}
@@ -191,6 +207,77 @@ function Detail({ c, aggregates }) {
         </div>
       </div>
     </>
+  );
+}
+
+// commercial property: one bar per economy for the chosen measure, then commercial vs housing since 2000
+const CPP_MEASURES = { y1: ["1 yr", k => k?.chg1y], s19: ["Since 2019", k => k?.since2019], pk: ["vs peak", k => k?.fromPeak] };
+function CppMini({ c, onSelect, selected }) {
+  const { real, rows } = cppRows(c), pts = rows.filter(r => finite(r.cpp) || finite(r.res));
+  if (pts.length < 4) return null;
+  const vs = pts.flatMap(r => [r.cpp, r.res]).filter(finite), lo = Math.min(...vs, 100), hi = Math.max(...vs, 100), w = 170, h = 46, sp = hi - lo || 1;
+  const X = i => 1 + (i / (pts.length - 1)) * (w - 2), Y = v => h - 2 - ((v - lo) / sp) * (h - 4);
+  const line = k => pts.map((r, i) => (finite(r[k]) ? `${X(i)},${Y(r[k])}` : null)).filter(Boolean).join(" ");
+  const k = c.commercial, src = k.real || k.nominal;
+  return (
+    <button type="button" className="ocard" onClick={() => onSelect(c.iso2)} style={{ padding: "7px 9px 4px", textAlign: "left", cursor: "pointer", outline: c.iso2 === selected ? "2px solid var(--oc-1)" : "none", background: "var(--card-bg)", color: "inherit", font: "inherit" }}>
+      <strong style={{ display: "block", font: "600 12px var(--font-body)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</strong>
+      <span className="onote" title={`${k.label}${k.stale ? `, last ${qLbl(k.asOf)}` : ""}`} style={{ display: "block", margin: 0, fontSize: 10.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pctS(src?.since2019)} since 2019{real ? "" : " nom."} · {k.label.toLowerCase()}</span>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ display: "block", height: h }} aria-hidden="true">
+        <line x1="0" x2={w} y1={Y(100)} y2={Y(100)} stroke="var(--border-subtle)" />
+        <polyline points={line("res")} fill="none" style={{ stroke: C[1] }} strokeWidth="1.3" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+        <polyline points={line("cpp")} fill="none" style={{ stroke: C[4] }} strokeWidth="1.7" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </button>
+  );
+}
+
+function Commercial({ d, selected, onSelect }) {
+  const [m, setM] = useState("s19"), [basis, setBasis] = useState("real"), [hover, setHover] = useState(null);
+  const rows = useMemo(() => {
+    const list = [...(d.aggregates || []).filter(a => a.commercial && a.id === "XM").map(a => ({ ...a, iso2: a.id, agg: true })), ...(d.countries || []).filter(c => c.commercial)];
+    return list.map(c => { const k = c.commercial, useReal = basis === "real" && !!k.real, src = useReal ? k.real : k.nominal; return { c, k, src, v: CPP_MEASURES[m][1](src), useReal }; })
+      .sort((a, b) => (b.v ?? -999) - (a.v ?? -999));
+  }, [d, m, basis]);
+  const S = d.summary?.commercial || {};
+  const vals = rows.map(r => r.v).filter(finite), lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  const W = 640, L = 210, G = lo < 0 ? 50 : 8, R = 64, RH = 22, H = rows.length * RH + 24, x = v => L + G + ((v - lo) / (hi - lo || 1)) * (W - L - G - R); // G: room for negative labels
+  const step = (hi - lo) > 60 ? 20 : (hi - lo) > 25 ? 10 : 5, ticks = []; for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) ticks.push(t);
+  const realOf = iso => rows.find(r => r.c.iso2 === iso)?.k.real;
+  const under = rows.filter(r => !r.c.agg && !r.k.stale && finite(r.k.real?.since2019) && r.k.real.since2019 < 0).sort((a, b) => a.k.real.since2019 - b.k.real.since2019);
+  const xm = realOf("XM"), us = realOf("US");
+  const hv = hover && rows.find(r => r.c.iso2 === hover);
+  return (
+    <VizCard eyebrow={`BIS commercial property prices · ${S.economies || rows.length} economies · latest ${qLbl(S.latestQ)}`} title="Commercial property"
+      right={<><Seg label="Measure" value={m} onChange={setM} options={Object.entries(CPP_MEASURES).map(([k, [t]]) => [k, t])} /><Seg label="Basis" value={basis} onChange={setBasis} options={[["real", "Real"], ["nominal", "Nominal"]]} /></>}
+      finding={`Over the past year commercial prices rose ${pctS(S.medianNominal1y)} in the median economy (${pctS(S.medianReal1y)} after inflation) and fell in ${S.fallingNominal} of ${S.current} in nominal terms. The 2022 rate shock still shows in levels: after inflation, ${S.belowPre} of ${S.withReal} remain below their 2019 average${under.length ? ` (${under.slice(0, 5).map(r => `${r.c.name} ${pctS(r.k.real.since2019)}`).join(", ")})` : ""}${xm ? `; the euro area is ${pctS(xm.since2019)}` : ""}${us ? `, the US ${pctS(us.since2019)}` : ""}. Coverage is thin and mixed: each row names what its index measures.`}
+      table={<MiniTable maxHeight={480} columns={[
+        { key: "name", label: "Economy", fmt: (v, r) => r.c.name }, { key: "label", label: "What it measures", align: "left", fmt: (v, r) => r.k.label },
+        { key: "asOf", label: "Latest", fmt: (v, r) => `${qLbl(r.k.asOf)}${r.k.stale ? " (stale)" : ""}` },
+        { key: "n1", label: "Nominal 1 yr", fmt: (v, r) => pctS(r.k.nominal?.chg1y) }, { key: "r1", label: "Real 1 yr", fmt: (v, r) => pctS(r.k.real?.chg1y) },
+        { key: "r19", label: "Real since 2019", fmt: (v, r) => pctS(r.k.real?.since2019) }, { key: "rpk", label: "Real vs peak", fmt: (v, r) => (r.k.real ? `${pctS(r.k.real.fromPeak)} (${year(r.k.real.peak)})` : "—") },
+        { key: "parts", label: "Parts, nominal 1 yr", align: "left", fmt: (v, r) => r.k.parts.map(p => `${p.label} ${pctS(p.chg1y)}`).join("; ") || "—" },
+      ]} rows={rows} />}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", maxWidth: 820 }} role="img" aria-label={`Commercial property prices, ${CPP_MEASURES[m][0]}, by economy`}>
+        {ticks.map(t => <g key={t}><line x1={x(t)} x2={x(t)} y1={0} y2={H - 18} stroke={t === 0 ? "var(--text-muted)" : "var(--border-subtle)"} /><text x={x(t)} y={H - 5} textAnchor="middle" fontSize="10" fill="var(--text-muted)" fontFamily="var(--font-number)">{t > 0 ? "+" : ""}{t}%</text></g>)}
+        {rows.map((r, i) => {
+          const y = i * RH + 4, v = r.v, on = finite(v), x0 = x(0), x1 = on ? x(v) : x0, dim = (basis === "real" && !r.useReal) || r.k.stale;
+          return (
+            <g key={r.c.iso2} onMouseEnter={() => setHover(r.c.iso2)} onMouseLeave={() => setHover(null)} onClick={() => !r.c.agg && onSelect(r.c.iso2)} style={{ cursor: r.c.agg ? "default" : "pointer" }}>
+              <rect x={0} y={y - 2} width={W} height={RH} style={{ fill: hover === r.c.iso2 || selected === r.c.iso2 ? "var(--bg-subtle)" : "transparent" }} />
+              <text x={L - 8} y={y + 9} textAnchor="end" fontSize="11" fontWeight={r.c.agg ? 700 : 500} fill="var(--text-primary)">{r.c.name}</text>
+              <text x={L - 8} y={y + 18} textAnchor="end" fontSize="9" fill="var(--text-muted)">{r.k.label.length > 32 ? `${r.k.label.slice(0, 31)}…` : r.k.label}{r.k.stale ? ` · to ${qLbl(r.k.asOf)}` : ""}</text>
+              {on && <rect x={Math.min(x0, x1)} y={y + 3} width={Math.max(1.5, Math.abs(x1 - x0))} height={RH - 10} rx="2" style={{ fill: v >= 0 ? "var(--oc-pos)" : "var(--oc-neg)", opacity: dim ? 0.45 : 0.9 }} />}
+              <text x={on ? (v >= 0 ? x1 + 4 : x1 - 4) : x0 + 4} y={y + 13} textAnchor={on && v < 0 ? "end" : "start"} fontSize="10.5" fill="var(--text-secondary)" fontFamily="var(--font-number)">{on ? `${pctS(v)}${basis === "real" && !r.useReal ? " nom." : ""}` : "—"}</text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="onote" style={{ margin: 0, minHeight: 18 }}>{hv ? `${hv.c.name} — ${hv.k.label} (${qLbl(hv.k.asOf)}): nominal 1 yr ${pctS(hv.k.nominal?.chg1y)}, real 1 yr ${pctS(hv.k.real?.chg1y)}, real since 2019 ${pctS(hv.k.real?.since2019)}, real vs ${year(hv.k.real?.peak)} peak ${pctS(hv.k.real?.fromPeak)}${hv.k.parts.length ? `; ${hv.k.parts.map(p => `${p.label} ${pctS(p.chg1y)}`).join(", ")}` : ""}` : "Red rising, blue falling. Faded bars: stale series, or nominal where no CPI deflator exists (UAE, Saudi Arabia, Argentina). Click an economy for its detail."}</div>
+      <div className="ocard-eyebrow" style={{ margin: "12px 0 4px" }}>Commercial vs housing since 2000 · after inflation · 2019 = 100</div>
+      <Legend items={[["Commercial property", C[4]], ["Housing", C[1], true]]} />
+      <div className="omini-grid" style={{ marginTop: 6 }}>{rows.filter(r => !r.c.agg).sort((a, b) => a.c.name.localeCompare(b.c.name)).map(r => <CppMini key={r.c.iso2} c={r.c} onSelect={onSelect} selected={selected} />)}</div>
+    </VizCard>
   );
 }
 
@@ -226,7 +313,7 @@ export default function GlobalHousing() {
         {(d.aggregates || []).map(a => <Kpi key={a.id} label={a.name} value={pctS(a.real?.chg1y)} sub={`real, 1 yr · ${pctS(a.real?.fromPeak)} vs ${qLbl(a.real?.peak)} peak`} tone={finite(a.real?.chg1y) ? (a.real.chg1y < 0 ? "var(--oc-neg)" : "var(--oc-pos)") : undefined} />)}
       </div>
 
-      <VizCard eyebrow={`BIS · OECD · latest ${qLbl(S.latestQ)} · ${countries.length} countries`} title="Housing around the world"
+      <VizCard eyebrow={`BIS · OECD · latest ${qLbl(S.latestQ)} · ${S.countries} countries`} title="Housing around the world"
         right={<Seg label="Map metric" value={metric} onChange={setMetric} options={Object.entries(METRICS).map(([k, m]) => [k, m.short])} />}
         finding={`${M.label}. ${M.why}`}
         table={<MiniTable maxHeight={480} columns={[
@@ -235,7 +322,7 @@ export default function GlobalHousing() {
           { key: "real", label: "Real 1 yr", fmt: v => pctS(v?.chg1y) }, { key: "nominal1y", label: "Nominal 1 yr", fmt: pctS },
           { key: "real5", label: "Real 5 yr", fmt: (v, r) => pctS(r.real?.chg5y) }, { key: "pk", label: "vs real peak", fmt: (v, r) => pctS(r.real?.fromPeak) }, { key: "pkq", label: "Peak", fmt: (v, r) => qLbl(r.real?.peak) },
           { key: "valuation", label: "Valuation", fmt: pctS }, { key: "pti", label: "Price/income", fmt: v => pctS(v?.v) }, { key: "ptr", label: "Price/rent", fmt: v => pctS(v?.v) },
-          { key: "rent1y", label: "Rents 1 yr", fmt: pctS }, { key: "hhDebt", label: "HH debt % GDP", fmt: v => (finite(v?.v) ? v.v.toFixed(0) : "—") }, { key: "dsr", label: "Debt service vs avg", fmt: v => signed(v?.gap, 1, " pts") },
+          { key: "rent1y", label: "Rents 1 yr", fmt: pctS }, { key: "commercial", label: "Commercial 1 yr", fmt: v => (v ? `${pctS(v.real?.chg1y ?? v.nominal?.chg1y)}${v.real ? "" : " nom."}` : "—") }, { key: "hhDebt", label: "HH debt % GDP", fmt: v => (finite(v?.v) ? v.v.toFixed(0) : "—") }, { key: "dsr", label: "Debt service vs avg", fmt: v => signed(v?.gap, 1, " pts") },
           { key: "asof", label: "Prices as of", fmt: (v, r) => qLbl(r.real?.asOf) },
         ]} rows={tableRows} />}>
         <WorldMap countries={countries} metric={metric} selected={cur?.iso2} onSelect={select} />
@@ -249,6 +336,8 @@ export default function GlobalHousing() {
           <CycleMap countries={countries} selected={cur?.iso2} onSelect={select} />
         </VizCard>
       </div>
+
+      <div style={{ marginTop: 12 }}><Commercial d={d} selected={cur?.iso2} onSelect={select} /></div>
 
       {cur && <div id="gh-detail" style={{ marginTop: 12, scrollMarginTop: 12 }}>
         <VizCard eyebrow={`${cur.region} · ${cur.advanced ? "advanced" : "emerging"} economy`} title={cur.name}
