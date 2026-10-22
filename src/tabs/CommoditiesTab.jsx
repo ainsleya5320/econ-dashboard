@@ -4,9 +4,11 @@ import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { fmtDate, SH, InfoBox } from "../components/shared.jsx";
 import CftcSubTab from "./CftcSubTab.jsx";
 import CommodityPulseTab from "./CommodityPulseTab.jsx";
+import OilMarket from "./OilMarket.jsx";
 
 const COMM_SUB_TABS = [
   { id: "pulse",  label: "Pulse" },
+  { id: "oil",    label: "Oil" },
   { id: "prices", label: "Prices" },
   { id: "cftc",   label: "CFTC Positioning" },
 ];
@@ -373,6 +375,7 @@ export default function CommoditiesTab() {
       </div>
 
       {commSubTab === "pulse" && <CommodityPulseTab />}
+      {commSubTab === "oil" && <OilMarket />}
       {commSubTab === "cftc" && <CftcSubTab />}
 
       {commSubTab === "prices" && <>
