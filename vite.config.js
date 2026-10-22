@@ -28,6 +28,7 @@ import { createGpuMarketData } from './server/gpuMarketData.js'
 import { createShareOfWorld } from './server/shareOfWorld.js'
 import { createTopCompanyGdp } from './server/topCompanyGdp.js'
 import { createChinaMonitor } from './server/chinaMonitor.js'
+import { createDarkOutput } from './server/darkOutput.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -288,9 +289,9 @@ const AI_FRED_SERIES = {
   MPU4910063:     { label: 'Info Sector Labor Productivity',group: 'productivity', freq: 'Q', limit: 80,  color: '#14B8A6', unit: 'index' },
 
   // --- Capital formation: where is the money actually flowing? ---
-  Y694RX1Q020SBEA:{ label: 'Real Software Investment',      group: 'capex',        freq: 'Q', limit: 80,  color: '#6366F1', unit: 'billions' },
-  A679RC1Q027SBEA:{ label: 'Real IP Products Investment',   group: 'capex',        freq: 'Q', limit: 80,  color: '#8B5CF6', unit: 'billions' },
-  Y033RC1Q027SBEA:{ label: 'Real Info-Processing Equipment',group: 'capex',        freq: 'Q', limit: 80,  color: '#A855F7', unit: 'billions' },
+  Y694RX1Q020SBEA:{ label: 'Real R&D Investment',           group: 'capex',        freq: 'Q', limit: 80,  color: '#6366F1', unit: 'billions' },
+  A679RC1Q027SBEA:{ label: 'IT Equipment & Software Inv.',  group: 'capex',        freq: 'Q', limit: 80,  color: '#8B5CF6', unit: 'billions' },
+  Y033RC1Q027SBEA:{ label: 'Equipment Investment',          group: 'capex',        freq: 'Q', limit: 80,  color: '#A855F7', unit: 'billions' },
 
   // --- Physical buildout (chips + data centers) ---
   IPG3344S:       { label: 'Semiconductor Production',      group: 'buildout',     freq: 'M', limit: 240, color: '#F59E0B', unit: 'index' },
@@ -3836,6 +3837,8 @@ const shareOfWorld = createShareOfWorld({ UA, dir: __dirname })
 const topCompanyGdp = createTopCompanyGdp({ FMP_KEY, FRED_KEY, UA, dir: __dirname })
 // China monitor (server/chinaMonitor.js): Li Lu's objective (manufacturing, tech) vs cost (housing, households) — BIS, PBoC, Eastmoney/NBS, DBnomics, World Bank, UN Comtrade, OWID
 const chinaMonitor = createChinaMonitor({ UA, dir: __dirname, FRED_KEY })
+// Dark output (server/darkOutput.js): fingerprints of AI work the national accounts miss (SemiAnalysis) — BLS CES/PPI/productivity, Census QSS, Indeed postings, NY Fed recent grads, FRED/BEA NIPA
+const darkOutput = createDarkOutput({ UA, dir: __dirname, blsKey: BLS_KEY, fred: fetchFredSeries })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4086,6 +4089,7 @@ export default defineConfig({
         reRoute('/api/share-of-world', () => shareOfWorld.get())
         reRoute('/api/top-company-gdp', () => topCompanyGdp.get())
         reRoute('/api/china-monitor', () => chinaMonitor.get())
+        reRoute('/api/dark-output', () => darkOutput.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())

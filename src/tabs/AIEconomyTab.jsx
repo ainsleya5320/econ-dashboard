@@ -8,6 +8,7 @@ import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
+import DarkOutput from "./ai/DarkOutput.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
 import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
@@ -483,17 +484,17 @@ function ComputePowerTab() {
     {/* ======== CAPITAL FORMATION ======== */}
     <SH>Capital Formation - Where The Money Is Flowing</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
-      <StatCard label="Real Software Investment" val={fmtFredVal(softInv)} sub={`YoY ${fmtPct(softInv?.yoy, 1)} | 5y ${fmtPct(softInv?.fiveYr, 0)}`} color="#6366F1" />
-      <StatCard label="Real IP Products Investment" val={fmtFredVal(ipInv)} sub={`YoY ${fmtPct(ipInv?.yoy, 1)} | 5y ${fmtPct(ipInv?.fiveYr, 0)}`} color="#8B5CF6" />
-      <StatCard label="Info-Processing Equipment" val={fmtFredVal(hwInv)} sub={`YoY ${fmtPct(hwInv?.yoy, 1)} | 5y ${fmtPct(hwInv?.fiveYr, 0)}`} color="#A855F7" />
+      <StatCard label="Real R&D Investment" val={fmtFredVal(softInv)} sub={`YoY ${fmtPct(softInv?.yoy, 1)} | 5y ${fmtPct(softInv?.fiveYr, 0)}`} color="#6366F1" />
+      <StatCard label="IT Equipment & Software" val={fmtFredVal(ipInv)} sub={`YoY ${fmtPct(ipInv?.yoy, 1)} | 5y ${fmtPct(ipInv?.fiveYr, 0)}`} color="#8B5CF6" />
+      <StatCard label="All Equipment" val={fmtFredVal(hwInv)} sub={`YoY ${fmtPct(hwInv?.yoy, 1)} | 5y ${fmtPct(hwInv?.fiveYr, 0)}`} color="#A855F7" />
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-      <FredChart series={softInv} title="Real Software Investment ($B, SAAR)" yoyHighlight yFormat={fmtFredChart(softInv)} />
-      <FredChart series={ipInv}   title="Real IP Products Investment ($B, SAAR)" yoyHighlight yFormat={fmtFredChart(ipInv)} />
+      <FredChart series={softInv} title="Real R&D Investment ($B, chained 2017, SAAR)" yoyHighlight yFormat={fmtFredChart(softInv)} />
+      <FredChart series={ipInv}   title="Investment in IT Equipment & Software ($B, nominal, SAAR)" yoyHighlight yFormat={fmtFredChart(ipInv)} />
     </div>
-    <FredChart series={hwInv} title="Real Information-Processing Equipment Investment ($B, SAAR)" yoyHighlight yFormat={fmtFredChart(hwInv)} />
+    <FredChart series={hwInv} title="Equipment Investment, All Types ($B, nominal, SAAR)" yoyHighlight yFormat={fmtFredChart(hwInv)} />
     <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>Following the capex.</strong> Software, IP products, and info-processing equipment together make up most of US business investment in &quot;intangibles + compute.&quot; If AI is driving a real investment cycle, these three should all be accelerating in tandem - and they largely are, especially hardware since 2023.
+      <strong style={{ color: "#cbd5e1" }}>Following the capex.</strong> R&amp;D (after inflation), IT equipment plus software, and all business equipment (both in current dollars) track business investment in &quot;intangibles + compute.&quot; If AI is driving a real investment cycle, these three should all be accelerating together. Software alone, against its pre-ChatGPT trend, is on AI Economy → Dark Output.
     </InfoBox>
 
     {/* ======== HYPERSCALER CAPEX ======== */}
@@ -2302,6 +2303,7 @@ function AIEconomyTab() {
     { id: "tokens",   label: "Tokens"         },
     { id: "compute",  label: "Compute"        },
     { id: "models",   label: "Models & Labs"  },
+    { id: "dark",     label: "Dark Output"    },
     { id: "tensions", label: "Tensions"       },
   ];
 
@@ -2317,6 +2319,7 @@ function AIEconomyTab() {
     {subTab === "tokens"  && <TokenDemandTab />}
     {subTab === "compute" && <ComputeTab />}
     {subTab === "models"  && <ModelsLabsTab />}
+    {subTab === "dark"    && <DarkOutput />}
     {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);
 }
