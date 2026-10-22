@@ -90,6 +90,8 @@ function FedSubTab({ fredKey }) {
     return data.WALCL.filter(o => o.d >= cutoff).map(o => {
       const row = { d: o.d };
       for (const id of ids) { const v = idx[id].get(o.d); if (v != null) row[id] = v; }
+      // "net liquidity": what the Fed has put out less what the Treasury and the reverse-repo facility hold back
+      if (fin(row.WALCL) && fin(row.WTREGEN) && fin(row.WLRRAL)) row.NETLIQ = row.WALCL - row.WTREGEN - row.WLRRAL;
       return row;
     });
   }, [data, cutoff]);
@@ -251,6 +253,19 @@ function FedSubTab({ fredKey }) {
       <Note>
         Currency only grows. The Treasury's account swings with tax dates and debt-ceiling episodes, and every dollar into it drains a dollar of reserves. The scarcity marker is a rule of thumb, not an official line — the Fed has never published a reserve floor, and the 2019 repo squeeze arrived with reserves near 7% of GDP.
       </Note>
+    </Panel>
+
+    <Panel title="Net liquidity — total assets less the Treasury's account and reverse repos" right={(() => { const n = weekly.filter(r => fin(r.NETLIQ)); const l = n.at(-1), y = n.at(-53); return l ? `${tn(l.NETLIQ)} · ${y ? `${delta(l.NETLIQ - y.NETLIQ)} on a year` : ""}` : ""; })()}>
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={weekly} margin={{ top: 5, right: 8, left: -6, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+          <XAxis dataKey="d" tick={axis} axisLine={{ stroke: "var(--border-subtle)" }} tickLine={false} tickFormatter={d => d.slice(0, 7)} minTickGap={40} />
+          <YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(1)}T`} domain={["auto", "auto"]} />
+          <Tooltip content={<Hover />} />
+          <Line type="monotone" dataKey="NETLIQ" name="Net liquidity" stroke={INDIGO} strokeWidth={2} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+      <Note>A market shorthand, not an official measure: the Fed's assets minus the cash parked in the Treasury General Account and the reverse-repo facility, i.e. the part of the balance sheet left circulating as bank reserves and currency.</Note>
     </Panel>
 
     <div style={{ ...card, fontSize: 10.5, fontFamily: fonts.mono, color: SLATE, lineHeight: 1.6 }}>

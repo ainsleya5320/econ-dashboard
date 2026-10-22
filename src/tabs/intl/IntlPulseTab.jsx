@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 import { SH, InfoBox } from "../../components/shared.jsx";
 import LastMile from "./LastMile.jsx";
@@ -9,9 +9,10 @@ import LastMile from "./LastMile.jsx";
 // One board for thirteen economies (equity local and in USD, currency,
 // policy / 10-year / real rates, unemployment, GDP momentum, BIS real
 // exchange rate vs its 10-year average, Big Mac valuation), three scores
-// (dollar, risk appetite, growth breadth) with verdicts, the dollar and EM-
-// spread context charts, and the Big Mac index for all 54 currencies — The
-// Economist's July print and a re-mark at today's exchange rates.
+// (dollar, risk appetite, growth breadth) with verdicts, the EM-spread and
+// dollar-return context charts. The full Big Mac panel (all 54 currencies,
+// The Economist's latest print re-marked at today's exchange rates) is
+// exported for Forex → Valuation; the broad dollar chart lives in Forex → Prices.
 // Data: /api/intl-pulse (server-cached 3h).
 // ============================================================================
 
@@ -28,6 +29,8 @@ const pc = (v, dp = 1) => (fin(v) ? `${sgn(v)}${Math.abs(v).toFixed(dp)}%` : "�
 const pc0 = (v, dp = 2) => (fin(v) ? `${v.toFixed(dp)}%` : "—");
 const pp = (v, dp = 1) => (fin(v) ? `${sgn(v)}${Math.abs(v).toFixed(dp)}` : "—");
 const upDown = (v, good = 1) => (!fin(v) || v === 0 ? SLATE : (v > 0) === (good > 0) ? GREEN : RED);
+const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const printLbl = asOf => (asOf ? `${MON[+asOf.slice(5, 7) - 1]} ${asOf.slice(0, 4)}` : "latest"); // The Economist prints in January and July
 const valTone = v => (!fin(v) ? SLATE : v < -25 ? CYAN : v < -5 ? GREEN : v <= 5 ? SLATE : v <= 25 ? AMBER : RED);
 
 function Spark({ values, color, w = 72, h = 18 }) {
@@ -71,7 +74,7 @@ const COLS = [
   { key: "name", label: "Economy", align: "left" }, { key: "eqYtd", label: "Equity YTD" }, { key: "eq1y", label: "1 yr" }, { key: "usd1y", label: "1 yr in USD" }, { key: "spark", label: "52 wks", align: "center" },
   { key: "fx1y", label: "FX vs $ 1 yr" }, { key: "policy", label: "Policy" }, { key: "y10", label: "10-yr" }, { key: "real", label: "Real 10-yr" }, { key: "unemp", label: "Unemp." }, { key: "gdp", label: "GDP q/q" }, { key: "reer", label: "Real FX vs 10y" }, { key: "bmRaw", label: "Big Mac" }, { key: "bmAdj", label: "GDP-adj." },
 ];
-function Board({ rows, sortKey, setSortKey }) {
+function Board({ rows, sortKey, setSortKey, print }) {
   const th = (c) => <th key={c.key} onClick={() => c.key !== "spark" && setSortKey(s => ({ key: c.key, asc: s.key === c.key ? !s.asc : c.key === "name" }))} style={{ padding: "5px 6px", fontSize: 8.5, color: sortKey.key === c.key ? "#c7d2fe" : DIM, fontFamily: fonts.mono, textTransform: "uppercase", letterSpacing: 0.4, textAlign: c.align || "right", fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap", cursor: c.key === "spark" ? "default" : "pointer", userSelect: "none" }}>{c.label}{sortKey.key === c.key ? (sortKey.asc ? " ▲" : " ▼") : ""}</th>;
   const td = (v, color = "#cbd5e1", extra = {}) => <td style={{ padding: "4px 6px", fontSize: 10.5, fontFamily: fonts.mono, textAlign: "right", whiteSpace: "nowrap", color, ...extra }}>{v}</td>;
   return (
@@ -91,8 +94,8 @@ function Board({ rows, sortKey, setSortKey }) {
               {td(r.unemp ? `${r.unemp.v}%${fin(r.unemp.chg1y) ? ` ${r.unemp.chg1y > 0 ? "▲" : r.unemp.chg1y < 0 ? "▼" : "•"}` : ""}` : "—", r.unemp ? (fin(r.unemp.chg1y) && r.unemp.chg1y > 0.3 ? RED : "#cbd5e1") : DIM, { title: r.unemp ? `${pp(r.unemp.chg1y)}pp vs a year ago · ${r.unemp.d}` : "" })}
               {td(r.gdp ? pc(r.gdp.qoq) : "—", upDown(r.gdp?.qoq), { title: r.gdp ? `latest quarter, not annualized · ${r.gdp.d}` : "no fresh quarterly GDP on FRED" })}
               {td(r.reer ? pc(r.reer.vsAvg, 0) : "—", r.reer ? (r.reer.vsAvg > 10 ? RED : r.reer.vsAvg < -10 ? GREEN : "#cbd5e1") : DIM, { title: r.reer ? `BIS real effective exchange rate ${r.reer.v} (p${r.reer.pct} of 10y) · ${r.reer.d}` : "" })}
-              {td(r.bigmac ? pc(r.bigmac.rawNow, 0) : "—", valTone(r.bigmac?.rawNow), { title: r.bigmac ? `raw index at today's FX; July print ${pc(r.bigmac.raw, 0)}` : "not in the Big Mac index" })}
-              {td(r.bigmac && fin(r.bigmac.adjNow) ? pc(r.bigmac.adjNow, 0) : "—", valTone(r.bigmac?.adjNow), { title: r.bigmac ? `GDP-adjusted at today's FX; July print ${pc(r.bigmac.adj, 0)}` : "" })}
+              {td(r.bigmac ? pc(r.bigmac.rawNow, 0) : "—", valTone(r.bigmac?.rawNow), { title: r.bigmac ? `raw index at today's FX; ${print} print ${pc(r.bigmac.raw, 0)}` : "not in the Big Mac index" })}
+              {td(r.bigmac && fin(r.bigmac.adjNow) ? pc(r.bigmac.adjNow, 0) : "—", valTone(r.bigmac?.adjNow), { title: r.bigmac ? `GDP-adjusted at today's FX; ${print} print ${pc(r.bigmac.adj, 0)}` : "" })}
             </tr>
           ))}
         </tbody>
@@ -102,7 +105,7 @@ function Board({ rows, sortKey, setSortKey }) {
 }
 
 // ── Big Mac: all 54 currencies ───────────────────────────────────────────────
-function BigMacPanel({ bm, s }) {
+export function BigMacPanel({ bm, s }) {
   const [mode, setMode] = useState("rawNow");
   const [onlyTracked, setOnlyTracked] = useState(false);
   const list = useMemo(() => (bm || []).filter(b => b.ccy !== "USD" && fin(b[mode]) && (!onlyTracked || b.tracked)).sort((a, b) => b[mode] - a[mode]), [bm, mode, onlyTracked]);
@@ -122,7 +125,7 @@ function BigMacPanel({ bm, s }) {
           {list.map(b => {
             const v = b[mode], c = valTone(v);
             return (
-              <div key={b.iso3} title={`${b.name}: Big Mac ${b.localPrice.toLocaleString()} ${b.ccy} = $${b.dollarPriceNow} at ${b.fxNow} ${b.ccy}/$ (${b.fxSource === "live" ? "live" : "July"} rate) vs $${s.usPrice} in the U.S. · PPP rate ${b.pppRate} · FX since July ${pc(b.fxMove)}`} style={{ display: "grid", gridTemplateColumns: "150px 1fr 56px", alignItems: "center", gap: 8, height: 17 }}>
+              <div key={b.iso3} title={`${b.name}: Big Mac ${b.localPrice.toLocaleString()} ${b.ccy} = $${b.dollarPriceNow} at ${b.fxNow} ${b.ccy}/$ (${b.fxSource === "live" ? "live" : "print"} rate) vs ${s.usPrice} in the U.S. · PPP rate ${b.pppRate} · FX since the print ${pc(b.fxMove)}`} style={{ display: "grid", gridTemplateColumns: "150px 1fr 56px", alignItems: "center", gap: 8, height: 17 }}>
                 <span style={{ fontSize: 10, fontFamily: fonts.mono, color: b.tracked ? "#e2e8f0" : SLATE, fontWeight: b.tracked ? 700 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.name} <span style={{ color: DIM, fontSize: 8.5 }}>{b.ccy}</span></span>
                 <div style={{ position: "relative", height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 3 }}>
                   <div style={{ position: "absolute", left: "50%", top: -2, width: 1, height: 12, background: "rgba(255,255,255,0.25)" }} />
@@ -151,10 +154,10 @@ function BigMacPanel({ bm, s }) {
           <div style={card}>
             <div style={label}>Biggest FX moves since the {s.asOf.slice(0, 7)} print</div>
             {s.movers.map(m => <div key={m.ccy} style={{ fontSize: 10.5, fontFamily: fonts.mono, color: "#cbd5e1", display: "flex", justifyContent: "space-between", marginTop: 3 }}><span>{m.name} <span style={{ color: DIM }}>{m.ccy}</span></span><span><span style={{ color: m.fxMove > 0 ? GREEN : RED }}>{pc(m.fxMove)}</span> <span style={{ color: DIM }}>· {pc(m.raw, 0)} → {pc(m.rawNow, 0)}</span></span></div>)}
-            <div style={{ ...note, marginTop: 6 }}>positive = the currency strengthened against the dollar since July, which raises its burger price in dollars</div>
+            <div style={{ ...note, marginTop: 6 }}>positive = the currency strengthened against the dollar since the print, which raises its burger price in dollars</div>
           </div>
         )}
-        <div style={note}>Source: The Economist&apos;s open Big Mac data (July {s.asOf.slice(0, 4)} print, {s.n + 1} economies), re-marked here with live Yahoo exchange rates for {s.liveShare}% of currencies (the rest keep the July rate). Raw = local burger price in dollars vs the U.S. price. GDP-adjusted = vs the price the country&apos;s GDP per head would predict, which removes the &quot;poor countries are cheap&quot; effect and is the better fair-value read. Burger prices are updated twice a year; between prints only the exchange rate moves.</div>
+        <div style={note}>Source: The Economist&apos;s open Big Mac data ({printLbl(s.asOf)} print, {s.n + 1} economies), re-marked here with live Yahoo exchange rates for {s.liveShare}% of currencies (the rest keep the print&apos;s rate). Raw = local burger price in dollars vs the U.S. price. GDP-adjusted = vs the price the country&apos;s GDP per head would predict, which removes the &quot;poor countries are cheap&quot; effect and is the better fair-value read. Burger prices are updated twice a year; between prints only the exchange rate moves.</div>
       </div>
     </div>
   </>);
@@ -192,22 +195,15 @@ function IntlPulseTab({ go }) {
 
     <SH>The Board — Thirteen Economies, One Screen</SH>
     <div style={{ ...note, marginTop: -8, marginBottom: 8 }}>Click a column to sort. &quot;1 yr in USD&quot; is what a dollar investor actually earned: local index return compounded with the currency. Real FX = BIS real effective exchange rate vs its own 10-year average (positive = expensive). Big Mac = raw and GDP-adjusted valuation vs the dollar at today&apos;s exchange rate.</div>
-    <Board rows={rows} sortKey={sortKey} setSortKey={setSortKey} />
+    <Board rows={rows} sortKey={sortKey} setSortKey={setSortKey} print={printLbl(d.bigmacSummary?.asOf)} />
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12, marginBottom: 14 }}>
-      {chartBox("Broad dollar index — 10 years (Fed trade-weighted, goods & services)",
-        <ResponsiveContainer width="100%" height={170}><LineChart data={d.charts.dollar} margin={{ top: 8, right: 8, bottom: 0, left: -14 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={36} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
-          <Tooltip contentStyle={tip} /><Legend wrapperStyle={{ fontSize: 9.5, fontFamily: fonts.mono }} iconType="plainline" />{fin(d.charts.dxyAvg10y) && <ReferenceLine y={d.charts.dxyAvg10y} stroke="#94a3b8" strokeDasharray="4 3" strokeOpacity={0.6} />}
-          <Line type="monotone" dataKey="broad" name="Broad dollar" stroke={INDIGO} strokeWidth={2} dot={false} isAnimationActive={false} /><Line type="monotone" dataKey="em" name="vs emerging markets" stroke={AMBER} strokeWidth={1.3} dot={false} connectNulls isAnimationActive={false} />
-        </LineChart></ResponsiveContainer>,
-        "Dashed line = 10-year average. A dollar well above it has usually mean-reverted, and every 10% of dollar decline adds roughly 10 points to unhedged foreign returns.")}
       {chartBox(`Emerging-market corporate spread — since ${d.charts.emSince || "2023"} (%)`,
         <ResponsiveContainer width="100%" height={170}><LineChart data={d.charts.emSpread} margin={{ top: 8, right: 8, bottom: 0, left: -14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" /><XAxis dataKey="d" tick={axis} tickFormatter={x => x.slice(0, 4)} minTickGap={36} axisLine={false} tickLine={false} /><YAxis tick={axis} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={["auto", "auto"]} />
           <Tooltip contentStyle={tip} formatter={v => [`${v}%`, "EM OAS"]} /><Line type="monotone" dataKey="v" stroke={RED} strokeWidth={2} dot={false} isAnimationActive={false} />
         </LineChart></ResponsiveContainer>,
-        "ICE BofA EM corporate index option-adjusted spread. Spikes are the risk-off episodes (2016, 2020, 2022); a spread near its lows means the world is being paid little to take EM credit risk.")}
+        "ICE BofA EM corporate index option-adjusted spread; FRED's history starts in 2023, so the percentile covers only the last few years. A spread near its lows means the world is being paid little to take EM credit risk.")}
       {chartBox("One-year equity return in dollars — ranked",
         <div style={{ padding: "6px 4px 2px" }}>{ranking.map(r => { const v = r.eq.usd1y, c = upDown(v); return (
           <div key={r.code} style={{ display: "grid", gridTemplateColumns: "118px 1fr 52px", alignItems: "center", gap: 8, height: 19 }}>
@@ -218,8 +214,6 @@ function IntlPulseTab({ go }) {
         "Local index return compounded with the currency's move against the dollar — the number that lands in a U.S. account.")}
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12, marginBottom: 14 }}><VerdictCard s={s.dollar} /><VerdictCard s={s.risk} /><VerdictCard s={s.growth} /></div>
-
-    <BigMacPanel bm={d.bigmac} s={d.bigmacSummary} />
 
     <LastMile />
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { fonts, cardBg, cardBorder } from "./lib/styles.js";
 import "./theme.css";
-import { US_MORTGAGE_SERIES, GLOBAL_RATE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
+import { US_MORTGAGE_SERIES, TREASURY_SERIES, CPI_SERIES, CPI_COMPONENTS, PCE_COMPONENTS, HOUSING_SERIES, CONSUMER_SERIES, CHOROPLETH_METRICS, CHOROPLETH_SNAPSHOT, ALL_STATES } from "./lib/constants.js";
 import FB from "./lib/fallbackData.js";
 import { fetchFred, fetchFMP, fetchFMPTreasuryRates, fetchFMPMortgageRates, fetchFMPCPI, fetchFMPPremiumNews, fetchZillowData } from "./lib/api.js";
 import NewsTicker from "./components/NewsTicker.jsx";
@@ -123,6 +123,9 @@ export default function Dashboard() {
     setPendingTicker(s);
   };
   const [md, setMd] = useState(FB.mortgage); const [gd, setGd] = useState(FB.global);
+  // policy rates for the chat assistant's International context (BIS-backed, same feed as the Pulse)
+  const [cbRates, setCbRates] = useState(null);
+  useEffect(() => { fetch("/api/cb-rates").then(r => r.json()).then(x => { if (x && !x.error) setCbRates(x); }).catch(() => {}); }, []);
   const [td, setTd] = useState(FB.treasury); const [cd, setCd] = useState(FB.cpi); const [hd, setHd] = useState(FB.housing);
   const [csm, setCsm] = useState(FB.consumer);
   const [newsItems, setNewsItems] = useState([]); const [newsLoading, setNewsLoading] = useState(false);
@@ -280,7 +283,6 @@ export default function Dashboard() {
     try {
       const fb = async (map, set, gv, lim = 10) => { const r = {}; for (const id of Object.keys(map)) { try { const o = await fetchFred(id, fredKey, lim); if (o.length) r[id] = gv(o); } catch {} } if (Object.keys(r).length) set(p => ({ ...p, ...r })); };
       await fb(US_MORTGAGE_SERIES, setMd, o => ({ current: o[o.length-1].v, lastDate: o[o.length-1].d, history: o }), 52);
-      await fb(GLOBAL_RATE_SERIES, setGd, o => ({ current: o[o.length-1].v, lastDate: o[o.length-1].d }), 30);
       await fb(TREASURY_SERIES, setTd, o => ({ current: o[o.length-1].v, lastDate: o[o.length-1].d, history: o }), 120);
       const cr = {};
       for (const [id, m] of Object.entries(CPI_SERIES)) {
@@ -491,7 +493,7 @@ export default function Dashboard() {
             {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
             {tab === "news" && <NewsDeskTab />}
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
-            {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} gd={gd} />}
+            {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} treasury={td} />}
             {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
@@ -509,7 +511,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <ChatDrawer tab={tab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} />
+      <ChatDrawer tab={tab} md={md} td={td} gd={gd} cb={cbRates} cd={cd} csm={csm} hd={hd} zillowData={zillowData} />
     </div>
   );
 }

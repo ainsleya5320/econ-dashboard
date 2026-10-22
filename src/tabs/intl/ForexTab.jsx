@@ -4,16 +4,19 @@ import { fonts, cardBg, cardBorder } from "../../lib/styles.js";
 import { InfoBox } from "../../components/shared.jsx";
 import SubViews from "../../components/SubViews.jsx";
 import TradeFlows from "./TradeFlows.jsx";
-import GlobalImbalances from "./GlobalImbalances.jsx";
+import { BigMacPanel } from "./IntlPulseTab.jsx";
 
 // ============================================================================
 // FOREX — Donnelly's fundamentals chapter as four views.
 //   Valuation      the long-term answer: how cheap or rich each currency is
 //                  against the dollar on PPP, Big Mac, BIS REER and the IMF's
-//                  External Sector Report, and the median of those.
+//                  External Sector Report, and the median of those; then the
+//                  full Big Mac panel (54 currencies, from the International
+//                  pulse feed).
 //   Global drivers his four: world growth, commodities, risk aversion,
 //                  geopolitics — the regime today, and each currency's measured
-//                  sensitivity to it.
+//                  sensitivity to it. (Global current-account imbalances
+//                  live on the World tab.)
 //   Scorecard      his three domestic drivers scored against the dollar —
 //                  monetary policy split four ways, capital flows, trade —
 //                  next to the long-term number, so the two horizons never get
@@ -73,6 +76,13 @@ export default function ForexFundamentals({ prices }) {
   const [err, setErr] = useState(null);
   const [view, setView] = useState("valuation");
   const [secs, setSecs] = useState(0);
+  const [pulse, setPulse] = useState(null); // Big Mac rows come from the International pulse feed
+  useEffect(() => {
+    if (view !== "valuation" || pulse) return;
+    let alive = true;
+    fetch("/api/intl-pulse").then(r => r.json()).then(x => { if (alive && x && !x.error) setPulse(x); }).catch(() => {});
+    return () => { alive = false; };
+  }, [view, pulse]);
   useEffect(() => {
     let alive = true;
     fetch("/api/fx-fundamentals").then(r => r.json()).then(x => { if (!alive) return; if (x.error) setErr(x.error); else setD(x); }).catch(e => alive && setErr(String(e)));
@@ -164,6 +174,7 @@ export default function ForexFundamentals({ prices }) {
           );
         })}
       </Board>
+      {pulse?.bigmac?.length > 0 && <div style={{ marginTop: 14 }}><BigMacPanel bm={pulse.bigmac} s={pulse.bigmacSummary} /></div>}
     </>);
   };
 
@@ -234,7 +245,6 @@ export default function ForexFundamentals({ prices }) {
           ))}
         </Board>
       </div>
-      <GlobalImbalances />
     </>);
   };
 

@@ -87,19 +87,12 @@ function buildContext(tab, p, live) {
   // ═══ INTERNATIONAL ═══
   } else if (tab === "intl") {
     lines.push("=== Global Central Bank Policy Rates ===");
-    if (p.gd) {
-      for (const [id, lbl] of [
-        ["DFF","US Federal Funds"],["ECBDFR","ECB Deposit Rate"],["IUDSOIA","UK SONIA"],
-        ["IRSTCB01JPM156N","Japan (BoJ)"],["IRSTCB01CAM156N","Canada (BoC)"],
-        ["IRSTCB01CHM156N","Switzerland (SNB)"],["IRSTCB01AUM156N","Australia (RBA)"],
-        ["IRSTCB01KRM156N","South Korea (BoK)"],["IRSTCB01MXM156N","Mexico (Banxico)"],
-        ["IRSTCB01BRM156N","Brazil (BCB)"],
-      ]) {
-        const d = p.gd[id]; if (d) lines.push(`${lbl}: ${fmtV(d.current)}% (${d.lastDate || ""})`);
-      }
-    }
+    if (p.cb) {
+      const NAME = { US: "Federal Reserve", EU: "ECB", GB: "Bank of England", JP: "Bank of Japan", CA: "Bank of Canada", CH: "Swiss National Bank", AU: "Reserve Bank of Australia", KR: "Bank of Korea", MX: "Banxico", BR: "Banco Central do Brasil", NZ: "Reserve Bank of New Zealand", SE: "Riksbank", NO: "Norges Bank", IN: "Reserve Bank of India", CN: "People's Bank of China" };
+      for (const [id, r] of Object.entries(p.cb)) if (r?.rate != null) lines.push(`${NAME[id] || id}: ${fmtV(r.rate)}% (since ${r.date || "?"}, ${r.source})`);
+    } else lines.push("(Policy rates loading...)");
     lines.push("");
-    lines.push("This tab also shows World Bank development indicators (GDP growth, PPP GDP, population, life expectancy) and the Trade-Weighted US Dollar Index.");
+    lines.push("This tab also has: the International Pulse (13 economies), Central Banks & Rates (BIS policy rates for ~40 banks and the global hiking/cutting cycle), Forex (valuation, drivers, scorecard, trade, Big Mac), Share of the World and the China monitor. The World tab treats the globe as one economy.");
 
   // ═══ AI ECONOMY ═══
   } else if (tab === "ai") {

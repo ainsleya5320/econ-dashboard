@@ -7,6 +7,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/](../../server): one module per feed, each `createX({ dir, keys })` with memory, disk and rebuild caching
 - [server/usPulse.js](../../server/usPulse.js): U.S. Economy landing feed (~50 FRED series, leading indicators, consumer, debt)
 - [server/intlPulse.js](../../server/intlPulse.js): International landing feed (13 economies, Big Mac index)
+- [server/policyRates.js](../../server/policyRates.js): BIS central bank policy rates (~40 banks, monthly history, daily latest) — /api/policy-rates and the base layer of /api/cb-rates (vite.config.js), which the pulse and Forex read
 - [server/fxFundamentals.js](../../server/fxFundamentals.js): FX valuation, PPP and central-bank stance for 14 currencies
 - [server/tradeFlows.js](../../server/tradeFlows.js): tariffs, pass-through and dollar invoicing (/api/trade-flows)
 - [server/machine.js](../../server/machine.js): Dalio "economic machine" tracker from FRED

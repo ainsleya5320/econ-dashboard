@@ -30,6 +30,7 @@ import { createTopCompanyGdp } from './server/topCompanyGdp.js'
 import { createChinaMonitor } from './server/chinaMonitor.js'
 import { createDarkOutput } from './server/darkOutput.js'
 import { createGlobalHousing } from './server/globalHousing.js'
+import { createPolicyRates, applyDecisions } from './server/policyRates.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -487,7 +488,7 @@ async function fetchAIImpact() {
   return result
 }
 
-/* ── Central Bank Rates (FMP calendar + FRED supplements, 4-hour cache) ── */
+/* ── Central Bank Rates (BIS policy rates, FMP calendar for newer decisions, FRED fill; 4-hour cache) ── */
 let cbRatesCache = { data: null, ts: 0 }
 const CB_RATES_TTL = 4 * 60 * 60 * 1000
 
@@ -510,19 +511,25 @@ const CB_EVENTS = [
   { id: 'CN', pattern: /loan prime rate 1y/i },
 ]
 
-// FRED series that are reliably/frequently updated (override FMP for these)
+// FRED fills a bank only when neither BIS nor the calendar has it (DFF and SONIA are market rates, not the policy rate)
 const CB_FRED_SUPPLEMENTS = [
   { id: 'US', series: 'DFF' },            // Federal Funds Rate (daily)
   { id: 'EU', series: 'ECBDFR' },         // ECB Deposit Facility Rate (daily)
-  { id: 'GB', series: 'IUDSOIA' },        // UK SONIA → BoE base rate (daily)
-  { id: 'NO', series: 'IRSTCI01NOM156N', fill: true },  // Norway (OECD immediate rate, monthly) -- only if the calendar has no decision
+  { id: 'GB', series: 'IUDSOIA' },        // UK SONIA (daily)
+  { id: 'NO', series: 'IRSTCI01NOM156N' },  // Norway (OECD immediate rate, monthly)
 ]
 
 async function fetchCbRates() {
   if (cbRatesCache.data && Date.now() - cbRatesCache.ts < CB_RATES_TTL) return cbRatesCache.data
   const result = {}
 
-  // Step 1: FMP economic calendar → parse most recent rate decisions
+  // Step 0: BIS policy rates — each bank's official headline rate, ~40 economies, refreshed weekly
+  try {
+    const bis = await policyRates.get()
+    for (const b of bis?.banks || []) if (!b.stale && b.rate != null) result[b.id] = { rate: b.rate, date: b.since || b.date, asOf: b.date, source: 'BIS' }
+  } catch (e) { console.warn('CB rates BIS error:', e.message) }
+
+  // Step 1: FMP economic calendar → a decision newer than BIS's last observation wins
   try {
     const calResp = await fetch(`https://financialmodelingprep.com/stable/economic-calendar?apikey=${FMP_KEY}`, {
       headers: { 'User-Agent': UA }
@@ -534,8 +541,9 @@ async function fetchCbRates() {
           const events = calendar
             .filter(e => e.actual != null && (cb.anyCountry || e.country === cb.id) && cb.pattern.test(e.event))
             .sort((a, b) => b.date.localeCompare(a.date))
-          if (events.length > 0) {
-            result[cb.id] = { rate: events[0].actual, date: events[0].date.slice(0, 10), source: 'FMP' }
+          const ev = events[0], d = ev?.date?.slice(0, 10)
+          if (ev && (!result[cb.id] || (d > (result[cb.id].asOf || '') && ev.actual !== result[cb.id].rate))) {
+            result[cb.id] = { rate: ev.actual, date: d, source: 'FMP' }
           }
         }
       }
@@ -544,7 +552,7 @@ async function fetchCbRates() {
 
   // Step 2: FRED direct fetches override FMP for countries with live series
   for (const f of CB_FRED_SUPPLEMENTS) {
-    if (f.fill && result[f.id]) continue // a real decision from the calendar beats a monthly proxy
+    if (result[f.id]) continue // BIS or a calendar decision beats a market-rate proxy
     try {
       const r = await fetch(
         `https://api.stlouisfed.org/fred/series/observations?series_id=${f.series}&api_key=${FRED_KEY}&limit=1&sort_order=desc&file_type=json`,
@@ -2123,111 +2131,6 @@ async function fetchHousingHealth() {
   // must not pin a degraded payload for the full TTL.
   if (affordCur != null && msCur != null) housingHealthCache = { data, ts: Date.now() }
   return data
-}
-
-/* ── Global Liquidity & Debt (FRED + FX conversion) ──────────────────────
-   One endpoint for the "how much cash is in the world, where is it, and who
-   owes what to whom" page. Everything normalized to billions of USD.
-   Net Liquidity = Fed balance sheet − reverse repo − Treasury General Account
-   (the metric traders watch: dollars actually available to markets). */
-let liquidityCache = { data: null, ts: 0 }
-const LIQUIDITY_TTL = 4 * 60 * 60 * 1000
-
-// scale → multiply raw FRED value by this to get billions USD (fx applied separately)
-const LIQ_SERIES = {
-  WALCL:           { label: 'Fed Balance Sheet',            scale: 1e-3, limit: 530,  freq: 'W' },
-  RRPONTSYD:       { label: 'Reverse Repo (RRP)',           scale: 1,    limit: 1300, freq: 'D' },
-  WTREGEN:         { label: 'Treasury General Account',     scale: 1e-3, limit: 530,  freq: 'W' },
-  WRESBAL:         { label: 'Bank Reserves',                scale: 1e-3, limit: 530,  freq: 'W' },
-  M2SL:            { label: 'M2 Money Supply',              scale: 1,    limit: 400,  freq: 'M' },
-  CURRCIR:         { label: 'Currency in Circulation',      scale: 1,    limit: 400,  freq: 'M' },
-  ECBASSETSW:      { label: 'ECB Balance Sheet',            scale: 1e-3, limit: 530,  freq: 'W', fx: 'EUR' },
-  JPNASSETS:       { label: 'BOJ Balance Sheet',            scale: 0.1,  limit: 400,  freq: 'M', fx: 'JPY' },
-  DTWEXBGS:        { label: 'Broad Dollar Index',           scale: 1,    limit: 1300, freq: 'D' },
-  GFDEBTN:         { label: 'Federal Debt Total',           scale: 1e-3, limit: 220,  freq: 'Q' },
-  GFDEGDQ188S:     { label: 'Federal Debt to GDP',          scale: 1,    limit: 220,  freq: 'Q' },
-  A091RC1Q027SBEA: { label: 'Federal Interest Payments',    scale: 1,    limit: 220,  freq: 'Q' },
-  FDHBFIN:         { label: 'Debt Held by Foreigners',      scale: 1,    limit: 220,  freq: 'Q' },
-  FDHBFRBN:        { label: 'Debt Held by Federal Reserve', scale: 1,    limit: 220,  freq: 'Q' },
-  FDHBATN:         { label: 'Debt Held by Agencies/Trusts', scale: 1e-3, limit: 220,  freq: 'Q' },
-  CMDEBT:          { label: 'Household Debt',               scale: 1e-3, limit: 220,  freq: 'Q' },
-  BCNSDODNS:       { label: 'Corporate Debt (Nonfin)',      scale: 1e-3, limit: 220,  freq: 'Q' },
-}
-
-async function fetchGlobalLiquidity() {
-  if (liquidityCache.data && Date.now() - liquidityCache.ts < LIQUIDITY_TTL) return liquidityCache.data
-  console.log('Global liquidity: fetching FRED series + FX...')
-
-  // FX for converting ECB (EUR) and BOJ (JPY) balance sheets to USD
-  const [eurQ, jpyQ] = await Promise.all([
-    fetchYahooQuote('EURUSD=X'),
-    fetchYahooQuote('JPY=X'),       // USDJPY
-  ])
-  const eurUsd = eurQ?.price || 1.08
-  const usdJpy = jpyQ?.price || 150
-
-  const series = {}
-  await Promise.all(Object.entries(LIQ_SERIES).map(async ([id, meta]) => {
-    try {
-      const obs = await fetchFredSeries(id, meta.limit)
-      if (!obs.length) return
-      const fxMult = meta.fx === 'EUR' ? eurUsd : meta.fx === 'JPY' ? (1 / usdJpy) : 1
-      const hist = obs.map(o => ({ d: o.d, v: +(o.v * meta.scale * fxMult).toFixed(2) }))
-      const latest = hist[hist.length - 1]
-      const yoyLag = meta.freq === 'Q' ? 4 : meta.freq === 'M' ? 12 : meta.freq === 'W' ? 52 : 260
-      const prior = hist.length > yoyLag ? hist[hist.length - 1 - yoyLag] : null
-      series[id] = {
-        id, label: meta.label, freq: meta.freq,
-        current: latest.v, lastDate: latest.d,
-        yoy: prior && prior.v ? +(((latest.v - prior.v) / Math.abs(prior.v)) * 100).toFixed(2) : null,
-        history: hist,
-      }
-    } catch (e) { console.warn(`Liquidity FRED ${id}:`, e.message) }
-  }))
-
-  // Net Liquidity = WALCL − RRP − TGA, computed on WALCL's weekly dates with
-  // nearest-prior matching for the daily RRP series.
-  let netLiquidity = []
-  if (series.WALCL && series.WTREGEN && series.RRPONTSYD) {
-    const tgaMap = new Map(series.WTREGEN.history.map(p => [p.d, p.v]))
-    const rrp = series.RRPONTSYD.history
-    let ri = 0
-    netLiquidity = series.WALCL.history.map(p => {
-      while (ri + 1 < rrp.length && rrp[ri + 1].d <= p.d) ri++
-      const rrpV = rrp[ri] && rrp[ri].d <= p.d ? rrp[ri].v : 0
-      const tgaV = tgaMap.get(p.d)
-      if (tgaV == null) return null
-      return { d: p.d, v: +(p.v - rrpV - tgaV).toFixed(2) }
-    }).filter(Boolean)
-  }
-
-  // Debt holders breakdown (latest common data)
-  let holders = null
-  if (series.GFDEBTN && series.FDHBFIN && series.FDHBFRBN && series.FDHBATN) {
-    const total = series.GFDEBTN.current
-    const foreign = series.FDHBFIN.current
-    const fed = series.FDHBFRBN.current
-    const intragov = series.FDHBATN.current
-    holders = {
-      total,
-      asOf: series.GFDEBTN.lastDate,
-      breakdown: [
-        { name: 'Foreign Investors',        value: foreign,                                  color: '#3B82F6' },
-        { name: 'Federal Reserve',          value: fed,                                      color: '#E8553A' },
-        { name: 'US Gov Trust Funds',       value: intragov,                                 color: '#8B5CF6' },
-        { name: 'US Private (banks, funds, households)', value: +(total - foreign - fed - intragov).toFixed(0), color: '#10B981' },
-      ],
-    }
-  }
-
-  const result = {
-    series, netLiquidity, holders,
-    fx: { eurUsd, usdJpy },
-    updated: Date.now(),
-  }
-  console.log(`Global liquidity: ${Object.keys(series).length}/${Object.keys(LIQ_SERIES).length} series, netLiq points: ${netLiquidity.length}`)
-  liquidityCache = { data: result, ts: Date.now() }
-  return result
 }
 
 /* ── Hyperscaler AI capex tracker (FMP quarterly cash flow) ──────────────
@@ -3842,6 +3745,8 @@ const chinaMonitor = createChinaMonitor({ UA, dir: __dirname, FRED_KEY })
 const darkOutput = createDarkOutput({ UA, dir: __dirname, blsKey: BLS_KEY, fred: fetchFredSeries })
 // Global housing (server/globalHousing.js): ~60 countries' real house prices (BIS), valuation vs own history (OECD), household debt and debt service (BIS)
 const globalHousing = createGlobalHousing({ UA, dir: __dirname })
+// Policy rates (server/policyRates.js): BIS WS_CBPOL for ~40 central banks — the base layer of /api/cb-rates and International → Central Banks & Rates
+const policyRates = createPolicyRates({ UA, dir: __dirname })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4094,6 +3999,7 @@ export default defineConfig({
         reRoute('/api/china-monitor', () => chinaMonitor.get())
         reRoute('/api/dark-output', () => darkOutput.get())
         reRoute('/api/global-housing', () => globalHousing.get())
+        reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())
@@ -4198,24 +4104,6 @@ export default defineConfig({
           res.setHeader('Access-Control-Allow-Origin', '*')
           try {
             const data = await fetchAIImpact()
-            res.end(JSON.stringify(data))
-          } catch (e) {
-            res.statusCode = 500
-            res.end(JSON.stringify({ error: e.message }))
-          }
-        })
-
-        // Global Liquidity & Debt — Fed/ECB/BOJ balance sheets, net liquidity,
-        // money supply, US debt stack and who holds it. All in billions USD.
-        server.middlewares.use('/api/global-liquidity', async (req, res) => {
-          res.setHeader('Content-Type', 'application/json')
-          res.setHeader('Access-Control-Allow-Origin', '*')
-          try {
-            if ((req.url || '').includes('refresh=1')) {
-              liquidityCache = { data: null, ts: 0 }
-              console.log('Global liquidity: cache busted by ?refresh=1')
-            }
-            const data = await fetchGlobalLiquidity()
             res.end(JSON.stringify(data))
           } catch (e) {
             res.statusCode = 500

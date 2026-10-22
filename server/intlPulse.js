@@ -27,23 +27,24 @@ const chg = (a, b) => (fin(a) && fin(b) && b !== 0 ? ((a / b) - 1) * 100 : null)
 function csvSplit(line) { const out = []; let cur = '', q = false; for (let i = 0; i < line.length; i++) { const c = line[i]; if (c === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++ } else q = !q } else if (c === ',' && !q) { out.push(cur); cur = '' } else cur += c } out.push(cur); return out }
 
 // fx: Yahoo symbol; invert=true means the symbol quotes USD per local unit
-// (EURUSD=X) rather than local per USD (JPY=X). cb = key in /api/cb-rates;
+// (EURUSD=X) rather than local per USD (JPY=X). The euro area's 10-year is the
+// Bund (the OECD euro-area series stopped in Jan 2026). cb = key in /api/cb-rates;
 // cbFred = monthly policy-rate fallback on FRED. cpi only where the index is
 // still updating (Eurostat HICP, U.S. CPI).
 export const COUNTRIES = [
   { code: 'US', name: 'United States', flag: '🇺🇸', iso3: 'USA', ccy: 'USD', fx: null, index: '^GSPC', indexName: 'S&P 500', y10: 'DGS10', unemp: 'UNRATE', cpi: 'CPIAUCSL', reer: 'RBUSBIS', gdp: { id: 'GDPC1', kind: 'level' }, cb: 'US' },
-  { code: 'EA', name: 'Euro area', flag: '🇪🇺', iso3: 'EUZ', ccy: 'EUR', fx: { sym: 'EURUSD=X', invert: true }, index: '^STOXX50E', indexName: 'Euro Stoxx 50', y10: 'IRLTLT01EZM156N', unemp: null, cpi: 'CP0000EZ19M086NEST', reer: 'RBXMBIS', gdp: { id: 'CLVMNACSCAB1GQEA19', kind: 'level' }, cb: 'EU' },
+  { code: 'EA', name: 'Euro area', flag: '🇪🇺', iso3: 'EUZ', ccy: 'EUR', fx: { sym: 'EURUSD=X', invert: true }, index: '^STOXX50E', indexName: 'Euro Stoxx 50', y10: 'IRLTLT01DEM156N', unemp: null, cpi: 'CP0000EZ19M086NEST', reer: 'RBXMBIS', gdp: { id: 'CLVMNACSCAB1GQEA19', kind: 'level' }, cb: 'EU' },
   { code: 'DE', name: 'Germany', flag: '🇩🇪', iso3: 'DEU', ccy: 'EUR', fx: { sym: 'EURUSD=X', invert: true }, index: '^GDAXI', indexName: 'DAX', y10: 'IRLTLT01DEM156N', unemp: 'LRHUTTTTDEM156S', cpi: 'CP0000DEM086NEST', reer: 'RBDEBIS', gdp: { id: 'NAEXKP01DEQ657S', kind: 'qoq' }, cb: 'EU' },
   { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', iso3: 'GBR', ccy: 'GBP', fx: { sym: 'GBPUSD=X', invert: true }, index: '^FTSE', indexName: 'FTSE 100', y10: 'IRLTLT01GBM156N', unemp: 'LRHUTTTTGBM156S', cpi: null, reer: 'RBGBBIS', gdp: { id: 'NAEXKP01GBQ657S', kind: 'qoq' }, cb: 'GB' },
   { code: 'JP', name: 'Japan', flag: '🇯🇵', iso3: 'JPN', ccy: 'JPY', fx: { sym: 'JPY=X' }, index: '^N225', indexName: 'Nikkei 225', y10: 'IRLTLT01JPM156N', unemp: 'LRHUTTTTJPM156S', cpi: null, reer: 'RBJPBIS', gdp: { id: 'NAEXKP01JPQ657S', kind: 'qoq' }, cb: 'JP' },
-  { code: 'CN', name: 'China', flag: '🇨🇳', iso3: 'CHN', ccy: 'CNY', fx: { sym: 'CNY=X' }, index: '000001.SS', indexName: 'Shanghai Comp.', y10: null, unemp: null, cpi: null, reer: 'RBCNBIS', gdp: null, cb: null },
-  { code: 'IN', name: 'India', flag: '🇮🇳', iso3: 'IND', ccy: 'INR', fx: { sym: 'INR=X' }, index: '^BSESN', indexName: 'Sensex', y10: 'INDIRLTLT01STM', unemp: null, cpi: null, reer: 'RBINBIS', gdp: { id: 'NAEXKP01INQ657S', kind: 'qoq' }, cb: null },
+  { code: 'CN', name: 'China', flag: '🇨🇳', iso3: 'CHN', ccy: 'CNY', fx: { sym: 'CNY=X' }, index: '000001.SS', indexName: 'Shanghai Comp.', y10: null, unemp: null, cpi: null, reer: 'RBCNBIS', gdp: null, cb: 'CN' },
+  { code: 'IN', name: 'India', flag: '🇮🇳', iso3: 'IND', ccy: 'INR', fx: { sym: 'INR=X' }, index: '^BSESN', indexName: 'Sensex', y10: 'INDIRLTLT01STM', unemp: null, cpi: null, reer: 'RBINBIS', gdp: { id: 'NAEXKP01INQ657S', kind: 'qoq' }, cb: 'IN' },
   { code: 'KR', name: 'South Korea', flag: '🇰🇷', iso3: 'KOR', ccy: 'KRW', fx: { sym: 'KRW=X' }, index: '^KS11', indexName: 'KOSPI', y10: 'IRLTLT01KRM156N', unemp: 'LRHUTTTTKRM156S', cpi: null, reer: 'RBKRBIS', gdp: { id: 'NAEXKP01KRQ657S', kind: 'qoq' }, cb: 'KR' },
   { code: 'CA', name: 'Canada', flag: '🇨🇦', iso3: 'CAN', ccy: 'CAD', fx: { sym: 'CAD=X' }, index: '^GSPTSE', indexName: 'TSX', y10: 'IRLTLT01CAM156N', unemp: 'LRHUTTTTCAM156S', cpi: null, reer: 'RBCABIS', gdp: { id: 'NAEXKP01CAQ657S', kind: 'qoq' }, cb: 'CA' },
-  { code: 'AU', name: 'Australia', flag: '🇦🇺', iso3: 'AUS', ccy: 'AUD', fx: { sym: 'AUDUSD=X', invert: true }, index: '^AXJO', indexName: 'ASX 200', y10: 'IRLTLT01AUM156N', unemp: 'LRHUTTTTAUM156S', cpi: null, reer: 'RBAUBIS', gdp: { id: 'NAEXKP01AUQ657S', kind: 'qoq' }, cb: null, cbFred: 'IRSTCB01AUM156N' },
+  { code: 'AU', name: 'Australia', flag: '🇦🇺', iso3: 'AUS', ccy: 'AUD', fx: { sym: 'AUDUSD=X', invert: true }, index: '^AXJO', indexName: 'ASX 200', y10: 'IRLTLT01AUM156N', unemp: 'LRHUTTTTAUM156S', cpi: null, reer: 'RBAUBIS', gdp: { id: 'NAEXKP01AUQ657S', kind: 'qoq' }, cb: 'AU', cbFred: 'IRSTCB01AUM156N' },
   { code: 'CH', name: 'Switzerland', flag: '🇨🇭', iso3: 'CHE', ccy: 'CHF', fx: { sym: 'CHF=X' }, index: '^SSMI', indexName: 'SMI', y10: 'IRLTLT01CHM156N', unemp: null, cpi: null, reer: 'RBCHBIS', gdp: { id: 'NAEXKP01CHQ657S', kind: 'qoq' }, cb: 'CH' },
   { code: 'BR', name: 'Brazil', flag: '🇧🇷', iso3: 'BRA', ccy: 'BRL', fx: { sym: 'BRL=X' }, index: '^BVSP', indexName: 'Bovespa', y10: null, unemp: null, cpi: null, reer: 'RBBRBIS', gdp: { id: 'NAEXKP01BRQ657S', kind: 'qoq' }, cb: 'BR' },
-  { code: 'MX', name: 'Mexico', flag: '🇲🇽', iso3: 'MEX', ccy: 'MXN', fx: { sym: 'MXN=X' }, index: '^MXX', indexName: 'IPC', y10: 'IRLTLT01MXM156N', unemp: 'LRHUTTTTMXM156S', cpi: null, reer: 'RBMXBIS', gdp: { id: 'NAEXKP01MXQ657S', kind: 'qoq' }, cb: null, cbFred: 'IRSTCB01MXM156N' },
+  { code: 'MX', name: 'Mexico', flag: '🇲🇽', iso3: 'MEX', ccy: 'MXN', fx: { sym: 'MXN=X' }, index: '^MXX', indexName: 'IPC', y10: 'IRLTLT01MXM156N', unemp: 'LRHUTTTTMXM156S', cpi: null, reer: 'RBMXBIS', gdp: { id: 'NAEXKP01MXQ657S', kind: 'qoq' }, cb: 'MX', cbFred: 'IRSTCB01MXM156N' },
 ]
 const BIGMAC_URL = 'https://raw.githubusercontent.com/TheEconomist/big-mac-data/master/output-data/big-mac-full-index.csv'
 
@@ -118,9 +119,9 @@ export function createIntlPulse({ fetchFredSeries, fetchYahooQuote, fetchYahooSp
     const bigmac = bmRows.map(r => {
       let fxNow = r.ccy === 'USD' ? 1 : liveFx[r.ccy]
       let fxSource = 'live'
-      // guard against an inverted or broken quote: it must be within 60% of July's rate (or its inverse)
+      // guard against an inverted or broken quote: it must be within 60% of the print's rate (or its inverse)
       if (fin(fxNow) && fxNow > 0 && Math.abs(fxNow / r.dollarEx - 1) > 0.6) { if (Math.abs((1 / fxNow) / r.dollarEx - 1) <= 0.6) fxNow = 1 / fxNow; else fxNow = null }
-      if (!fin(fxNow) || fxNow <= 0) { fxNow = r.dollarEx; fxSource = 'july' }
+      if (!fin(fxNow) || fxNow <= 0) { fxNow = r.dollarEx; fxSource = 'print' }
       const dollarPriceNow = r.localPrice / fxNow
       const rawNow = us ? (dollarPriceNow / us.localPrice - 1) * 100 : null
       const adjNow = fin(r.adjPrice) && r.adjPrice > 0 ? (dollarPriceNow / r.adjPrice - 1) * 100 : null
