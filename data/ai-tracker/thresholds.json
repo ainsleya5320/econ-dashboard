@@ -1,0 +1,36 @@
+{
+  "_about": "Scoring rules for AI Economy -> Build-Out. These are STARTING POINTS to argue with, not truths. Edit and reload the page: server/aiBuildout.js reads this file on every request. Status values: moffett = leans funding-loop, productivity = leans productivity, neutral = neither. A null threshold means the signal is shown for context but not scored.",
+  "capexOcf": {
+    "_doc": "Aggregate trailing-4-quarter capex / operating cash flow across the five hyperscalers.",
+    "moffettAbove": 0.8,
+    "moffettRequiresRising": true,
+    "productivityBelow": 0.6
+  },
+  "debtIssuance": {
+    "_doc": "Trailing-4-quarter long-term debt raised, % change on the trailing 4 quarters a year earlier.",
+    "moffettYoyAbovePct": 50
+  },
+  "qssVsCapex": {
+    "_doc": "Census QSS NAICS 518 revenue growth minus hyperscaler capex growth (both trailing-4Q y/y), percentage points.",
+    "moffettBelowPp": -15,
+    "productivityAbovePp": 0
+  },
+  "offBalanceSheet": {
+    "_doc": "Count of logged off-balance-sheet / vendor-financing events in the last 12 months (manual-inputs.json). Null = unscored.",
+    "moffettEventsTrailing12m": null
+  },
+  "tfp": {
+    "_doc": "SF Fed utilization-adjusted TFP: average annualized quarterly growth over the last `window` quarters vs the baseline period average.",
+    "window": 8,
+    "baseline": ["2010-Q1", "2019-Q4"]
+  },
+  "laborProductivity": {
+    "_doc": "BLS nonfarm business output per hour, same rule as TFP. Added to the original spec; delete the block to stop scoring it.",
+    "window": 8,
+    "baseline": ["2010-Q1", "2019-Q4"]
+  },
+  "softwareOutputVsJobs": {
+    "_doc": "Real software investment growth minus software employment growth (y/y), percentage points.",
+    "productivityAbovePp": 2
+  }
+}

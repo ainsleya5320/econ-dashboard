@@ -37,7 +37,7 @@ const r1 = v => (fin(v) ? +v.toFixed(1) : null), r2 = v => (fin(v) ? +v.toFixed(
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const sum = (xs, f) => xs.reduce((s, x) => s + (f(x) || 0), 0)
 
-const COMPANIES = [
+export const COMPANIES = [
   { t: 'MSFT',  name: 'Microsoft',      cik: '0000789019', hyper: true,  color: '#00A4EF' },
   { t: 'AMZN',  name: 'Amazon',         cik: '0001018724', hyper: true,  color: '#FF9900' },
   { t: 'GOOGL', name: 'Alphabet',       cik: '0001652044', hyper: true,  color: '#4285F4' },

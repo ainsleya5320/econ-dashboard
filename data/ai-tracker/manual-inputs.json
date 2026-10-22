@@ -1,0 +1,24 @@
+{
+  "_about": "Hand-kept inputs for AI Economy -> Build-Out, for things no API carries. Every value needs an as-of date and a source URL; never estimate. Rows with \"example\": true are ignored by the tracker. See docs/ai-tracker.md for how to add rows.",
+  "events": [
+    {
+      "example": true,
+      "date": "YYYY-MM-DD",
+      "company": "Hyperscaler or AI lab",
+      "counterparty": "Lender, SPV partner, vendor or investor",
+      "type": "spv | lease-not-commenced | vendor-financing | equity-stake-in-customer | backstop",
+      "amountBn": null,
+      "onBalanceSheet": false,
+      "description": "One sentence: what was agreed and why it matters for the funding question.",
+      "source_url": "https://…"
+    }
+  ],
+  "series": {
+    "awsBacklog": { "label": "AWS backlog (Amazon stopped tagging RPO in XBRL in 2020)", "unit": "$bn", "frequency": "quarterly", "values": [] },
+    "leasesNotCommenced": { "label": "Leases signed but not yet commenced, by company (10-Q/10-K lease footnote)", "unit": "$bn", "frequency": "quarterly", "values": [] },
+    "customerConcentration": { "label": "Backlog concentration notes (e.g. the share of a backlog owed by one AI lab)", "unit": "text", "frequency": "quarterly", "values": [] },
+    "rampAiIndex": { "label": "Ramp AI Index (share of U.S. businesses paying for AI tools)", "unit": "% of businesses", "frequency": "monthly", "values": [] },
+    "adRevenue": { "label": "Meta and Google advertising revenue", "unit": "$bn", "frequency": "quarterly", "values": [] }
+  },
+  "_valueSchema": { "date": "YYYY-MM-DD (period end)", "company": "optional", "value": "number or text", "source_url": "https://…", "added": "YYYY-MM-DD" }
+}

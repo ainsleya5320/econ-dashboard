@@ -9,6 +9,7 @@ import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPuls
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
 import DarkOutput from "./ai/DarkOutput.jsx";
+import BuildOut from "./ai/BuildOut.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
 import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
@@ -2303,6 +2304,7 @@ function AIEconomyTab() {
     { id: "tokens",   label: "Tokens"         },
     { id: "compute",  label: "Compute"        },
     { id: "models",   label: "Models & Labs"  },
+    { id: "buildout", label: "Build-Out"      },
     { id: "dark",     label: "Dark Output"    },
     { id: "tensions", label: "Tensions"       },
   ];
@@ -2319,6 +2321,7 @@ function AIEconomyTab() {
     {subTab === "tokens"  && <TokenDemandTab />}
     {subTab === "compute" && <ComputeTab />}
     {subTab === "models"  && <ModelsLabsTab />}
+    {subTab === "buildout" && <BuildOut />}
     {subTab === "dark"    && <DarkOutput />}
     {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);
