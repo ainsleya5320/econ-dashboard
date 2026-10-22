@@ -393,12 +393,23 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fmpKey, fetchFMPRates]);
 
+  // FRED outages (St. Louis Fed maintenance): the server pauses its FRED calls and serves the cache,
+  // and says so on /api/fred-cache; the data-health strip names it instead of just showing old dates
+  const [fredDown, setFredDown] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () => fetch("/api/fred-cache").then(r => r.json()).then(j => alive && setFredDown(j?.down || null)).catch(() => {});
+    check();
+    const t = setInterval(check, 2 * 60 * 1000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
   const dataSources = useMemo(() => [
-    sourceStatus({ label: "FRED macro", date: collectLatestDate({ md, gd, td, cd, hd, csm }), loading: fredStatus === "loading", error: fredStatus === "error", live: isLive, staleDays: 60 }),
+    sourceStatus({ label: fredDown ? `FRED macro — FRED is down (${fredDown.reason.replace(/^FRED (is )?/, "")}), showing cached data` : "FRED macro", date: collectLatestDate({ md, gd, td, cd, hd, csm }), loading: fredStatus === "loading", error: fredStatus === "error", live: isLive, staleDays: 60 }),
     sourceStatus({ label: "FMP market data", date: collectLatestDate({ md, gd, td, cd }), live: !!fmpKey, staleDays: 14 }),
     sourceStatus({ label: "Zillow housing", date: collectLatestDate(zillowData), loading: !zillowData, live: !!zillowData, staleDays: 90 }),
     sourceStatus({ label: "News", date: newsItems?.[0]?.publishedDate, loading: newsLoading, live: newsItems.length > 0, staleDays: 3 }),
-  ], [md, gd, td, cd, hd, csm, fredStatus, isLive, fmpKey, zillowData, newsItems, newsLoading]);
+  ], [md, gd, td, cd, hd, csm, fredStatus, isLive, fmpKey, zillowData, newsItems, newsLoading, fredDown]);
 
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [

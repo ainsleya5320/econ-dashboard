@@ -376,36 +376,52 @@ async function fetchFredSeries(id, limit) {
   // the caller. A page never blocks on FRED for a series it already had.
   if (wide && age < FRED_HARD_STALE) { fredFetch(id, Math.max(limit, hit.limit)).catch(() => {}); return hit.obs.slice(-limit) }
   const obs = await fredFetch(id, Math.max(limit, hit?.limit || 0))
+  // FRED down or the call failed: an old copy beats nothing
+  if (!obs.length && hit?.obs?.length) return hit.obs.slice(-limit)
   return obs.length > limit ? obs.slice(-limit) : obs
 }
 function fredCacheStats() {
   const now = Date.now(), e = Object.values(fredCache)
-  return { series: e.length, fresh: e.filter(x => now - x.ts < x.ttl).length, observations: e.reduce((s, x) => s + x.obs.length, 0),
+  return { down: fredDown && now < fredDown.until ? fredDown : null, series: e.length, fresh: e.filter(x => now - x.ts < x.ttl).length, observations: e.reduce((s, x) => s + x.obs.length, 0),
     oldestHours: e.length ? Math.round(Math.max(...e.map(x => now - x.ts)) / 3600e3) : null, inflight: fredInflight.size,
     bytes: (() => { try { return fs.existsSync(FRED_CACHE_FILE) ? fs.statSync(FRED_CACHE_FILE).size : 0 } catch { return 0 } })() }
 }
 
+// FRED outage breaker. During St. Louis Fed maintenance the API answers every call with an HTML
+// "Site Maintenance" page (HTTP 200), and a stalled connection can hang with no reply at all. One
+// such answer pauses upstream calls (5 minutes; 1 after a timeout) so the throttle queue doesn't fill
+// with doomed requests that would delay recovery by minutes, and callers are served the cache of any
+// age meanwhile (fetchFredSeries). /api/fred-cache reports the pause so the page can say so.
+let fredDown = null // { since, until, reason }
+const fredPause = (ms, reason) => { fredDown = { since: fredDown?.since || new Date().toISOString(), until: Date.now() + ms, reason } }
 async function fredFetchRaw(id, limit) {
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${FRED_KEY}&limit=${limit}&sort_order=desc&file_type=json`
+  if (fredDown && Date.now() < fredDown.until) return []
   await fredThrottle()
+  if (fredDown && Date.now() < fredDown.until) return []
   // Retry on 429 — a short backoff beats returning empty and (worse) getting
   // cached as empty. The throttle above keeps even retries from bursting.
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      const resp = await fetch(url, { headers: { 'User-Agent': UA } })
+      const resp = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20_000) })
       if (resp.status === 429) {
         await new Promise(r => setTimeout(r, 1500 * (attempt + 1)))
         continue
       }
       if (!resp.ok) {
         console.warn(`FRED ${id}: HTTP ${resp.status}`)
+        if (resp.status >= 500 || resp.status === 403) fredPause(5 * 60e3, `FRED answered HTTP ${resp.status}`)
         return []
       }
       const contentType = resp.headers.get('content-type') || ''
       if (!contentType.includes('application/json')) {
-        console.warn(`FRED ${id}: expected JSON, received ${contentType || 'unknown content type'}`)
+        const body = await resp.text().catch(() => '')
+        const maint = /maintenance/i.test(body)
+        if (!fredDown || Date.now() >= fredDown.until) console.warn(`FRED ${id}: ${maint ? 'St. Louis Fed site maintenance page' : `expected JSON, received ${contentType || 'unknown content type'}`} — pausing FRED calls 5 minutes, serving the cache`)
+        fredPause(5 * 60e3, maint ? 'FRED is down for St. Louis Fed site maintenance' : 'FRED returned a web page instead of data')
         return []
       }
+      fredDown = null
       const json = await resp.json()
       return (json.observations || [])
         .filter(o => o.value !== '.')
@@ -413,6 +429,7 @@ async function fredFetchRaw(id, limit) {
         .reverse()
     } catch (e) {
       console.warn(`FRED ${id}: ${e.message}`)
+      if (e.name === 'TimeoutError' || e.name === 'AbortError') fredPause(60e3, 'FRED timed out')
       return []
     }
   }
