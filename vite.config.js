@@ -29,6 +29,7 @@ import { createShareOfWorld } from './server/shareOfWorld.js'
 import { createTopCompanyGdp } from './server/topCompanyGdp.js'
 import { createChinaMonitor } from './server/chinaMonitor.js'
 import { createDarkOutput } from './server/darkOutput.js'
+import { createGlobalHousing } from './server/globalHousing.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3839,6 +3840,8 @@ const topCompanyGdp = createTopCompanyGdp({ FMP_KEY, FRED_KEY, UA, dir: __dirnam
 const chinaMonitor = createChinaMonitor({ UA, dir: __dirname, FRED_KEY })
 // Dark output (server/darkOutput.js): fingerprints of AI work the national accounts miss (SemiAnalysis) — BLS CES/PPI/productivity, Census QSS, Indeed postings, NY Fed recent grads, FRED/BEA NIPA
 const darkOutput = createDarkOutput({ UA, dir: __dirname, blsKey: BLS_KEY, fred: fetchFredSeries })
+// Global housing (server/globalHousing.js): ~60 countries' real house prices (BIS), valuation vs own history (OECD), household debt and debt service (BIS)
+const globalHousing = createGlobalHousing({ UA, dir: __dirname })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -4090,6 +4093,7 @@ export default defineConfig({
         reRoute('/api/top-company-gdp', () => topCompanyGdp.get())
         reRoute('/api/china-monitor', () => chinaMonitor.get())
         reRoute('/api/dark-output', () => darkOutput.get())
+        reRoute('/api/global-housing', () => globalHousing.get())
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
         reRoute('/api/owner-wealth', () => ownerWealth.get())

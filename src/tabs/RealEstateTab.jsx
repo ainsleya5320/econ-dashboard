@@ -8,6 +8,7 @@ import RefinancingView from "./realEstate/RefinancingView.jsx";
 import { DEFAULT_PROPERTY } from "../lib/propertyAnalysis.js";
 import "./realEstate/PropertyResearch.css";
 import MarketMap, { presetMarketMap } from "./realEstate/MarketMap.jsx";
+import GlobalHousing from "./realEstate/GlobalHousing.jsx";
 import HousingSubTab, { HousingHealthPanel } from "./HousingSubTab.jsx";
 
 // ============================================================================
@@ -699,7 +700,7 @@ export default function RealEstateTab({ hd, md, zillowData, choroplethCache, fet
   }, [fetchChoroplethData]);
   const mapExtras = useMemo(() => ({ metrics: STATE_EXTRAS, cache: mapCache, onNeed: onNeedStateMetric }), [mapCache, onNeedStateMetric]);
 
-  const VIEWS = [["fair", "Valuation Context"], ["residential", "Residential"], ["commercial", "Commercial"], ["metro", "Metro Markets"], ["refinance", "Refinancing"], ["map", "Market Map"]];
+  const VIEWS = [["fair", "Valuation Context"], ["residential", "Residential"], ["commercial", "Commercial"], ["metro", "Metro Markets"], ["refinance", "Refinancing"], ["map", "Market Map"], ["global", "Global"]];
   return (<>
     <header className="market-masthead"><div><div className="market-edition">Ledger / Property research</div><h1>Real estate</h1><p>Income, supply and the cost of capital.</p></div><button onClick={() => setView('metro')}>Explore local markets ↗</button></header>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 4, background: "var(--bg-subtle)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
@@ -724,5 +725,6 @@ export default function RealEstateTab({ hd, md, zillowData, choroplethCache, fet
     </>}
     {view === "refinance" && <div className="property-research"><RefinancingView p={property} setP={setProperty} /></div>}
     {view === "map" && <MarketMap extras={mapExtras} />}
+    {view === "global" && <GlobalHousing />}
   </>);
 }
