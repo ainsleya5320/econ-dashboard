@@ -31,6 +31,7 @@ import { createChinaMonitor } from './server/chinaMonitor.js'
 import { createDarkOutput } from './server/darkOutput.js'
 import { createGlobalHousing } from './server/globalHousing.js'
 import { createPolicyRates, applyDecisions } from './server/policyRates.js'
+import { createWorldEconomy } from './server/worldEconomy.js'
 import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
@@ -3747,6 +3748,8 @@ const darkOutput = createDarkOutput({ UA, dir: __dirname, blsKey: BLS_KEY, fred:
 const globalHousing = createGlobalHousing({ UA, dir: __dirname })
 // Policy rates (server/policyRates.js): BIS WS_CBPOL for ~40 central banks — the base layer of /api/cb-rates and International → Central Banks & Rates
 const policyRates = createPolicyRates({ UA, dir: __dirname })
+// World economy (server/worldEconomy.js): the globe as one country — IMF WEO, World Bank, BIS (credit, house prices, central-bank assets, debt securities, FX), IMF COFER, CPB trade, nine economies' broad money, Savills/UBS anchors
+const worldEconomy = createWorldEconomy({ UA, dir: __dirname, fred: fetchFredSeries, FMP_KEY })
 // Token volume estimates (server/tokenEstimates.js): OpenAI/Anthropic bounded four ways from SEC XBRL,
 // measured cost per token, realized price by lab and OpenRouter volume -- never from the labs' own disclosures
 const tokenEstimates = createTokenEstimates({ aiPulse: () => aiPulse.get(), gpuEconomics: () => gpuEconomics.get(), UA, dir: __dirname })
@@ -3999,6 +4002,7 @@ export default defineConfig({
         reRoute('/api/china-monitor', () => chinaMonitor.get())
         reRoute('/api/dark-output', () => darkOutput.get())
         reRoute('/api/global-housing', () => globalHousing.get())
+        reRoute('/api/world-economy', () => worldEconomy.get())
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())

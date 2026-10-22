@@ -4,7 +4,7 @@ import { fonts } from "../../lib/styles.js";
 import { AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, TEAL, fin, card, tip, axis, Panel, Note, DataTable, useIsPhone, chartH } from "../../components/dense.jsx";
 
 // ============================================================================
-// GLOBAL IMBALANCES — International → Forex → Global drivers.
+// GLOBAL IMBALANCES — on the World tab (the world as one economy).
 // The world's current-account surpluses and deficits as a share of world GDP,
 // 1980 through the IMF's projections, split by who runs them. Gita Gopinath's
 // warning (Conversations with Tyler, Sept 2026): imbalances matter when they

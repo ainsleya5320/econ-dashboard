@@ -8,6 +8,7 @@ import NewsTicker from "./components/NewsTicker.jsx";
 import TickerSearch from "./components/TickerSearch.jsx";
 import USEconomyTab from "./tabs/USEconomyTab.jsx";
 import InternationalTab from "./tabs/InternationalTab.jsx";
+import WorldTab from "./tabs/WorldTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
 import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
@@ -418,7 +419,7 @@ export default function Dashboard() {
     { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }] },
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "realestate", label: "Real Estate" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }] },
-    { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
+    { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "world", label: "World" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
     { label: "Themes",    items: [{ id: "ai", label: "AI Economy" }, { id: "forecasts", label: "Forecasts" }, { id: "history", label: "Historical" }] },
   ];
   const stripPct = (v) => v == null ? "" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
@@ -493,6 +494,7 @@ export default function Dashboard() {
             {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
             {tab === "news" && <NewsDeskTab />}
             {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
+            {tab === "world" && <WorldTab />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} treasury={td} />}
             {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
