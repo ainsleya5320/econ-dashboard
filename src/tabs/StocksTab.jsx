@@ -1216,7 +1216,8 @@ function StocksTab({ fmpKey, openTicker, onTickerOpened, treasury }) {
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailView, setDetailView] = useState("classic"); // which stock-page tab a link opens on
-  const [stockView, setStockView] = useState("overview"); // "overview" | "sp500" | "screener"
+  // "overview" | "sp500" | "screener" | ...; ?view=stocks&sub=special (links from the Ideas page) opens one directly
+  const [stockView, setStockView] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get("view") === "stocks" && ["overview", "sp500", "book", "people", "screener", "special", "cef", "sin"].includes(p.get("sub")) ? p.get("sub") : "overview"; });
   const [indexYields, setIndexYields] = useState(null);
 
   const loadData = useCallback(async () => {

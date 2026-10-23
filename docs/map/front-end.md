@@ -5,7 +5,9 @@ Back to the [master map](../../CLAUDE.md).
 ## Projects
 - [index.html](../../index.html): the page shell Vite serves at /
 - [src/main.jsx](../../src/main.jsx): React entry point
-- [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today: Cockpit and News Desk; Valuation, Income, Macro, Themes), data loading, data-health status
+- [src/App.jsx](../../src/App.jsx): the shell: tab groups (Today: Cockpit, News Desk and a link out to Ideas; Valuation, Income, Macro, Themes), data loading, data-health status. `?view=` opens any tab; `?view=stocks&sub=…` and `?view=economy&sub=…` open a sub-view (StocksTab.jsx, USEconomyTab.jsx), and `?view=stocks&symbol=…` a stock page
+- [ideas.html](../../ideas.html): the second page shell, served at /ideas (vite.config.js rewrites the path and lists it as a build input)
+- [src/ideas/](../../src/ideas): the Ideas page: IdeasApp.jsx (shortlist; Magic Formula stocks by sector with a market-value floor and a rank lookup; special situations; fixed income; each idea links to its evidence on the dashboard) and ideas.css (its own light and dark tokens; shares the dashboard's theme setting)
 - [src/tabs/NewsDeskTab.jsx](../../src/tabs/NewsDeskTab.jsx): the News Desk: the daily brief, news by holding and by category with Claude's reads, proposed rows for the data/ai tables, the clip bookmarklet and paste box, feed health
 - [src/tabs/](../../src/tabs): one component per tab and sub-tab (Overview cockpit, Rates, CPI, U.S. Economy, SFC Model, Tightening …)
 - [src/tabs/stocks/](../../src/tabs/stocks): S&P 500 screener, people screener, research sheet, debt & cash (with optimal debt), accounting (Beneish, Montier, accruals, footnotes, filings), technicals, valuation (cost of capital, industry yardstick, story valuation), value book, special situations (with the Odd lots board: issuer tenders that buy holders of under 100 shares in full, priced as a 99-share trade), closed-end funds (ClosedEndFunds.jsx: discount screener, a fund's discount against its own range, distributions, and a monthly backtest run in the browser on /api/cef's panel), sin & folly; the biggest company ÷ GDP (TopCompanyGdp.jsx, on S&P Overview)

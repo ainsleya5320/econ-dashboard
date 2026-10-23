@@ -12,6 +12,8 @@ Back to the [master map](../../CLAUDE.md).
 - [server/oilMarket.js](../../server/oilMarket.js): /api/oil-market — EIA API v2 (spot prices, frozen NYMEX futures to Apr 2024, weekly stocks/supply/demand/utilization, monthly production by state, STEO) and CME WTI/Brent settlement curves with a daily archive (personal use; gitignored cache only)
 - [server/cotReport.js](../../server/cotReport.js): /api/cot-report — CFTC Disaggregated (kh3c-gbw2) and Traders in Financial Futures (yw9f-hn96) combined reports for 35 markets plus Yahoo weekly prices; COT index, flows, price/OI quadrant, top-4 concentration, forward-return backtest
 - [server/aiBuildout.js](../../server/aiBuildout.js): /api/ai-buildout — funding loop vs productivity scoring: SEC XBRL (capex, OCF, debt proceeds, backlog, finance-lease adds) for the capexReturns hyperscalers, Census construction (data centers) and BTOS, SF Fed TFP, BEA via FRED, plus the Dark Output and AI pulse feeds; rules and hand inputs in data/ai-tracker/ (see docs/ai-tracker.md)
+- [server/magicFormula.js](../../server/magicFormula.js): Greenblatt's Magic Formula across all U.S. stocks: the FMP screener universe (daily) and each company's quarterly income statements and balance sheet, fetched in the background at 150 requests a minute, pausing when FMP refuses (a cold build takes about 35 minutes, then a company is refetched when a new quarter should be out); ranked at four market-value floors; one fetch loop per process across dev-server restarts
+- [server/ideas.js](../../server/ideas.js): /api/ideas, the Ideas page's three buckets: Magic Formula stocks, special situations (the scorer's A and B grades plus open odd-lot tenders) and fixed-income rules (FRED curve, TIPS, ICE BofA spreads, mortgage rates; bond closed-end fund discounts). `?symbol=` looks up one stock's rank, `?only=stocks` returns the stock bucket alone. Rules only, no model; see [docs/ideas.md](../ideas.md)
 - [server/fxFundamentals.js](../../server/fxFundamentals.js): FX valuation, PPP and central-bank stance for 14 currencies
 - [server/tradeFlows.js](../../server/tradeFlows.js): tariffs, pass-through and dollar invoicing (/api/trade-flows)
 - [server/machine.js](../../server/machine.js): Dalio "economic machine" tracker from FRED
@@ -79,6 +81,7 @@ Back to the [master map](../../CLAUDE.md).
 
 ## Memory
 - The header comment of each server/ module documents its sources, scores and cache TTLs
+- [docs/ideas.md](../ideas.md): the Ideas recommender's buckets, rules and known limits
 
 ## Routines
 Each feed rebuilds on request once its TTL (2h to 30 days) expires. The one timer is the News Desk's: it refreshes hourly, but only while the desk has been opened on this computer in the past 24 hours; between midnight and 5 am it only scores, and briefs follow the clock (after 6 am, noon and 4 pm) (server/newsDesk/index.js).

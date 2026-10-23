@@ -7,6 +7,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/](../../server): the feed modules that own the rest (named per file below)
 
 ## State
+- `magic-formula.json` at the root: the Magic Formula's universe, each company's quarterly fundamentals (FMP) and the dates names entered the top 50; a gitignored cache, rebuilt from FMP in about half an hour if deleted
 - [rankings-history.json](../../rankings-history.json): OpenRouter token rankings, daily archive (largest file, ~11 MB)
 - [hf-rankings-history.json](../../hf-rankings-history.json): Hugging Face top models by downloads, daily archive
 - [vercel-ai.json](../../vercel-ai.json): Vercel AI Gateway token and spend shares by model and lab

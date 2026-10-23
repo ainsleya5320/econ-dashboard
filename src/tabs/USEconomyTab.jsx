@@ -58,7 +58,8 @@ const DRILL = {
 const DEFAULT_VIEW = { regional: "metros", growth: "activity", credit: "corporate", rates: "treasuries", machine: "dalio" };
 
 function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
-  const [econSubTab, setEconSubTab] = useState("dashboard");
+  // ?view=economy&sub=rates (links from the Ideas page) opens a sub-tab directly
+  const [econSubTab, setEconSubTab] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get("view") === "economy" && ECON_SUB_TABS.some(t => t.id === p.get("sub")) ? p.get("sub") : "dashboard"; });
   const [views, setViews] = useState(DEFAULT_VIEW);
 
   // Auto-fetch the state map when its metric changes

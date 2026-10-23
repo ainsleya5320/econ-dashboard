@@ -44,6 +44,8 @@ import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
 import { createLongRun } from './server/longRun.js'
 import { createCapexReturns } from './server/capexReturns.js'
+import { createMagicFormula } from './server/magicFormula.js'
+import { createIdeas } from './server/ideas.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3792,13 +3794,23 @@ const optionsMarket = createOptionsMarket({ UA, dir: __dirname, FMP_KEY, context
 // CEF discounts (server/cefDiscounts.js): CEFConnect closed-end fund screener, weekly history, seasonality and
 // the monthly backtest panel; lookup(ticker) gives a fund's latest price and NAV
 const cefDiscounts = createCefDiscounts({ UA, dir: __dirname, events: () => specialSituations.tickerEvents() })
+// Magic Formula (server/magicFormula.js): Greenblatt's earnings-yield + return-on-capital ranking across all U.S. stocks from FMP
+// quarterly statements, fetched in the background (about half an hour cold, then incremental); cache magic-formula.json (gitignored)
+const magicFormula = createMagicFormula({ FMP_KEY, UA, dir: __dirname })
+// Ideas (server/ideas.js): the trade recommender behind /ideas — Magic Formula stocks by sector, graded special situations and
+// odd-lot tenders, and fixed-income rules on FRED and bond closed-end fund discounts. Rules only, no model.
+const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries })
 
 export default defineConfig({
+  // two pages: the dashboard and the Ideas recommender
+  build: { rollupOptions: { input: { main: path.resolve(__dirname, 'index.html'), ideas: path.resolve(__dirname, 'ideas.html') } } },
   plugins: [
     react(),
     {
       name: 'tickers-persist',
       configureServer(server) {
+        // the Ideas page is its own entry point (ideas.html); /ideas is its address
+        server.middlewares.use((req, _res, next) => { if (/^\/ideas\/?(\?|$)/.test(req.url || '')) req.url = req.url.replace(/^\/ideas\/?/, '/ideas.html'); next() })
         createMetroComparison({dir: __dirname, getRents: () => reFeeds.rents()}).register(server)
         createMetroEmployment({dir: __dirname, blsKey: BLS_KEY}).register(server)
         optionsContext.register(server)
@@ -4015,6 +4027,7 @@ export default defineConfig({
         reRoute('/api/oil-market', () => oilMarket.get())
         reRoute('/api/cot-report', () => cotReport.get())
         reRoute('/api/ai-buildout', () => aiBuildout.get())
+        reRoute('/api/ideas', req => ideas.get(req))
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())

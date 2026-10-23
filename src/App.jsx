@@ -96,7 +96,7 @@ export default function Dashboard() {
   // Label every table from its own thead so it can reflow to cards on a phone.
   useResponsiveTables();
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','news'].includes(view)?view:'overview'; });
+  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
   useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
@@ -416,7 +416,7 @@ export default function Dashboard() {
 
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [
-    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }] },
+    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }, { id: "ideas", label: "Ideas ↗", href: "/ideas" }] },
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "realestate", label: "Real Estate" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "world", label: "World" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
@@ -440,6 +440,10 @@ export default function Dashboard() {
               <div style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: fonts.mono, letterSpacing: 1.2, textTransform: "uppercase", padding: "4px 10px 3px" }}>{group.label}</div>
               {group.items.map(it => {
                 const active = tab === it.id;
+                // a separate page (the Ideas recommender) opens in its own tab
+                if (it.href) return (
+                  <a className="ledger-nav-link" key={it.id} href={it.href} target="_blank" rel="noopener noreferrer" style={{ display: "block", padding: "9px 12px", borderRadius: 5, marginBottom: 2, fontSize: 14, fontFamily: fonts.heading, color: "var(--tab-inactive-color)", textDecoration: "none" }}>{it.label}</a>
+                );
                 return (
                   <button className="ledger-nav-link" aria-current={active ? "page" : undefined} key={it.id} onClick={() => setTab(it.id)} style={{
                     display: "block", width: "100%", textAlign: "left", border: "none",
