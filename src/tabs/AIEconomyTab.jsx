@@ -129,12 +129,20 @@ const HS_AI_SHARE_DEFAULTS = {
   META: 0.55,   // AI for Reels, ads, Llama training — rest is general infra
   AMZN: 0.60,   // AWS AI infra, partially offset by general retail capex
   ORCL: 0.85,   // Oracle's recent pivot is almost entirely OCI AI infra
+  CRWV: 1.00,   // neoclouds: GPU capacity is the whole business
+  NBIS: 1.00,
 };
+
+// Calendar quarter a fiscal quarter-end falls in, so Oracle's quarter to
+// Aug 31 stacks with everyone's quarter to Sep 30 ("2026 Q3").
+const calQ = d => `${d.slice(0, 4)} Q${Math.ceil(+d.slice(5, 7) / 3)}`;
+const prevYearQ = k => `${+k.slice(0, 4) - 1}${k.slice(4)}`;
 
 function HyperscalerCapexPanel() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [aiShare, setAiShare] = useState(HS_AI_SHARE_DEFAULTS);
+  const [withNeo, setWithNeo] = useState(true);
 
   useEffect(() => {
     fetch("/api/hyperscaler-capex")
@@ -144,34 +152,57 @@ function HyperscalerCapexPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Build a quarterly time-series keyed by date, with each company as a column
-  // and an additional "AI capex" total column = sum(company.capex × aiShare)
-  const chartData = useMemo(() => {
-    if (!data?.companies) return [];
-    const byDate = new Map();
-    Object.values(data.companies).forEach(c => {
-      c.quarters.forEach(q => {
-        if (!byDate.has(q.date)) byDate.set(q.date, { date: q.date });
-        const row = byDate.get(q.date);
-        row[c.symbol] = (c.capex || 0) / 1e9;  // billions
-        row[`${c.symbol}_AI`] = ((c.capex || 0) * (aiShare[c.symbol] || 0)) / 1e9;
-      });
-    });
-    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [data, aiShare]);
+  const hsList = useMemo(() => Object.values(data?.companies || {}), [data]);
+  const neoList = useMemo(() => Object.values(data?.neoclouds || {}), [data]);
+  const companies = useMemo(() => (withNeo ? [...hsList, ...neoList] : hsList), [hsList, neoList, withNeo]);
 
-  // Latest period stats: total capex this Q, AI-share, YoY growth, trailing 4Q
+  // One row per calendar quarter. Columns per company: capex ($B), implied AI
+  // capex, revenue ($B) and capex intensity (capex ÷ revenue, %). A quarter
+  // counts only once all five hyperscalers have reported it; neoclouds are
+  // added where they exist (they're young, so early quarters lack them).
+  const { chartData, pending } = useMemo(() => {
+    if (!hsList.length) return { chartData: [], pending: [] };
+    const byQ = new Map();
+    for (const c of [...hsList, ...neoList]) {
+      for (const q of c.quarters) {
+        const k = calQ(q.date);
+        if (!byQ.has(k)) byQ.set(k, { date: k });
+        const row = byQ.get(k);
+        const capB = (q.capex || 0) / 1e9;
+        row[c.symbol] = capB;
+        row[`${c.symbol}_AI`] = capB * (aiShare[c.symbol] || 0);
+        row[`${c.symbol}_REV`] = q.revenue != null ? q.revenue / 1e9 : null;
+        row[`${c.symbol}_INT`] = q.revenue ? (q.capex / q.revenue) * 100 : null;
+        row[`${c.symbol}_END`] = q.date;
+      }
+    }
+    const rows = [...byQ.values()].sort((a, b) => a.date.localeCompare(b.date));
+    for (const r of rows) {
+      r.complete = hsList.every(c => r[c.symbol] != null);
+      const hasRev = r.complete && hsList.every(c => r[`${c.symbol}_REV`]);
+      const cap = hsList.reduce((s, c) => s + (r[c.symbol] || 0), 0);
+      const rev = hsList.reduce((s, c) => s + (r[`${c.symbol}_REV`] || 0), 0);
+      r.HS_INT = hasRev ? (cap / rev) * 100 : null;
+    }
+    const pending = [];
+    while (rows.length && !rows[rows.length - 1].complete) {
+      const r = rows.pop();
+      pending.unshift({ q: r.date, reported: hsList.filter(c => r[c.symbol] != null).map(c => `${c.symbol} (to ${r[`${c.symbol}_END`]})`) });
+    }
+    while (rows.length && !rows[0].complete) rows.shift();
+    return { chartData: rows, pending };
+  }, [hsList, neoList, aiShare]);
+
+  // Latest complete quarter: total capex, implied AI, YoY, trailing 4Q
   const stats = useMemo(() => {
     if (!chartData.length) return null;
     const last = chartData[chartData.length - 1];
-    const yoy = chartData[chartData.length - 5];
-    const tot = (row, suffix = "") => Object.values(data.companies || {})
-      .reduce((s, c) => s + (row[`${c.symbol}${suffix}`] || 0), 0);
+    const yoy = chartData.find(r => r.date === prevYearQ(last.date));
+    const tot = (row, suffix = "") => companies.reduce((s, c) => s + (row[`${c.symbol}${suffix}`] || 0), 0);
     const lastTotal = tot(last);
     const lastAi = tot(last, "_AI");
     const yoyTotal = yoy ? tot(yoy) : null;
     const yoyAi = yoy ? tot(yoy, "_AI") : null;
-    // Trailing 4 quarters total
     const last4 = chartData.slice(-4);
     const ttmTotal = last4.reduce((s, r) => s + tot(r), 0);
     const ttmAi = last4.reduce((s, r) => s + tot(r, "_AI"), 0);
@@ -183,29 +214,48 @@ function HyperscalerCapexPanel() {
       yoyAiGrowth: yoyAi ? ((lastAi - yoyAi) / yoyAi) * 100 : null,
       ttmTotal,
       ttmAi,
+      hsInt: last.HS_INT,
+      hsIntYoy: yoy?.HS_INT ?? null,
     };
-  }, [chartData, data]);
+  }, [chartData, companies]);
 
   if (loading) return <div style={{ padding: 30, fontSize: 11, color: "#64748b", fontFamily: fonts.mono, textAlign: "center" }}>Loading hyperscaler capex from FMP...</div>;
-  if (!data?.companies || !Object.keys(data.companies).length) {
+  if (!hsList.length) {
     return <InfoBox color="#F97316">Hyperscaler capex data unavailable. FMP may be rate-limited.</InfoBox>;
   }
 
-  const companies = Object.values(data.companies);
   const fmtB = v => `$${v.toFixed(1)}B`;
+  const scope = withNeo && neoList.length ? `5 hyperscalers + ${neoList.length} neoclouds` : "5 hyperscalers";
+  const intData = chartData.filter(r => r.HS_INT != null);
+  const neoIntData = chartData.filter(r => neoList.some(c => r[`${c.symbol}_INT`] != null));
   const fmtPct1 = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
   const tickInt = Math.max(0, Math.floor(chartData.length / 8) - 1);
 
   return (<>
     <SH>Hyperscaler Capex — The Demand Behind the Buildout</SH>
 
+    {neoList.length > 0 && (
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", marginBottom: 12, cursor: "pointer" }}>
+        <input type="checkbox" checked={withNeo} onChange={e => setWithNeo(e.target.checked)} style={{ accentColor: "#A78BFA" }} />
+        Include neoclouds ({neoList.map(c => c.name).join(", ")})
+      </label>
+    )}
+
     {/* Hero stats */}
     {stats && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))", gap: 10, marginBottom: 14 }}>
-        <StatCard label="Total Capex Last Q" val={fmtB(stats.lastTotal)} sub={`${stats.lastDate} · ${fmtPct1(stats.yoyGrowth)} YoY`} color="#6366F1" />
+        <StatCard label="Total Capex Last Q" val={fmtB(stats.lastTotal)} sub={`${stats.lastDate} · ${fmtPct1(stats.yoyGrowth)} YoY · ${scope}`} color="#6366F1" />
         <StatCard label="Implied AI Capex" val={fmtB(stats.lastAi)} sub={`${fmtPct1(stats.yoyAiGrowth)} YoY${stats.lastTotal > 0 ? ` · ${((stats.lastAi/stats.lastTotal)*100).toFixed(0)}% of total` : ""}`} color="#10B981" />
         <StatCard label="TTM Total Capex" val={fmtB(stats.ttmTotal)} sub="Trailing 4 quarters" color="#3B82F6" />
         <StatCard label="TTM Implied AI" val={fmtB(stats.ttmAi)} sub={`Annualized: ${fmtB(stats.ttmAi)}/yr`} color="#F59E0B" />
+        {stats.hsInt != null && (
+          <StatCard label="Capex ÷ Revenue (5 HS)" val={`${stats.hsInt.toFixed(0)}%`} sub={stats.hsIntYoy != null ? `${stats.hsIntYoy.toFixed(0)}% a year earlier` : stats.lastDate} color="#EC4899" />
+        )}
+      </div>
+    )}
+    {pending.length > 0 && (
+      <div style={{ fontSize: 10.5, color: "#64748b", fontFamily: fonts.mono, marginBottom: 12, lineHeight: 1.5 }}>
+        Held back until all five report: {pending.map(p => `${p.q} (so far ${p.reported.join(", ")})`).join("; ")}. Oracle&apos;s fiscal quarters end a month or two before the others&apos;, so it shows up first.
       </div>
     )}
 
@@ -264,12 +314,52 @@ function HyperscalerCapexPanel() {
       </ResponsiveContainer>
     </div>
 
+    {/* Capex intensity — capex ÷ revenue */}
+    {intData.length > 0 && (
+      <div style={{ display: "grid", gridTemplateColumns: neoList.length && withNeo ? "repeat(auto-fit, minmax(min(360px, 100%), 1fr))" : "1fr", gap: 14, marginBottom: 14 }}>
+        <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: 18 }}>
+          <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Capex Intensity — Hyperscalers (capex ÷ revenue, %)</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={intData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} interval={Math.max(0, Math.floor(intData.length / 6) - 1)} />
+              <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}%`} />
+              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [v == null ? "—" : `${(+v).toFixed(1)}%`, n]} />
+              <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+              {hsList.map(c => (
+                <Line key={c.symbol} type="monotone" dataKey={`${c.symbol}_INT`} name={c.symbol} stroke={c.color} strokeWidth={1.4} dot={false} connectNulls isAnimationActive={false} />
+              ))}
+              <Line type="monotone" dataKey="HS_INT" name="All five" stroke="#f1f5f9" strokeWidth={2.4} strokeDasharray="5 3" dot={false} connectNulls isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        {withNeo && neoList.length > 0 && neoIntData.length > 0 && (
+          <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: 18 }}>
+            <div style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Capex Intensity — Neoclouds (capex ÷ revenue, %)</div>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={neoIntData} margin={{ top: 5, right: 8, left: -4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={{ stroke: "rgba(255,255,255,0.06)" }} tickLine={false} interval={Math.max(0, Math.floor(neoIntData.length / 6) - 1)} />
+                <YAxis tick={{ fill: "#475569", fontSize: 9, fontFamily: fonts.mono }} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}%`} />
+                <ReferenceLine y={100} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 4" />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v, n) => [v == null ? "—" : `${(+v).toFixed(0)}%`, n]} />
+                <Legend wrapperStyle={{ fontSize: 10, fontFamily: fonts.mono, paddingTop: 6 }} iconType="circle" iconSize={7} />
+                {neoList.map(c => (
+                  <Line key={c.symbol} type="monotone" dataKey={`${c.symbol}_INT`} name={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 2 }} connectNulls isAnimationActive={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    )}
+
     {/* Per-company quarterly table — most recent quarter */}
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
         <thead>
           <tr>
-            {["Company", "Latest Q", "Capex", "AI Share", "Implied AI", "YoY Total", "TTM Total"].map(h => (
+            {["Company", "Latest Q", "Capex", "Capex ÷ Rev", "AI Share", "Implied AI", "YoY Total", "TTM Total"].map(h => (
               <th key={h} style={{ padding: "10px 12px", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, letterSpacing: 0.5, textTransform: "uppercase", textAlign: h === "Company" ? "left" : "right", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>{h}</th>
             ))}
           </tr>
@@ -278,7 +368,7 @@ function HyperscalerCapexPanel() {
           {companies.map(c => {
             const qs = c.quarters;
             const last = qs[qs.length - 1];
-            const yoy = qs[qs.length - 5];
+            const yoy = qs.find(q => calQ(q.date) === prevYearQ(calQ(last.date)));
             const last4 = qs.slice(-4);
             const ttm = last4.reduce((s, q) => s + (q.capex || 0), 0) / 1e9;
             const yoyG = yoy ? ((last.capex - yoy.capex) / yoy.capex) * 100 : null;
@@ -289,6 +379,7 @@ function HyperscalerCapexPanel() {
                 <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.heading, color: c.color, fontWeight: 600 }}>{c.symbol} · {c.name}</td>
                 <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{last.date} {last.period}</td>
                 <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#f1f5f9", fontWeight: 600, textAlign: "right" }}>{fmtB(lastB)}</td>
+                <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#f9a8d4", textAlign: "right" }}>{last.revenue ? `${((last.capex / last.revenue) * 100).toFixed(0)}%` : "—"}</td>
                 <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, color: "#94a3b8", textAlign: "right" }}>{((aiShare[c.symbol] || 0) * 100).toFixed(0)}%</td>
                 <td style={{ padding: "10px 12px", fontSize: 12, fontFamily: fonts.mono, color: "#10B981", fontWeight: 600, textAlign: "right" }}>{fmtB(aiB)}</td>
                 <td style={{ padding: "10px 12px", fontSize: 11, fontFamily: fonts.mono, fontWeight: 600, textAlign: "right", color: (yoyG ?? 0) > 0 ? "#4ade80" : "#f87171" }}>{fmtPct1(yoyG)}</td>
@@ -301,7 +392,7 @@ function HyperscalerCapexPanel() {
     </div>
 
     <InfoBox color="#6366F1">
-      <strong style={{ color: "#cbd5e1" }}>What this is telling you.</strong> Hyperscaler capex is the most important upstream demand signal in the AI economy — it&apos;s the dollars that get converted into chips, data centers, and ultimately tokens. Adjusted YoY growth above 50% (sustained) means we&apos;re still in expansion. A sharp deceleration would be the clearest signal yet that the build-out is peaking. Raw company numbers are exact (from quarterly filings); the AI-share split is your editorial call.
+      <strong style={{ color: "#cbd5e1" }}>What this is telling you.</strong> Capex intensity is the tell for how hard each company is leaning: the five hyperscalers ran capex at roughly 10–15% of revenue before the AI build-out, and anything well above that is a bet funded by cash flow (or, for Oracle and the neoclouds, increasingly by debt). Neoclouds run several times their revenue because they are building ahead of contracted demand. Hyperscaler capex is the most important upstream demand signal in the AI economy — it&apos;s the dollars that get converted into chips, data centers, and ultimately tokens. Adjusted YoY growth above 50% (sustained) means we&apos;re still in expansion. A sharp deceleration would be the clearest signal yet that the build-out is peaking. Raw company numbers are exact (from quarterly filings); the AI-share split is your editorial call.
     </InfoBox>
   </>);
 }

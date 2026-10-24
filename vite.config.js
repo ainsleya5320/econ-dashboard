@@ -2155,6 +2155,12 @@ const HYPERSCALERS = [
   { symbol: 'AMZN',  name: 'Amazon',    color: '#FF9900' },
   { symbol: 'ORCL',  name: 'Oracle',    color: '#F80000' },
 ]
+// Kept apart from HYPERSCALERS: the tension checks and the capex path sum
+// `companies` as "the five hyperscalers", so neoclouds live under their own key.
+const NEOCLOUDS = [
+  { symbol: 'CRWV', name: 'CoreWeave', color: '#A78BFA' },
+  { symbol: 'NBIS', name: 'Nebius',    color: '#2DD4BF' },
+]
 
 function loadHyperscalerCapex() {
   try {
@@ -2168,12 +2174,20 @@ function saveHyperscalerCapex(data) {
 
 async function fetchHyperscalerQuarterly(symbol, limit = 20) {
   try {
-    const resp = await fetch(
-      `https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${symbol}&period=quarter&limit=${limit}&apikey=${FMP_KEY}`,
-      { headers: { 'User-Agent': UA } }
-    )
-    const data = await resp.json()
-    if (!Array.isArray(data)) return []
+    const get = async kind => {
+      const resp = await fetch(
+        `https://financialmodelingprep.com/stable/${kind}?symbol=${symbol}&period=quarter&limit=${limit}&apikey=${FMP_KEY}`,
+        { headers: { 'User-Agent': UA } }
+      )
+      const d = await resp.json()
+      return Array.isArray(d) ? d : []
+    }
+    const data = await get('cash-flow-statement')
+    if (!data.length) return []
+    // Revenue for capex intensity (capex ÷ revenue). Optional: a failed
+    // income-statement call leaves revenue null rather than dropping the capex.
+    const income = await get('income-statement').catch(() => [])
+    const revByDate = new Map(income.map(q => [q.date, q.revenue ?? null]))
     return data.map(q => ({
       date: q.date,                                                    // "2026-03-31"
       fiscalYear: q.fiscalYear,
@@ -2181,6 +2195,7 @@ async function fetchHyperscalerQuarterly(symbol, limit = 20) {
       // FMP returns negative numbers for cash outflows; take absolute
       capex: Math.abs(q.capitalExpenditure || q.investmentsInPropertyPlantAndEquipment || 0),
       operatingCashFlow: q.netCashProvidedByOperatingActivities || 0,
+      revenue: revByDate.get(q.date) ?? null,
     })).sort((a, b) => a.date.localeCompare(b.date))
   } catch (e) {
     console.warn(`Hyperscaler ${symbol}:`, e.message)
@@ -2206,6 +2221,12 @@ async function getHyperscalerCapex() {
     }
   }
 
+  const neoclouds = {}
+  for (const nc of NEOCLOUDS) {
+    const quarters = await fetchHyperscalerQuarterly(nc.symbol, 20)
+    if (quarters.length) neoclouds[nc.symbol] = { symbol: nc.symbol, name: nc.name, color: nc.color, quarters }
+  }
+
   // If FMP completely failed, fall back to last archive
   if (Object.keys(companies).length === 0) {
     console.warn('Hyperscaler capex: FMP returned no data — serving archive')
@@ -2217,7 +2238,9 @@ async function getHyperscalerCapex() {
     }
   }
 
-  const result = { companies, source: 'live', updated: Date.now() }
+  // Keep the archived neoclouds if this pull missed them (history is append-only)
+  const archivedNeo = Object.keys(neoclouds).length ? null : loadHyperscalerCapex().neoclouds
+  const result = { companies, neoclouds: archivedNeo || neoclouds, source: 'live', updated: Date.now() }
   saveHyperscalerCapex(result)
   const totalQuarters = Object.values(companies).reduce((s, c) => s + c.quarters.length, 0)
   console.log(`Hyperscaler capex: ${Object.keys(companies).length} companies, ${totalQuarters} total quarters`)
