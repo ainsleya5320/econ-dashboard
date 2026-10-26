@@ -16,6 +16,7 @@ Back to the [master map](../../CLAUDE.md).
 - [server/ideas.js](../../server/ideas.js): /api/ideas, the Ideas page's three buckets: Magic Formula stocks, special situations (the scorer's A and B grades plus open odd-lot tenders) and fixed-income rules (FRED curve, TIPS, ICE BofA spreads, mortgage rates; bond closed-end fund discounts). `?symbol=` looks up one stock's rank, `?only=stocks` returns the stock bucket alone. Rules only, no model; see [docs/ideas.md](../ideas.md)
 - [server/onePager.js](../../server/onePager.js): /api/ideas/onepager, Claude Opus 5.5 one-pagers for the Ideas page (web search and fetch, a strict submit tool, sources checked against what the searches returned); its own daily cap through newsDesk/budget.js; see [docs/ideas.md](../ideas.md)
 - [server/treasuryBonds.js](../../server/treasuryBonds.js): /api/treasury-bonds, Income → Bonds: every marketable Treasury from TreasuryDirect FedInvest end-of-day prices (a session-and-CSRF form; the table needs a same-site Referer) and TreasuryDirect auction results: yields, duration, DV01, a Svensson curve, rich / cheap against neighbouring issues, TIPS breakevens, on-the-runs, auctions graded against the six before
+- [server/treasuryVolume.js](../../server/treasuryVolume.js): /api/treasury-volume, Bonds → Treasuries "How much traded": FINRA TRACE Treasury daily aggregates (FINRA Query API, free Public credential: FINRA_CLIENT_ID / FINRA_CLIENT_SECRET). By product, on/off-the-run, maturity, dealer-to-customer vs ATS. The free credential has no corporate TRACE or breadth datasets, and finra.org's bond pages forbid automated copying (Fixed Income Data User Agreement)
 - [server/fxFundamentals.js](../../server/fxFundamentals.js): FX valuation, PPP and central-bank stance for 14 currencies
 - [server/tradeFlows.js](../../server/tradeFlows.js): tariffs, pass-through and dollar invoicing (/api/trade-flows)
 - [server/machine.js](../../server/machine.js): Dalio "economic machine" tracker from FRED
@@ -67,7 +68,7 @@ Back to the [master map](../../CLAUDE.md).
 
 ## State
 - [.env.example](../../.env.example): key names; the real `.env` also takes ANTHROPIC_API_KEY, EIA_API_KEY, ARTIFICIAL_ANALYSIS_KEY
-- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it. NEWS_DAILY_BUDGET_USD sets the News Desk's daily Claude cap (default 2), IDEAS_DAILY_BUDGET_USD the Ideas one-pagers' (default 5)
+- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it. NEWS_DAILY_BUDGET_USD sets the News Desk's daily Claude cap (default 2), IDEAS_DAILY_BUDGET_USD the Ideas one-pagers' (default 5); FINRA_CLIENT_ID / FINRA_CLIENT_SECRET the free FINRA API credential
 - [fred-cache.json](../../fred-cache.json): shared FRED observation cache (gitignored)
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)

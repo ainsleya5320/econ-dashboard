@@ -131,3 +131,5 @@ long-run.json
 /ideas-onepagers*
 /ideas-usage*
 /treasury-bonds.json
+# FINRA TRACE Treasury aggregates: personal use under FINRA's API terms, never committed
+/finra-treasury.json

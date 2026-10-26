@@ -10,6 +10,7 @@ Back to the [master map](../../CLAUDE.md).
 - `magic-formula.json` at the root: the Magic Formula's universe, each company's quarterly fundamentals (FMP) and the dates names entered the top 50; a gitignored cache, rebuilt from FMP in about half an hour if deleted
 - `ideas-onepagers.json` and `ideas-usage.json` at the root: Claude's one-pager memos for the Ideas page (one per idea, with sources and cost) and their daily spend; gitignored. Deleting the memos means paying to rewrite them
 - `treasury-bonds.json` at the root: about 300 business days of FedInvest end-of-day prices per Treasury CUSIP, plus the auction results; a gitignored cache, back-filled 25 days on first run
+- `finra-treasury.json` at the root: FINRA TRACE Treasury daily aggregates since 2023-12-14; gitignored (FINRA data is for personal use: never commit it or bake it into the Netlify fork)
 - [rankings-history.json](../../rankings-history.json): OpenRouter token rankings, daily archive (largest file, ~11 MB)
 - [hf-rankings-history.json](../../hf-rankings-history.json): Hugging Face top models by downloads, daily archive
 - [vercel-ai.json](../../vercel-ai.json): Vercel AI Gateway token and spend shares by model and lab

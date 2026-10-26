@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import SubViews from "../components/SubViews.jsx";
 import RatesTab from "./RatesTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
-import { ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
+import { ComposedChart, Scatter, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import "./options/OptionsResearch.css";
 import { VizCard, MiniTable, Kpi, Seg, Legend, finite, fx, signed, axisTick, gridProps, tipStyle, C, dayLabel } from "./options/ui.jsx";
 
@@ -34,6 +34,41 @@ function BondTip({ active, payload }) {
 }
 
 const yearTicks = [0, 2, 5, 7, 10, 20, 30];
+
+// FINRA TRACE Treasury trading volume (server/treasuryVolume.js, /api/treasury-volume)
+function TradingActivity() {
+  const [v, setV] = useState(null), [err, setErr] = useState(null);
+  useEffect(() => { fetch("/api/treasury-volume").then(r => r.json()).then(j => (j.error && !j.latest ? setErr(j.error) : setV(j))).catch(e => setErr(e.message)); }, []);
+  const rows = useMemo(() => (v?.series || []).map((x, i, a) => ({ ...x, avg20: i >= 19 ? a.slice(i - 19, i + 1).reduce((s, y) => s + y.coupons, 0) / 20 : null })), [v]);
+  if (err) return <VizCard eyebrow="Liquidity" title="Trading activity"><p className="ocard-finding">FINRA Treasury volume is unavailable: {err}</p></VizCard>;
+  if (!v) return null;
+  const L = v.latest, b = v.buckets;
+  const light = b.filter(x => finite(x.ratio) && x.ratio < 0.75).map(x => x.bucket), heavy = b.filter(x => finite(x.ratio) && x.ratio > 1.3).map(x => x.bucket);
+  const bil = x => (finite(x) ? `$${x >= 1000 ? (x / 1000).toFixed(2) + "T" : Math.round(x) + "B"}` : "—");
+  return (
+    <VizCard eyebrow="Liquidity" title="How much traded, and where"
+      finding={`Coupon Treasuries traded ${bil(L.coupons)} on ${dayLabel(v.asOf)} against ${bil(L.couponsAvg20)} a day over the past 20 days (the ${L.couponsPctile}th percentile of the past year). ${light.length ? `Light in ${light.join(", ")}. ` : ""}${heavy.length ? `Heavy in ${heavy.join(", ")}. ` : ""}On-the-run issues took ${share(L.otrShare)} of coupon volume (${share(L.otrShareAvg20)} on average); a falling share means investors are reaching into older issues, as in stress or heavy rebalancing.`}
+      table={<MiniTable columns={[{ key: "bucket", label: "Coupon maturity" }, { key: "today", label: `${dayLabel(v.asOf)}, $B`, fmt: v => fx(v, 1) }, { key: "avg20", label: "20-day average, $B", fmt: v => fx(v, 1) }, { key: "ratio", label: "vs average", fmt: v => (finite(v) ? `${Math.round(v * 100)}%` : "—") }]} rows={b} />}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 12 }}>
+        <Kpi label="All Treasuries" value={bil(L.total)} sub={`bills ${bil(L.bills)} · TIPS ${bil(L.tips)}`} />
+        <Kpi label="Coupons vs 20-day avg" value={finite(L.couponsAvg20) ? `${Math.round((L.coupons / L.couponsAvg20) * 100)}%` : "—"} sub={`1-year average ${bil(L.couponsAvg250)}`} />
+        <Kpi label="Customer share" value={share(L.custShare)} sub={`dealer-to-customer, 20-day ${share(L.custShareAvg20)}`} />
+      </div>
+      <Legend items={[["Coupon volume, daily", C[1]], ["20-day average", C[2]]]} />
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={rows} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="d" tick={axisTick} tickFormatter={dayLabel} minTickGap={40} />
+          <YAxis tick={axisTick} tickFormatter={x => `$${Math.round(x)}B`} width={56} />
+          <Tooltip contentStyle={tipStyle} formatter={(x, n) => [`$${fx(x, 0)}B`, n === "avg20" ? "20-day average" : "Coupon volume"]} labelFormatter={dayLabel} />
+          <Bar dataKey="coupons" fill={C[1]} isAnimationActive={false} />
+          <Line dataKey="avg20" stroke={C[2]} strokeWidth={2} dot={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <p className="ocard-note">Par value traded, dealer-to-customer plus interdealer trades on ATSs, as reported to FINRA TRACE; published the next business day. {v.days} days since {v.from}.</p>
+    </VizCard>
+  );
+}
 
 export const BOND_VIEWS = ["treasuries", "rates", "credit"];
 
@@ -159,6 +194,8 @@ function TreasuryTerminal() {
         ]} rows={d.auctions.filter(a => (aucKind === "bills") === (a.type === "Bill")).slice(0, 40)} />
         {d.upcoming?.length > 0 && <p className="ocard-note">Coming up: {d.upcoming.slice(0, 8).map(a => `${dayLabel(a.auction)} ${a.type} ${a.term}${finite(a.offering) ? ` ($${Math.round(a.offering / 1e9)}B)` : ""}`).join(" · ")}.</p>}
       </VizCard>
+
+      <TradingActivity />
 
       <VizCard eyebrow="The list" title={`Every Treasury (${list.length})`}
         right={<Seg label="Type" value={kind} options={KINDS} onChange={setKind} />}>

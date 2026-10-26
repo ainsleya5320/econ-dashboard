@@ -55,6 +55,7 @@ import { createTensions } from './server/tensions/index.js'
 import { createNewsDesk, fromLoopback, sameOrigin } from './server/newsDesk/index.js'
 import { createOnePagers } from './server/onePager.js'
 import { createTreasuryBonds } from './server/treasuryBonds.js'
+import { createTreasuryVolume } from './server/treasuryVolume.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3809,6 +3810,9 @@ const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
 // yields, duration, a fitted curve with rich/cheap, TIPS breakevens, on-the-runs and graded auctions; cache treasury-bonds.json (gitignored)
 const treasuryBonds = createTreasuryBonds({ UA, dir: __dirname })
+// Treasury trading volume (server/treasuryVolume.js): FINRA TRACE daily aggregates by product, on/off-the-run and maturity,
+// dealer-to-customer vs ATS; free FINRA Public credential (FINRA_CLIENT_ID / FINRA_CLIENT_SECRET in .env); cache finra-treasury.json (gitignored)
+const treasuryVolume = createTreasuryVolume({ dir: __dirname, clientId: env.FINRA_CLIENT_ID || process.env.FINRA_CLIENT_ID, clientSecret: env.FINRA_CLIENT_SECRET || process.env.FINRA_CLIENT_SECRET })
 const onePagers = createOnePagers({ ANTHROPIC_KEY, dir: __dirname, dailyUsd: IDEAS_DAILY_BUDGET, magic: magicFormula, ideas, fetchYahooSparkline })
 
 export default defineConfig({
@@ -4051,6 +4055,7 @@ export default defineConfig({
         })
         reRoute('/api/ideas', req => ideas.get(req))
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())
+        reRoute('/api/treasury-volume', () => treasuryVolume.get())
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
