@@ -119,6 +119,8 @@ Each rule reads one market and makes at most one call. Thresholds are in `fixedB
 - The horizon is weeks. The dashboard's backtest found most of the edge in the first month.
 - When one category is most of the cheap list, the note says so.
 
+Distressed bonds also join this bucket: issuers whose rated bonds fell below 70 in the past week (Bonds → Corporate bonds, from finra.org data for personal use), up to four, with no one-pager.
+
 ## One-pagers
 
 Each stock and graded special situation on the shortlist gets a one-page memo from Claude Opus 5.5, written without a click; every other ranked stock (cards, sector rows, the lookup box) and graded special situation has a button to write one. Odd lots and fixed-income calls don't get one.

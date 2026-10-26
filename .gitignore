@@ -133,3 +133,6 @@ long-run.json
 /treasury-bonds.json
 # FINRA TRACE Treasury aggregates: personal use under FINRA's API terms, never committed
 /finra-treasury.json
+# finra.org bond data: personal use only under its Fixed Income Data User Agreement, never committed
+/corporate-bonds.json
+/corporate-watchlist.json

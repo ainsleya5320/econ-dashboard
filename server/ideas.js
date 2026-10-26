@@ -79,7 +79,7 @@ function cefBacktest(panel) {
   return { n: next.length, next: mean(next), after: after.length ? mean(after) : null, hit: Math.round((next.filter(x => x > 0).length / next.length) * 100), from: `${from}-01` }
 }
 
-export function createIdeas({ magic, special, cef, fred }) {
+export function createIdeas({ magic, special, cef, fred, corporate = null }) {
   let cache = null, cacheAt = 0, inflight = null, lastSpecial = null
   let partial = false // a source timed out this round: rebuild after a minute rather than ten
 
@@ -113,6 +113,18 @@ export function createIdeas({ magic, special, cef, fred }) {
         horizon: `Until ${monthDay(o.expiry)} (${o.daysToExpiry} days)`, strength: firm ? 'strong' : 'moderate', score: firm ? 90 : 70, date: o.filed,
         facts: [o.type, fin(o.edgePct) ? `edge ${f1(o.edgePct)}%` : null, `expires ${monthDay(o.expiry)}`].filter(Boolean),
         links: [LINK.special, { label: 'Offer filing', href: o.url, external: true }],
+      })
+    }
+    // issuers whose rated bonds fell below 70 this week (Bonds → Corporate bonds, finra.org data, personal use)
+    for (const g of (corporate?.distressedEntrants?.() || []).slice(0, 4)) {
+      const b = g.bonds[0]
+      out.push({
+        id: `distress:${g.issuer}`, bucket: 'special', kind: 'Distressed bonds', name: g.issuer,
+        call: 'Research the bonds', facts: [`lowest ${f1(g.low)}`, `${g.count} bond${g.count > 1 ? 's' : ''} under 70`, [g.sp, g.moodys].filter(Boolean).join(' / ') || 'unrated'],
+        why: `${g.issuer}'s bonds fell below 70 this week${g.industry ? ` (${g.industry})` : ''}: the lowest, the ${f2(b?.coupon)}% due ${b?.maturity}, last traded at ${f2(b?.price)}${fin(b?.yield) ? `, a ${f1(b.yield)}% yield` : ''}. A first drop under 70 is where forced sellers (funds that can't hold distressed debt) meet buyers who price recovery.`,
+        change: 'The issuer refinancing or selling assets (the bonds recover), or a missed coupon or bankruptcy filing (recovery then rests on where the bond sits in the capital structure).',
+        horizon: 'Months; to the next coupon date or restructuring', strength: 'moderate', score: 50, date: null,
+        links: [{ label: 'Bonds → Corporate bonds', href: '/?view=bonds&sub=corporates' }],
       })
     }
     const graded = (ss.ideas || []).filter(i => i.score >= 45 && !dismissed.has(i.id))

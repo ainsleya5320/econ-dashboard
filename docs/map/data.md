@@ -11,6 +11,7 @@ Back to the [master map](../../CLAUDE.md).
 - `ideas-onepagers.json` and `ideas-usage.json` at the root: Claude's one-pager memos for the Ideas page (one per idea, with sources and cost) and their daily spend; gitignored. Deleting the memos means paying to rewrite them
 - `treasury-bonds.json` at the root: about 300 business days of FedInvest end-of-day prices per Treasury CUSIP, plus the auction results; a gitignored cache, back-filled 25 days on first run
 - `finra-treasury.json` at the root: FINRA TRACE Treasury daily aggregates since 2023-12-14; gitignored (FINRA data is for personal use: never commit it or bake it into the Netlify fork)
+- `corporate-bonds.json` and `corporate-watchlist.json` at the root: finra.org corporate bond snapshots (30 days), most-active lists, watchlist issuers' bonds and spread history, and the issuer watchlist; gitignored, personal use only under finra.org's Fixed Income Data User Agreement: never commit or bake
 - [rankings-history.json](../../rankings-history.json): OpenRouter token rankings, daily archive (largest file, ~11 MB)
 - [hf-rankings-history.json](../../hf-rankings-history.json): Hugging Face top models by downloads, daily archive
 - [vercel-ai.json](../../vercel-ai.json): Vercel AI Gateway token and spend shares by model and lab

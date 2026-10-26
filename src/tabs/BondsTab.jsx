@@ -4,12 +4,14 @@
 //                      breakevens by maturity, auctions graded against their own history, the full list
 //   Rates & mortgages  the constant-maturity curve's history, spreads and term premium, real yields, policy and
 //                      money-market rates, mortgages, bond ETFs (RatesTab.jsx, moved from U.S. Economy, Oct 2026)
+//   Corporate bonds    the corporate tape from finra.org (CorporateBondsView.jsx, server/corporateBonds.js; personal use)
 //   Corporate credit   spreads, the refi squeeze, corporate balance sheets (DebtMarketTab.jsx, moved from U.S. Economy)
 // The Fed balance sheet and the tightening monitor stay on U.S. Economy → Fed.
 import React, { useEffect, useMemo, useState } from "react";
 import SubViews from "../components/SubViews.jsx";
 import RatesTab from "./RatesTab.jsx";
 import DebtMarketTab from "./DebtMarketTab.jsx";
+import CorporateBondsView from "./CorporateBondsView.jsx";
 import { ComposedChart, Scatter, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import "./options/OptionsResearch.css";
 import { VizCard, MiniTable, Kpi, Seg, Legend, finite, fx, signed, axisTick, gridProps, tipStyle, C, dayLabel } from "./options/ui.jsx";
@@ -70,12 +72,13 @@ function TradingActivity() {
   );
 }
 
-export const BOND_VIEWS = ["treasuries", "rates", "credit"];
+export const BOND_VIEWS = ["treasuries", "corporates", "rates", "credit"];
 
 export default function BondsTab({ md, td, fmpKey, fredKey, view, onView }) {
   return (
     <SubViews view={view} onChange={onView} views={[
       { id: "treasuries", label: "Treasuries", hint: "every issue, bond by bond", render: () => <TreasuryTerminal /> },
+      { id: "corporates", label: "Corporate bonds", hint: "the tape, distress, fallen angels, issuer spreads", render: () => <CorporateBondsView /> },
       { id: "rates", label: "Rates & mortgages", hint: "the curve over time, spreads, real yields, policy rates, mortgages", render: () => <RatesTab md={md} td={td} fmpKey={fmpKey} fredKey={fredKey} /> },
       { id: "credit", label: "Corporate credit", hint: "spreads, the refi squeeze, balance sheets", render: () => <DebtMarketTab /> },
     ]} />

@@ -56,6 +56,7 @@ import { createNewsDesk, fromLoopback, sameOrigin } from './server/newsDesk/inde
 import { createOnePagers } from './server/onePager.js'
 import { createTreasuryBonds } from './server/treasuryBonds.js'
 import { createTreasuryVolume } from './server/treasuryVolume.js'
+import { createCorporateBonds } from './server/corporateBonds.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -3804,7 +3805,7 @@ const cefDiscounts = createCefDiscounts({ UA, dir: __dirname, events: () => spec
 const magicFormula = createMagicFormula({ FMP_KEY, UA, dir: __dirname })
 // Ideas (server/ideas.js): the trade recommender behind /ideas — Magic Formula stocks by sector, graded special situations and
 // odd-lot tenders, and fixed-income rules on FRED and bond closed-end fund discounts. Rules only, no model.
-const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries })
+const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries, corporate: { distressedEntrants: () => corporateBonds.distressedEntrants() } })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
@@ -3812,6 +3813,9 @@ const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef
 const treasuryBonds = createTreasuryBonds({ UA, dir: __dirname })
 // Treasury trading volume (server/treasuryVolume.js): FINRA TRACE daily aggregates by product, on/off-the-run and maturity,
 // dealer-to-customer vs ATS; free FINRA Public credential (FINRA_CLIENT_ID / FINRA_CLIENT_SECRET in .env); cache finra-treasury.json (gitignored)
+// Corporate bonds (server/corporateBonds.js): Bonds → Corporate bonds, from finra.org's Fixed Income Data service, PERSONAL USE
+// (its user agreement forbids automated copying; the user chose to run it, Oct 2026): light polling, gitignored caches, never baked
+const corporateBonds = createCorporateBonds({ UA, dir: __dirname, treasury: treasuryBonds })
 const treasuryVolume = createTreasuryVolume({ dir: __dirname, clientId: env.FINRA_CLIENT_ID || process.env.FINRA_CLIENT_ID, clientSecret: env.FINRA_CLIENT_SECRET || process.env.FINRA_CLIENT_SECRET })
 const onePagers = createOnePagers({ ANTHROPIC_KEY, dir: __dirname, dailyUsd: IDEAS_DAILY_BUDGET, magic: magicFormula, ideas, fetchYahooSparkline })
 
@@ -4056,6 +4060,17 @@ export default defineConfig({
         reRoute('/api/ideas', req => ideas.get(req))
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())
         reRoute('/api/treasury-volume', () => treasuryVolume.get())
+        // the issuer watchlist is a write: this computer and this page only (ahead of the /api/corporate-bonds prefix)
+        server.middlewares.use('/api/corporate-bonds/watchlist', (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          const send = (code, obj) => { res.statusCode = code; res.end(JSON.stringify(obj)) }
+          if (req.method !== 'POST') { req.resume(); send(405, { error: 'POST' }); return }
+          if (!fromLoopback(req) || !sameOrigin(req)) { req.resume(); send(403, { error: 'The watchlist is edited from this computer only.' }); return }
+          let body = ''
+          req.on('data', chunk => { body += chunk; if (body.length > 16e3) req.destroy() })
+          req.on('end', async () => { try { send(200, await corporateBonds.setWatchlist(JSON.parse(body || '{}').issuers)) } catch (e) { send(400, { error: e.message }) } })
+        })
+        reRoute('/api/corporate-bonds', req => corporateBonds.get(req))
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())
