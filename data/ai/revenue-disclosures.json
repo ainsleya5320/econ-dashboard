@@ -1,6 +1,6 @@
 {
-  "_about": "Disclosed AI revenue run-rates ($B annualized): reported figures from press releases and earnings, the dollar check on the token-volume estimate. Read by AI Economy (the chain summary) and the AI revenue check on AI Economy → Tensions. approx: true marks a figure read from press coverage rather than the company. Add a row per new disclosure.",
-  "reviewed": "2026-10-11",
+  "_about": "Disclosed AI revenue run-rates ($B annualized): reported figures from press releases and earnings, the dollar check on the token-volume estimate. Read by AI Economy (the chain summary) and the AI revenue check on AI Economy → Tensions. approx: true marks a figure read from press coverage rather than the company. Rows whose src starts \"S-1\" are audited or reviewed quarterly revenue from Anthropic's registration statement (EDGAR, filed 2026-10-26), annualized as quarter revenue × 4 and dated to the quarter's middle month: a quarter average, so for a company growing this fast it sits below the run-rate at quarter end. Anthropic's own Run-Rate Revenue is trailing-28-day usage fees × 13 plus current monthly subscriptions × 12; the S-1 leaves its figure blank until an amendment. Add a row per new disclosure.",
+  "reviewed": "2026-10-26",
   "disclosures": [
     {"d": "2023-12", "co": "OpenAI", "arr": 1.6, "src": "reported ARR"},
     {"d": "2024-06", "co": "OpenAI", "arr": 3.4, "src": "reported ARR"},
@@ -11,6 +11,13 @@
     {"d": "2025-03", "co": "Anthropic", "arr": 2, "src": "reported ARR"},
     {"d": "2025-08", "co": "Anthropic", "arr": 5, "src": "reported ARR"},
     {"d": "2026-01", "co": "Anthropic", "arr": 9, "src": "reported ~$9B ARR", "approx": true},
+    {"d": "2024-11", "co": "Anthropic", "arr": 0.788, "src": "S-1: Q4 2024 revenue $197M × 4"},
+    {"d": "2025-02", "co": "Anthropic", "arr": 1.504, "src": "S-1: Q1 2025 revenue $376M × 4"},
+    {"d": "2025-05", "co": "Anthropic", "arr": 3.148, "src": "S-1: Q2 2025 revenue $787M × 4"},
+    {"d": "2025-08", "co": "Anthropic", "arr": 5.528, "src": "S-1: Q3 2025 revenue $1,382M × 4"},
+    {"d": "2025-11", "co": "Anthropic", "arr": 8.16, "src": "S-1: Q4 2025 revenue $2,040M × 4"},
+    {"d": "2026-02", "co": "Anthropic", "arr": 18.924, "src": "S-1: Q1 2026 revenue $4,731M × 4"},
+    {"d": "2026-05", "co": "Anthropic", "arr": 46.22, "src": "S-1: Q2 2026 revenue $11,555M × 4"},
     {"d": "2025-01", "co": "Microsoft AI", "arr": 13, "src": "disclosed run-rate"}
   ]
 }

@@ -1,6 +1,6 @@
 {
-  "_about": "AI debt: the named financings tracker and SemiAnalysis's forecast path. Read by AI Economy → Compute (the AI debt-market panel) and by the AI financing check on AI Economy → Tensions (server/tensions/checks/ai-financing.js). Amounts in $B. Add a row to `deals` whenever a headline AI financing lands; that is the whole upkeep. date = announcement month (some approximate). contingent: true marks a guarantee (Nvidia's revenue backstop), not drawn debt: listed but left out of the cumulative total.",
-  "reviewed": "2026-10-11",
+  "_about": "AI debt: the named financings tracker and SemiAnalysis's forecast path. Read by AI Economy → Compute (the AI debt-market panel) and by the AI financing check on AI Economy → Tensions (server/tensions/checks/ai-financing.js). Amounts in $B. Add a row to `deals` whenever a headline AI financing lands; that is the whole upkeep. date = announcement month (some approximate). contingent: true marks money that is not owed yet: a guarantee (Nvidia's revenue backstop) or a standby facility that is only drawn on conditions, such as a supplier's commitment to buy notes or stock. Listed but left out of the cumulative total. Committed facilities count even while undrawn (a revolver, a delayed-draw loan, equipment leases signed but not yet paying rent), as they always have here. The Anthropic rows come from its S-1 (EDGAR, filed 2026-10-26); the Broadcom equipment leases are counted at rent excluding interest, and the $42B Broadcom note facility that can pay that rent is contingent so the same money is not counted twice.",
+  "reviewed": "2026-10-26",
   "forecast": {
     "source": "SemiAnalysis, \"NVIDIA GPU debt backstop\"",
     "debtOutstanding2029": 7000,
@@ -29,6 +29,12 @@
     {"date": "2025-10", "borrower": "Meta", "amt": 30, "lender": "public market", "type": "IG bonds"},
     {"date": "2026-06", "borrower": "CoreWeave", "amt": 8.5, "lender": "incl. Meta-backstopped 5.9% tranche", "type": "DDTL 4.0", "src": "SemiAnalysis"},
     {"date": "2026-06", "borrower": "Firmus (Melbourne)", "amt": 10, "lender": "Blackstone-led", "type": "Facility", "src": "SemiAnalysis"},
-    {"date": "2026-06", "borrower": "SharonAI (40k GB300)", "amt": 4.88, "lender": "NVIDIA", "type": "GPU revenue backstop", "contingent": true, "src": "SemiAnalysis"}
+    {"date": "2026-06", "borrower": "SharonAI (40k GB300)", "amt": 4.88, "lender": "NVIDIA", "type": "GPU revenue backstop", "contingent": true, "src": "SemiAnalysis"},
+    {"date": "2025-11", "borrower": "Anthropic", "amt": 6.2, "lender": "Amazon", "type": "Convertible notes outstanding Jun 2026 (issued 2023-25; convert to stock at the IPO, subject to Amazon's ownership cap)", "src": "Anthropic S-1"},
+    {"date": "2026-03", "borrower": "Anthropic (TPU lease subsidiaries)", "amt": 161.2, "lender": "Broadcom, partly assigned to a financial partner", "type": "Five-year equipment finance leases (rent ex-interest; payments start as racks go into service, 2026-27)", "src": "Anthropic S-1"},
+    {"date": "2026-03", "borrower": "Anthropic", "amt": 42, "lender": "Broadcom or its financial partner", "type": "Standby convertible notes, 9% paid in kind, only to pay the lease rent", "contingent": true, "src": "Anthropic S-1"},
+    {"date": "2026-03", "borrower": "Anthropic", "amt": 20, "lender": "Google", "type": "Standby notes or stock, drawn on compute and revenue milestones to 2030", "contingent": true, "src": "Anthropic S-1"},
+    {"date": "2026-04", "borrower": "Anthropic", "amt": 15, "lender": "Amazon", "type": "Standby notes or stock, in $5B steps on compute-capacity milestones", "contingent": true, "src": "Anthropic S-1"},
+    {"date": "2026-09", "borrower": "Anthropic", "amt": 15, "lender": "Morgan Stanley-agented bank group", "type": "Senior secured revolver to 2031 (undrawn; replaces a $3.25B facility)", "src": "Anthropic S-1"}
   ]
 }

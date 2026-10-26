@@ -11,12 +11,79 @@
       "onBalanceSheet": false,
       "description": "One sentence: what was agreed and why it matters for the funding question.",
       "source_url": "https://…"
+    },
+    {
+      "date": "2026-03-31",
+      "company": "Anthropic",
+      "counterparty": "Google",
+      "type": "equity-stake-in-customer",
+      "amountBn": 20,
+      "onBalanceSheet": true,
+      "description": "Google bought about $10.0B of Anthropic preferred stock in March 2026 and $10.0B more in the May 2026 Series H, with up to $20.0B more in notes or stock to 2030, while Anthropic committed at least about $114.5B to Google compute for April 2026 to July 2033.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
+    },
+    {
+      "date": "2026-04-20",
+      "company": "Anthropic",
+      "counterparty": "Amazon",
+      "type": "equity-stake-in-customer",
+      "amountBn": 10,
+      "onBalanceSheet": true,
+      "description": "Amazon bought about $5.0B of Anthropic preferred stock in April 2026 and $5.0B more in the May 2026 Series H, with up to $15.0B more released in $5.0B steps as compute capacity is delivered, while Anthropic committed at least $110.0B to AWS for May 2026 to April 2036.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
+    },
+    {
+      "date": "2026-03-31",
+      "company": "Anthropic",
+      "counterparty": "Broadcom",
+      "type": "vendor-financing",
+      "amountBn": 42,
+      "onBalanceSheet": false,
+      "description": "Alongside about $161.2B of five-year TPU equipment leases, Broadcom (or a financial partner it assigns) will buy up to $42.0B of 9% paid-in-kind convertible notes whose only use is paying that lease rent: the supplier lends its customer the money to pay it.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
+    },
+    {
+      "date": "2026-03-31",
+      "company": "Anthropic",
+      "counterparty": "Broadcom (lessor); two Anthropic special-purpose subsidiaries",
+      "type": "spv",
+      "amountBn": null,
+      "onBalanceSheet": true,
+      "description": "The Broadcom TPU leases are signed by two special-purpose subsidiaries, consolidated and guaranteed by Anthropic and secured on the equipment, after a $2.5B cash deposit into escrow in April 2026 with up to $10.0B more possibly restricted.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
+    },
+    {
+      "date": "2026-07-31",
+      "company": "Anthropic",
+      "counterparty": "AMD",
+      "type": "vendor-financing",
+      "amountBn": 5,
+      "onBalanceSheet": false,
+      "description": "AMD committed to buy up to $5.0B of Anthropic stock, released as its MI450 Helios systems are delivered and deployed from 2027, against more than $20B Anthropic expects to spend on that capacity.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
+    },
+    {
+      "date": "2026-06-30",
+      "company": "Anthropic",
+      "counterparty": "Data-center developers and a power counterparty",
+      "type": "backstop",
+      "amountBn": 1.3,
+      "onBalanceSheet": false,
+      "description": "Anthropic guarantees up to $0.8B of developers' costs, including long-lead equipment, and up to $500M of a data-center provider's power purchase contract; the S-1 also says some partners guarantee Anthropic's own data-center leases, with no amount given.",
+      "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm"
     }
   ],
   "series": {
     "awsBacklog": { "label": "AWS backlog (Amazon stopped tagging RPO in XBRL in 2020)", "unit": "$bn", "frequency": "quarterly", "values": [] },
-    "leasesNotCommenced": { "label": "Leases signed but not yet commenced, by company (10-Q/10-K lease footnote)", "unit": "$bn", "frequency": "quarterly", "values": [] },
-    "customerConcentration": { "label": "Backlog concentration notes (e.g. the share of a backlog owed by one AI lab)", "unit": "text", "frequency": "quarterly", "values": [] },
+    "leasesNotCommenced": { "label": "Leases signed but not yet commenced, by company (10-Q/10-K lease footnote)", "unit": "$bn", "frequency": "quarterly", "values": [
+      { "date": "2025-12-31", "company": "Anthropic", "value": 50.2, "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" },
+      { "date": "2026-06-30", "company": "Anthropic", "value": 321.4, "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" }
+    ] },
+    "customerConcentration": { "label": "Backlog concentration notes (e.g. the share of a backlog owed by one AI lab)", "unit": "text", "frequency": "quarterly", "values": [
+      { "date": "2026-06-30", "company": "Amazon", "value": "Anthropic committed at least $110.0B to AWS for May 2026 to April 2036 (agreement of April 2026), payable whether used or not", "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" },
+      { "date": "2026-06-30", "company": "Alphabet", "value": "Anthropic committed at least about $114.5B to Google for April 2026 to July 2033 (agreement of March 2026), plus an estimated $125-150B of further TPU capacity for 2028-31 that is not in its commitments table", "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" },
+      { "date": "2026-06-30", "company": "Microsoft", "value": "Anthropic committed at least $44.9B to Microsoft for November 2026 to May 2033 (agreement of November 2025, amended February and October 2026)", "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" }
+    ] },
     "rampAiIndex": { "label": "Ramp AI Index (share of U.S. businesses paying for AI tools)", "unit": "% of businesses", "frequency": "monthly", "values": [] },
     "adRevenue": { "label": "Meta and Google advertising revenue", "unit": "$bn", "frequency": "quarterly", "values": [] }
   },

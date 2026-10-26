@@ -1954,7 +1954,7 @@ function AIDebtPanel() {
       <StatCard label="Announced to Date" val={fmtB(calc.total)} sub={`${calc.deals.length} tracked deals`} color={SD_INDIGO} />
       <StatCard label="Trailing-12mo Pace" val={fmtB(calc.pace12)} sub="new facilities announced" color={SD_GREEN} />
       <StatCard label="vs $7T Forecast" val={`${calc.pctOfForecast.toFixed(1)}%`} sub="of the 2029 endpoint" color={SD_AMBER} />
-      <StatCard label="NVIDIA Backstops" val={fmtB(calc.backstops)} sub="contingent — not drawn debt" color="#94a3b8" />
+      <StatCard label="Backstops &amp; Standby" val={fmtB(calc.backstops)} sub="contingent — not drawn debt" color="#94a3b8" />
     </div>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, padding: "16px 16px 8px 6px", marginBottom: 14 }}>
       <ResponsiveContainer width="100%" height={260}>

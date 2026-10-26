@@ -1,6 +1,6 @@
 {
   "_about": "Inputs to the OpenAI / Anthropic token-volume estimator that cannot be fetched. Every value carries a source, an as-of date and a confidence. They are the argument, so the panel prints them and you can correct them — nothing here is measured, and the panel says so. `confidence`: high = named figure from a filing or an on-record executive statement; medium = reported by a credible outlet and corroborated; low = my inference, treat as a placeholder and replace. Written 2026-09-17 against a model whose knowledge runs to May 2026, so anything dated after that is explicitly marked stale-risk and should be the first thing you refresh.",
-  "reviewed": "2026-09-17",
+  "reviewed": "2026-10-26",
   "knowledgeCutoffWarning": "Seeded by a model with a May 2026 cutoff. Revenue run-rates and fleet sizes move fast; treat every 2026 figure below as a placeholder until you have replaced it from a primary source.",
   "labs": {
     "openai": {
@@ -54,17 +54,17 @@
       "revenue": [
         {
           "asOf": "2025-12-31",
-          "annualRunRateUsd": 9000000000,
-          "apiShare": 0.7,
-          "source": "reported year-end 2025 run-rate; Anthropic skews enterprise/API far more than OpenAI",
-          "confidence": "medium"
+          "annualRunRateUsd": 8160000000,
+          "apiShare": 0.83,
+          "source": "Anthropic S-1 (filed 2026-10-26): Q4 2025 revenue $2,040M × 4, a quarter average that understates the year-end rate (press reported ~$9B); apiShare = usage-based (token-metered) share of FY2025 revenue, $3,796M of $4,585M",
+          "confidence": "high"
         },
         {
           "asOf": "2026-06-30",
-          "annualRunRateUsd": 20000000000,
-          "apiShare": 0.7,
-          "source": "PLACEHOLDER — replace with a sourced mid-2026 figure",
-          "confidence": "low"
+          "annualRunRateUsd": 46220000000,
+          "apiShare": 0.8,
+          "source": "Anthropic S-1 (filed 2026-10-26): Q2 2026 revenue $11,555M × 4, a quarter average that understates the June rate; apiShare = usage-based (token-metered) share of H1 2026 revenue, $13,064M of $16,286M (the rest is subscriptions). Usage revenue includes Claude Code and other first-party apps billed by the token, not only third-party API calls",
+          "confidence": "high"
         }
       ],
       "fleet": [
@@ -80,9 +80,9 @@
       "computeCounterparties": [
         "AMZN",
         "GOOGL",
-        "CRWV"
+        "MSFT"
       ],
-      "note": "Anthropic has never published a token count. Its bar on any such chart is inferred by everyone, including Altimeter."
+      "note": "Anthropic has never published a token count, and its S-1 (Oct 2026) gives none either. Its bar on any such chart is inferred by everyone, including Altimeter. The S-1 names its compute suppliers as Amazon, Google, Microsoft, Broadcom (TPU leases), AMD, SpaceXAI, Nscale, Lambda and Fluidstack (data-center operator); only the first three are public companies with an XBRL backlog to read."
     },
     "google": {
       "name": "Google / Gemini",
@@ -116,7 +116,8 @@
       "cik": "0000789019",
       "name": "Microsoft",
       "serves": [
-        "openai"
+        "openai",
+        "anthropic"
       ],
       "concepts": [
         "RevenueRemainingPerformanceObligation",
@@ -126,6 +127,11 @@
         "openai": {
           "value": null,
           "source": "Microsoft's RPO is overwhelmingly Azure commercial bookings unrelated to OpenAI; no disclosed split exists, so it contributes nothing to method A rather than a guess",
+          "confidence": "n/a"
+        },
+        "anthropic": {
+          "value": null,
+          "source": "Anthropic S-1: committed at least $44.9B with Microsoft for November 2026 to May 2033. That spending has not started, so a share of today's RPO would count future compute as current spend; left unset",
           "confidence": "n/a"
         }
       }
@@ -152,8 +158,7 @@
       "cik": "0001769628",
       "name": "CoreWeave",
       "serves": [
-        "openai",
-        "anthropic"
+        "openai"
       ],
       "concepts": [
         "RevenueRemainingPerformanceObligation",
@@ -165,13 +170,9 @@
           "value": 0.25,
           "source": "PLACEHOLDER — CoreWeave discloses heavy customer concentration in its 10-Q (text, not XBRL); read the actual percentages and replace.",
           "confidence": "low"
-        },
-        "anthropic": {
-          "value": 0.05,
-          "source": "PLACEHOLDER — replace or null",
-          "confidence": "low"
         }
-      }
+      },
+      "note": "Dropped as an Anthropic counterparty on 2026-10-26: the Anthropic S-1 names its compute suppliers and this company is not among them (its 5% placeholder share was the only backlog method A attributed to Anthropic)."
     },
     "AMZN": {
       "cik": "0001018724",
@@ -186,7 +187,7 @@
       "rpoShare": {
         "anthropic": {
           "value": null,
-          "source": "Amazon does not tag RPO for this concept and does not split AWS backlog by customer",
+          "source": "Amazon does not tag RPO for this concept and does not split AWS backlog by customer. The Anthropic S-1 puts Anthropic's AWS commitment at at least $110.0B for May 2026 to April 2036",
           "confidence": "n/a"
         }
       }
@@ -204,7 +205,7 @@
       "rpoShare": {
         "anthropic": {
           "value": null,
-          "source": "no disclosed split",
+          "source": "no disclosed split in Alphabet's filings. The Anthropic S-1 puts Anthropic's Google commitment at at least about $114.5B for April 2026 to July 2033, plus an estimated $125-150B of further TPU capacity for 2028-31",
           "confidence": "n/a"
         }
       }
