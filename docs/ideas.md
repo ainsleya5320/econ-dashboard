@@ -93,7 +93,7 @@ Ideas dismissed on the dashboard's Top ideas view stay hidden.
 
 The page waits 8 seconds for a Special Situations rebuild, then serves its last copy.
 
-**Guard.** A reorganization whose petition and emergence carry the same date, or whose stock trades under 10 cents, is dropped. In October 2026 the reorg board read one company's 8-K that way, which looked like old equity being cancelled rather than a fresh post-bankruptcy stock.
+**Price floor.** A reorganization idea whose stock trades under 10 cents is dropped. The reorg board dates a case only by what its 8-Ks say happened, and it prices only the new stock, never old shares the plan cancels. A sub-dime quote on a reorg idea would therefore be old shares whose cancellation the board could not read. Such a stock is no buy either way.
 
 ## Fixed income
 

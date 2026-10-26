@@ -118,9 +118,10 @@ export function createIdeas({ magic, special, cef, fred }) {
     const graded = (ss.ideas || []).filter(i => i.score >= 45 && !dismissed.has(i.id))
     for (const i of graded) {
       if (i.cat === 'recap' && lotTickers.has(i.ticker)) continue // the odd-lot card covers it
-      // a same-day petition and emergence on a sub-dime stock is old equity being cancelled, not a fresh post-reorg stock
+      // The reorg board prices only the new stock, so a post-reorganisation idea under ten cents is most likely an
+      // old share it could not tell was being cancelled, and a sub-dime stock is no buy on this page either way
       const r = i.cat === 'reorg' ? reorgBy.get(i.ticker) : null
-      if (r && ((fin(r.price) && r.price < 0.1) || (r.petition && r.petition === r.emerged))) continue
+      if (r && fin(r.price) && r.price < 0.1) continue
       const meta = SS[i.cat] || { kind: i.cat, horizon: '—', change: '' }
       const reasons = [...(i.reasons || [])].sort((a, b) => b.pts - a.pts).slice(0, 3).map(x => sentence(x.why))
       const risks = (i.risks || []).slice(0, 2).map(x => sentence(x.why))

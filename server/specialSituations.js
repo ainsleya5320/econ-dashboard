@@ -11,9 +11,12 @@
 //              annualised spread from the live quote. CVR / warrant / preferred
 //              consideration is broken out as "merger securities" — the part
 //              of merger arb Greenblatt actually recommends.
-//   reorg      the bankruptcy feed's 8-K Item 1.03 petitions, then plan
-//              effectiveness 8-Ks and 8-A12B new-equity registrations joined
-//              by CIK — the post-reorganisation equity window.
+//   reorg      the bankruptcy feed's 8-K Item 1.03 petitions, then every 8-K
+//              the plan-phrase sweeps find for those filers, each dated by
+//              what it says happened (petitions filed, the plan confirmed,
+//              the plan effective), and 8-A12B new-equity registrations
+//              joined by CIK — the post-reorganisation equity window. A
+//              cancelled old equity is never priced as the new stock.
 //   rights     8-K rights offerings: subscription price, ratio, record and
 //              expiry, oversubscription privilege, backstop.
 //   recaps     SC TO-I issuer self-tenders (Dutch auctions and fixed-price,
@@ -108,15 +111,20 @@ const RX = {
     acquiredBy: /(?:to be|will be|being|was) acquired by ([A-Z][A-Za-z0-9&.,'’\- ]{2,70}?)(?:\s*\(|,|\.|;| for | in | pursuant)/,
     willAcquire: /(?:will|to|agreed to) acquire (?:all of the outstanding shares of |all outstanding shares of )?([A-Z][A-Za-z0-9&.,'’\- ]{2,70}?)(?:\s*\(|,|\.|;| for | in | pursuant)/,
   },
+  // flags only: the petition, confirmation and effective dates are read by reorgEvents() below
   reorg: {
-    effective: new RegExp(`(?:effective date of the plan|plan became effective|became effective|emerged from|emergence from)[^.]{0,160}?(${MON})`, 'i'),
-    confirmed: new RegExp(`(?:confirm(?:ed|ing)|confirmation order)[^.]{0,120}?(${MON})`, 'i'),
-    confirmAny: /confirm(?:ed|ing|ation)[^.]{0,60}plan/i,
-    newShares: /([\d,]{6,})\s+shares? of (?:new )?(?:common stock|ordinary shares)/i,
+    // "5,100,000 shares of new equity interests", or "13,124,999 shares of common stock ... (the "New Common Stock")";
+    // not the authorized capital ("consists of 1,501,000 shares of New Common Stock")
+    newShares: /(?<!consists\s+of\s+)(?<![\d,])([\d,]{6,})\s+shares\s+of\s+(?=(?:the\s+(?:reorganized\s+)?(?:company['’]s\s+)?)?new\s+(?:common|equity|ordinary)|[^.;]{0,80}?\(\s*(?:the\s+)?"?new\s+(?:common|equity|ordinary))/i,
+    newEquity: /\bnew\s+(?:common\s+stock|common\s+shares|ordinary\s+shares|equity\s+interests?)\b/i,
     freshStart: /fresh[- ]start/i,
     ch11: /chapter 11|bankruptcy code|title 11|bankruptcy court/i,
     otc: /\bOTC\b|over-the-counter|pink/i,
     listing: /(?:listed|listing|trade) on (?:the )?(?:New York Stock Exchange|NYSE|Nasdaq)/i,
+    prepack: /\bpre-?packaged\b/i,
+    planOnFile: /\bpre-?packaged\b|\bpre-?negotiated\b|restructuring support agreement|plan support agreement|\bfiled\s+(?:a|an|the|its|their)\b[^.;]{0,80}?\bplan of reorganization/i,
+    // the old shares cancelled under the plan, said before the effective date or after it
+    cancelled: /\b(?:common stock|common shares|ordinary shares|equity interests?|existing equity|interests in the company)\b[^.;]{0,200}?\b(?:will|shall|would|were|was|are|is|to)\s+(?:be\s+|have\s+been\s+|been\s+)?(?:cancell?ed|extinguished)|\b(?:will|shall|would)\s+not\s+receive\s+or\s+retain\s+any\s+(?:distribution|recovery|property)|\breceive\s+no\s+recovery\b|\bequity\b[^.;]{0,60}?\bno recovery\b|\bequity interests\s+cancell?ed\b/i,
   },
   rights: {
     subPrice: /subscription price(?: of|,| equal to| will be)?[^.$]{0,60}\$\s?([\d.]+)/i,
@@ -225,6 +233,110 @@ function parse(text, rx) {
   return out
 }
 
+// ── restructurings: what an 8-K says happened, and when ─────────────────────
+// A petition 8-K describes the plan it will ask the court to confirm and the
+// effective date it expects; monthly operating reports and earnings releases
+// repeat the same phrases. So an event counts only when a filing says it has
+// happened, in the past tense, in the clause that carries its date ("On July
+// 20, 2026, the Bankruptcy Court entered an order confirming the Plan, and on
+// August 6, 2026, the Plan became effective"), and never later than the filing
+// itself. A filing date is never taken for an event date.
+const reorgText = s => String(s || '')
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+  .replace(/&[lr]dquo;|[“”]/g, '"').replace(/&[lr]squo;/g, '’')
+  // abbreviations and decimal points would end a [^.] clause early
+  .replace(/\b(?:[A-Z]\.){2,}/g, m => m.replace(/\./g, '')).replace(/\b(Inc|Corp|Co|Ltd|Nos?|al|Jr|Sr|vs)\./g, '$1').replace(/(\d)\.(?=\d)/g, '$1')
+const NODATE = n => `(?:(?!${MON})[^.;]){0,${n}}?` // within one clause, with no other date in between
+const TAIL = '[^.;,]{0,60}?' // from an event to its date, without running into the next clause
+const PLAN = 'the\\s+(?:(?:amended|modified|joint|prepackaged|chapter\\s+11|first|second|third|fourth|fifth|sixth)\\s+)*plan(?:\\s+of\\s+reorganization)?'
+const EFFECTIVE = `(?:${PLAN}\\s+(?:became|has\\s+become|went)\\s+effective|effective\\s+date\\s+(?:of\\s+${PLAN}\\s+)?(?:has\\s+)?occurred|emerged\\s+from|(?:consummated|effectuated|effected)\\s+(?:${PLAN}|the\\s+transactions\\s+contemplated\\s+by\\s+${PLAN}))`
+// "may", but not the month
+const HEDGE = /\b(?:will|would|shall|may(?!\s+\d)|might|could|expects?|expected|anticipates?|anticipated|intends?|intended|seeks?|seeking|if|unless|whether|no\s+later\s+than)\b/i
+const HEDGED_BEFORE = /\b(?:not|if|unless|until|whether|shall|will|would|may(?!\s+\d)|before)\b[^.;]{0,40}$/i
+const REORG_EVENTS = {
+  // the defined term first: a filing that says which date is "the Petition Date" is not second-guessed
+  petitionDefined: [new RegExp(`(${MON})\\s*\\(\\s*(?:the\\s+)?"?\\s*Petition Date`, 'gi')],
+  petition: [
+    new RegExp(`\\bon\\s+(${MON}),?\\s${NODATE(320)}\\b(?:filed|commenced)\\s+(?:a\\s+|their\\s+|its\\s+)?voluntary\\s+(?:petitions?|cases?)`, 'gi'),
+    // "filed", so a "Voluntary Petitions for Reorganization" heading does not lend its date to the next sentence
+    new RegExp(`\\bfiled\\s+(?:a\\s+)?voluntary\\s+petitions?\\b${NODATE(250)}\\bon\\s+(${MON})`, 'gi'),
+    /Petition Date\s*:\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi, // monthly operating reports
+  ],
+  confirmed: [
+    new RegExp(`\\bon\\s+(${MON}),?\\s${NODATE(240)}\\b(?:entered|issued|signed)\\b${NODATE(260)}\\bconfirm(?:ing|ed)\\b${NODATE(140)}\\bplan\\b`, 'gi'),
+    new RegExp(`\\b(?:entered|issued|signed)\\s+(?:the\\s+|an\\s+|its\\s+)?(?:confirmation\\s+order|order${NODATE(200)}\\bconfirming\\b${NODATE(140)}\\bplan\\b)${TAIL}\\bon\\s+(${MON})`, 'gi'),
+    new RegExp(`\\b${PLAN}${TAIL}\\b(?:was|were|had\\s+been|has\\s+been)\\s+confirmed\\b${TAIL}\\bon\\s+(${MON})`, 'gi'),
+    new RegExp(`\\bon\\s+(${MON}),?\\s${NODATE(200)}\\bconfirmed\\s+${PLAN}`, 'gi'),
+  ],
+  effective: [
+    new RegExp(`\\bon\\s+(${MON})\\b${NODATE(220)}\\b${EFFECTIVE}`, 'gi'),
+    new RegExp(`\\b${EFFECTIVE}${TAIL}\\b(?:on|as\\s+of)\\s+(${MON})`, 'gi'),
+  ],
+  // the date a filing expects the plan to take effect, read only when it is after the filing
+  expected: [
+    new RegExp(`\\b(?:expects?|anticipates?)\\b${NODATE(140)}\\b(?:effective\\s+date|become\\s+effective|emerge)\\b${TAIL}\\b(?:on\\s+or\\s+about|on|by|no\\s+later\\s+than)\\s+(${MON})`, 'gi'),
+  ],
+}
+// a press release's "today announced that it has emerged", dated by the filing
+const EMERGED_TODAY = /\btoday\b[^.;]{0,160}?\b(?:emerged|completed\s+its\s+(?:financial\s+)?restructuring)\b|\bhas\s+(?:successfully\s+)?emerged\s+from\b/i
+
+export function reorgEvents(text, filed = null) {
+  const s = reorgText(text)
+  const last = filed || '9999-12-31'
+  const since = years => (filed ? ymd(Date.parse(filed) - years * 365 * DAY) : '')
+  const read = (list, ok, plain = true) => [...new Set(list.flatMap(re => [...s.matchAll(re)]
+    .filter(m => !plain || (!HEDGE.test(m[0]) && !HEDGED_BEFORE.test(s.slice(Math.max(0, m.index - 40), m.index))))
+    .map(m => toIso(m[1])).filter(d => d && ok(d))))].sort()
+  const today = s.match(EMERGED_TODAY)
+  const petitionOk = d => d <= last && d >= since(3)
+  const defined = read(REORG_EVENTS.petitionDefined, petitionOk)
+  return {
+    petition: defined.length ? defined : read(REORG_EVENTS.petition, petitionOk),
+    confirmed: read(REORG_EVENTS.confirmed, d => d <= last && d >= since(1)),
+    effective: read(REORG_EVENTS.effective, d => d <= last && d >= since(1)),
+    effectiveToday: !!today && !HEDGE.test(today[0]),
+    expected: read(REORG_EVENTS.expected, d => d > last, false),
+  }
+}
+
+// one filing's reading: its flags and its dated events
+export const reorgRead = (text, filed = null) => ({ ...parse(reorgText(text), RX.reorg), ...reorgEvents(text, filed) })
+
+// The stage of one filer's case from its filings' readings ({ adsh, date,
+// period, items, t }), its Item 1.03 8-Ks on the bankruptcy tab and its 8-A12B
+// registrations. A confirmation counts on or after the petition; an emergence
+// counts after the petition and not before the confirmation. The petition is
+// the date the filings give for it, else the earliest Item 1.03 8-K that is
+// not itself a confirmation or an emergence. A prepack reads "filed" until an
+// 8-K says the plan became effective, or reports the handover that comes with
+// emergence: Item 5.01 or 3.03 with new shares (Item 3.02, or new shares named).
+export function reorgCase({ filings = [], petitions = [], listings = [], today }) {
+  const read = filings.filter(f => f.t && !f.t.skipped && f.t.ch11) // a filing that never mentions Chapter 11 is about some other plan
+  const first = ds => ds.filter(Boolean).sort()[0] || null
+  const has = (f, i) => (f.items || []).includes(i)
+  const handover = f => (has(f, '5.01') || has(f, '3.03')) && !has(f, '2.04') && (has(f, '3.02') || !!f.t.newShares || !!f.t.newEquity)
+  const said = f => (f.t.effective?.length ? f.t.effective : f.t.effectiveToday || handover(f) ? [f.period || f.date] : [])
+  const events = new Set(read.filter(f => f.t.confirmed?.length || said(f).length).map(f => f.adsh))
+  const petition = first(read.flatMap(f => f.t.petition || [])) || first(petitions.filter(p => !events.has(p.adsh)).map(p => p.date))
+  const confirmed = first(read.flatMap(f => f.t.confirmed || []).filter(d => d <= today && (!petition || d >= petition)))
+  const em = read.flatMap(f => said(f).map(d => ({ d, f })))
+    .filter(({ d }) => d <= today && (!petition || d > petition) && (!confirmed || d >= confirmed))
+    .sort((a, b) => a.d.localeCompare(b.d) || a.f.date.localeCompare(b.f.date))[0] || null
+  const listed = em || confirmed ? first(listings.map(l => l.date).filter(d => d >= (confirmed || petition || ''))) : null
+  const expected = em ? null : first(read.flatMap(f => f.t.expected || []).filter(d => d > today))
+  const current = read.filter(f => !petition || f.date >= petition)
+  const stage = em ? (listed ? 'listed' : 'emerged') : listed ? 'listed' : confirmed ? (expected ? 'effective date set' : 'plan confirmed')
+    : petition && current.some(f => f.t.planOnFile) ? 'filed' : null
+  // the filing that first reported the confirmation, and the one the stage rests on (the trading flags come from it)
+  const confirmedBy = confirmed ? [...read].sort((a, b) => a.date.localeCompare(b.date)).find(f => f.t.confirmed?.includes(confirmed)) : null
+  const basis = em?.f || confirmedBy || [...current].sort((a, b) => b.date.localeCompare(a.date))[0] || null
+  return {
+    stage, petition, confirmed, emerged: em?.d || null, emergedFiled: em?.f.date || null, emergedAdsh: em?.f.adsh || null, confirmedAdsh: confirmedBy?.adsh || null, listed, expected,
+    basisAdsh: basis?.adsh || null, cancelled: read.some(f => f.t.cancelled), prepack: read.some(f => f.t.prepack),
+    newShares: num(basis?.t.newShares) || null, freshStart: current.some(f => f.t.freshStart), otc: !!basis?.t.otc, exchange: !!basis?.t.listing,
+  }
+}
+
 const strip = html => html
   .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ')
   .replace(/<[^>]+>/g, ' ')
@@ -248,7 +360,7 @@ function row(h) {
   const p = parties[0] || { name: '?', tickers: [], ticker: null, cik: (s.ciks || [])[0] ? +(s.ciks || [])[0] : null }
   const cik = p.cik || ((s.ciks || [])[0] ? +(s.ciks || [])[0] : null)
   return {
-    adsh, form: s.form, fileType: s.file_type || null, date: s.file_date, items: s.items || [], parties, name: p.name, ticker: p.ticker, cik,
+    adsh, form: s.form, fileType: s.file_type || null, date: s.file_date, period: s.period_ending || null, items: s.items || [], parties, name: p.name, ticker: p.ticker, cik,
     state: (s.biz_states || [])[0] || null, sic: (s.sics || [])[0] || null,
     doc: cik && adsh && fname ? `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}/${fname}` : null,
     index: cik && adsh ? `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}/${adsh}-index.htm` : null,
@@ -265,7 +377,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // insider: open-market purchases by key, pruned at 120 days
   const archive = load(ARCHIVE) || { docs: {}, insider: {} }
   archive.docs = archive.docs || {}; archive.insider = archive.insider || {}
-  for (const k of Object.keys(archive.docs)) if (/^(13d|conf|eff|toi|odd|oddA|ol|ol2|olP):/.test(k)) delete archive.docs[k] // parsed under earlier rules
+  for (const k of Object.keys(archive.docs)) if (/^(13d|conf|eff|conf2|eff2|toi|odd|oddA|ol|ol2|olP):/.test(k)) delete archive.docs[k] // parsed under earlier rules
 
   const EH = { 'User-Agent': UA, Accept: 'application/json' }
   let edgarNext = 0
@@ -314,7 +426,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   // fetch-and-parse once per filing per category. Budgeted per category per
   // build, newest first, so a cold start spends about a minute on documents and
   // the archive fills in over the following builds.
-  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, conf2: 8, eff2: 10, rights: 16, toi2: 12, div: 12, '13dx': 16, spac: 16, bca: 14, bb: 40, ol3: 24, olP2: 16, olA: 16 }
+  const BUDGET = { spin: 14, spinann: 16, tot: 12, m8k: 16, defm: 6, rg: 40, rights: 16, toi2: 12, div: 12, '13dx': 16, spac: 16, bca: 14, bb: 40, ol3: 24, olP2: 16, olA: 16 }
   let budget = {}
   async function terms(cat, r, rx, { xml = false, post = null } = {}) {
     const key = `${cat}:${r.adsh}`
@@ -359,7 +471,8 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     return quotes[t]
   }
   const prefetchQuotes = tickers => pmap([...new Set(tickers.filter(Boolean))].filter(t => quotes[t] === undefined), 4, quote)
-  async function spark(t) { if (!t) return []; await sleep(120); return (await fetchYahooSparkline(t, '3mo', '1d').catch(() => [])).map(p => r2(p.v)).filter(fin) }
+  // from: the first day to keep, so a symbol reused after a reorganisation does not chart the old shares
+  async function spark(t, from = null) { if (!t) return []; await sleep(120); return (await fetchYahooSparkline(t, '3mo', '1d').catch(() => [])).filter(p => !from || ymd(p.ts) >= from).map(p => r2(p.v)).filter(fin) }
 
   let fmpNext = 0
   async function fmp(pathq) {
@@ -568,50 +681,90 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
   }
 
   // ── restructurings ────────────────────────────────────────────────────────
+  // One reading per filing, from the 8-K itself rather than the plan or the
+  // disclosure statement attached to it: the 8-K when a sweep matched it, the
+  // 8-K found through the filing index when only an exhibit of an Item 1.03,
+  // 3.03 or 5.01 filing matched, otherwise the exhibit that matched (a monthly
+  // operating report, a press release).
+  async function readFiling(f) {
+    const key = `rg:${f.adsh}`
+    if (archive.docs[key]) return archive.docs[key]
+    if ((budget.rg ?? 0) <= 0) return null
+    budget.rg--
+    try {
+      let doc = f.hits.find(h => h.fileType === f.form)?.doc || null
+      if (!doc && f.index && ['1.03', '3.03', '5.01'].some(i => f.items.includes(i))) {
+        for (const tr of (await edgar(f.index, false)).split(/<tr[\s>]/i)) {
+          const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => m[1])
+          const href = cells.length >= 4 && cells[3].replace(/<[^>]+>/g, '').trim() === f.form ? (cells[2].match(/href="([^"]+)"/) || [])[1] : null
+          if (href) { doc = `https://www.sec.gov${href.replace(/^\/ix\?doc=/, '')}`; break }
+        }
+      }
+      doc = doc || (f.hits.find(h => h.fileType === 'EX-99.1') || f.hits.find(h => /^EX-99/.test(h.fileType || '')) || f.hits[0]).doc
+      if (!doc) return null
+      const raw = await edgar(doc, false)
+      if (raw.length > 4e6) { archive.docs[key] = { skipped: 'too large' }; return archive.docs[key] }
+      const text = strip(raw)
+      archive.docs[key] = { ...reorgRead(text, f.date), doc: doc.split('/').pop(), len: text.length }
+      return archive.docs[key]
+    } catch (e) { console.warn(`special doc rg ${f.index}: ${e.message}`); return null }
+  }
+
   async function reorg() {
     let petitions = []
-    try { const bk = await bankruptcy(); petitions = (bk?.public?.list || []).map(r => ({ ...r, cik: r.url ? +(r.url.match(/edgar\/data\/(\d+)/) || [])[1] || null : null })) } catch (e) { console.warn('special reorg: bankruptcy feed', e.message) }
-    const petitionCiks = new Set(petitions.map(p => p.cik).filter(Boolean))
-    // Item 1.03 is where plan confirmation and effectiveness get reported; an
-    // 8-K without it and without a petition on file is an incentive-plan 8-K
-    const bankrupt = r => r.items.includes('1.03') || petitionCiks.has(r.cik)
-    const [eff, conf] = await Promise.all([
-      fts({ q: '"effective date of the plan" "reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
-      fts({ q: '"confirmation order" "plan of reorganization"', forms: '8-K', days: 240, pages: 2 }).then(rows => newest(rows).filter(bankrupt)),
+    try { const bk = await bankruptcy(); petitions = (bk?.public?.list || []).map(r => ({ ...r, cik: r.url ? +(r.url.match(/edgar\/data\/(\d+)/) || [])[1] || null : null, adsh: (String(r.url || '').match(/\/(\d{10}-\d{2}-\d{6})-index/) || [])[1] || null })) } catch (e) { console.warn('special reorg: bankruptcy feed', e.message) }
+    const sweeps = await Promise.all([
+      fts({ q: '"effective date of the plan" "reorganization"', forms: '8-K', days: 240, pages: 2 }),
+      fts({ q: '"confirmation order" "plan of reorganization"', forms: '8-K', days: 240, pages: 2 }),
     ])
-    await Promise.all([prefetchDocs('conf2', dedupeBy(conf, r => r.cik), RX.reorg), prefetchDocs('eff2', dedupeBy(eff, r => r.cik), RX.reorg)])
-    const byCik = new Map()
-    const get = (cik, name, ticker) => { const g = byCik.get(cik) || { cik, name, ticker: ticker || null, tickers: new Set(), petition: null, confirmed: null, emerged: null, listed: null, filings: [] }; if (ticker) g.tickers.add(ticker); byCik.set(cik, g); return g }
-    for (const p of petitions) if (p.cik) { const g = get(p.cik, String(p.name).replace(/\s*\([A-Z0-9.,\- ]+\)\s*$/, '').trim(), p.ticker); g.petition = g.petition && g.petition < p.date ? g.petition : p.date; g.filings.push({ form: '8-K 1.03', date: p.date, url: p.url }) }
-    for (const r of dedupeBy(conf, r => r.cik)) { const t = await terms('conf2', r, RX.reorg); if (t && !t.ch11) continue; const g = get(r.cik, r.name, r.ticker); g.confirmed = (t && toIso(t.confirmed)) || r.date; g.filings.push({ form: '8-K confirmed', date: r.date, url: r.index }) }
-    for (const r of dedupeBy(eff, r => r.cik)) {
-      const t = await terms('eff2', r, RX.reorg); if (t && !t.ch11) continue
-      const g = get(r.cik, r.name, r.ticker)
-      g.emerged = (t && toIso(t.effective)) || r.date; g.newShares = t?.newShares ? num(t.newShares) : null; g.freshStart = !!t?.freshStart; g.otc = !!t?.otc; g.exchange = !!t?.listing
-      g.filings.push({ form: '8-K effective', date: r.date, url: r.index })
-    }
-    const known = new Set(byCik.keys())
-    // new-equity registrations (8-A12B) by the filers already in hand, a hundred CIKs a query
-    const ids = [...known], listings = []
+    const hits = newest(sweeps.flat())
+    // in Chapter 11: on the bankruptcy tab's Item 1.03 list, or an Item 1.03 8-K in the sweeps (the
+    // phrases alone also find incentive-plan 8-Ks)
+    const ch11 = new Set([...petitions.map(p => p.cik), ...hits.filter(r => r.items.includes('1.03')).map(r => r.cik)].filter(Boolean))
+    // every filing of those filers, with each document the sweeps matched in it
+    const filings = new Map()
+    for (const r of hits) if (ch11.has(r.cik)) { const f = filings.get(r.adsh); if (!f) filings.set(r.adsh, { ...r, hits: [r] }); else if (!f.hits.some(h => h.doc === r.doc)) f.hits.push(r) }
+    await pmap([...filings.values()], 3, async f => { f.t = await readFiling(f) })
+    // new-equity registrations (8-A12B) by the same filers, a hundred CIKs a query
+    const ids = [...ch11], listings = []
     for (let i = 0; i < ids.length; i += 100) listings.push(...await fts({ forms: '8-A12B', days: 240, pages: 1, ciks: ids.slice(i, i + 100) }).catch(() => []))
-    for (const r of newest(listings)) if (known.has(r.cik)) { const g = byCik.get(r.cik); g.listed = g.listed && g.listed < r.date ? g.listed : r.date; if (r.ticker) g.tickers.add(r.ticker); g.filings.push({ form: r.form, date: r.date, url: r.index }) }
-    const out = []
-    for (const g of byCik.values()) {
-      if (!g.emerged && !g.confirmed && !g.listed) continue // plain petitions stay on the bankruptcy tab
-      // post-emergence symbol: the one without the Q suffix if any
-      const tickers = [...g.tickers]
-      const ticker = tickers.find(t => !/Q$/.test(t)) || tickers[0] || null
-      const stage = g.listed ? 'listed' : g.emerged ? (g.emerged <= today() ? 'emerged' : 'effective date set') : 'plan confirmed'
+    const cases = new Map()
+    const at = cik => { if (!cases.has(cik)) cases.set(cik, { filings: [], petitions: [], listings: [] }); return cases.get(cik) }
+    for (const f of filings.values()) at(f.cik).filings.push(f)
+    for (const p of petitions) if (p.cik) at(p.cik).petitions.push(p)
+    for (const r of dedupeBy(listings, r => r.adsh)) if (ch11.has(r.cik)) at(r.cik).listings.push(r)
+    const now = today(), out = []
+    for (const [cik, g] of cases) {
+      const c = reorgCase({ ...g, today: now })
+      if (!c.stage) continue // plain petitions stay on the bankruptcy tab
+      // Each symbol with the date of the filing that carried it. The new stock's symbol shows up on the
+      // filings after the emergence 8-K; until then, and whenever the plan cancels the old shares, the
+      // old symbol is not the post-reorganisation stock and its price is not that stock's price.
+      const seen = [...g.petitions.map(p => ({ t: p.ticker, date: p.date })), ...[...g.filings, ...g.listings].flatMap(r => (r.parties[0]?.tickers || []).map(t => ({ t, date: r.date })))]
+        .filter(s => s.t).sort((a, b) => b.date.localeCompare(a.date))
+      const symbols = [...new Set(seen.map(s => s.t))]
+      const fresh = c.emergedFiled ? [...new Set(seen.filter(s => s.date > c.emergedFiled).map(s => s.t))] : []
+      const pick = ts => ts.find(t => !/-/.test(t) && t.length <= 4 && !/Q$/.test(t)) || ts.find(t => !/Q$/.test(t)) || null
+      const ticker = pick(fresh) || (c.cancelled ? null : pick(symbols) || symbols[0] || null)
       const q = ticker ? await quote(ticker) : null
-      const sp = ticker && stage !== 'plan confirmed' ? await spark(ticker) : []
+      const sp = ticker && (c.stage === 'emerged' || c.stage === 'listed') ? await spark(ticker, c.emerged) : []
+      const label = f => (f.adsh === c.emergedAdsh ? '8-K effective' : f.adsh === c.confirmedAdsh ? '8-K confirmed' : f.items.includes('1.03') ? '8-K 1.03' : f.form)
+      const docs = [
+        ...g.filings.map(f => ({ form: label(f), date: f.date, url: f.index })),
+        ...g.petitions.filter(p => !filings.has(p.adsh)).map(p => ({ form: '8-K 1.03', date: p.date, url: p.url })),
+        ...g.listings.map(r => ({ form: r.form, date: r.date, url: r.index })),
+      ].sort((a, b) => b.date.localeCompare(a.date))
       out.push({
-        name: g.name, ticker, oldTickers: tickers.filter(t => /Q$/.test(t) && t !== ticker), cik: g.cik, stage, petition: g.petition, confirmed: g.confirmed, emerged: g.emerged, listed: g.listed,
-        daysSince: g.emerged ? daysBetween(g.emerged, today()) : null, newShares: g.newShares || null, freshStart: !!g.freshStart, otc: !!g.otc, exchange: !!g.exchange,
+        name: newest(g.filings)[0]?.name || String(g.petitions[0]?.name || '').replace(/\s*\([A-Z0-9.,\- ]+\)\s*$/, '').trim(), ticker,
+        oldTickers: symbols.filter(t => t !== ticker && !fresh.includes(t)).slice(0, 3), cik, stage: c.stage,
+        petition: c.petition, confirmed: c.confirmed, emerged: c.emerged, listed: c.listed, expected: c.expected,
+        daysSince: c.emerged ? daysBetween(c.emerged, now) : null, newShares: c.newShares, freshStart: c.freshStart, otc: c.otc, exchange: c.exchange, prepack: c.prepack, equityCancelled: c.cancelled,
         price: q?.price ?? null, spark: sp, since: sp.length > 2 ? r1((sp[sp.length - 1] / sp[0] - 1) * 100) : null,
-        filings: g.filings.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6), url: g.filings[0]?.url || null,
+        filings: docs.slice(0, 6), url: g.filings.find(f => f.adsh === c.basisAdsh)?.index || docs[0]?.url || null,
       })
     }
-    return out.sort((a, b) => (b.emerged || b.confirmed || '').localeCompare(a.emerged || a.confirmed || ''))
+    const key = r => r.emerged || r.confirmed || r.listed || r.petition || ''
+    return out.sort((a, b) => key(b).localeCompare(key(a)))
   }
 
   // ── rights offerings ──────────────────────────────────────────────────────
@@ -995,7 +1148,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     const pipeline = {
       spinoffs: { n: sp.length, pending: sp.filter(s => s.stage !== 'distributed').length, next30: sp.filter(s => fin(s.daysToDist) && s.daysToDist >= 0 && s.daysToDist <= 30).length, recent: sp.filter(s => s.stage === 'distributed' && s.dist >= ymd(Date.now() - 90 * DAY)).length },
       mergers: { n: mg.length, live: live.length, medianGross: r1(median(live.map(m => m.gross))), medianAnn: r1(median(live.map(m => m.annualized))), securities: securities.length, tenders: mg.filter(m => m.stage === 'tender').length },
-      reorg: { n: rg.length, emerged90: rg.filter(r => r.emerged && r.emerged >= ymd(Date.now() - 90 * DAY) && r.emerged <= today()).length, confirmed: rg.filter(r => r.stage === 'plan confirmed').length },
+      reorg: { n: rg.length, emerged90: rg.filter(r => r.emerged && r.emerged >= ymd(Date.now() - 90 * DAY) && r.emerged <= today()).length, confirmed: rg.filter(r => r.stage === 'plan confirmed').length, filed: rg.filter(r => r.stage === 'filed').length },
       rights: { n: rt.length, open: rt.filter(r => r.stage === 'open').length, backstopped: rt.filter(r => r.backstop).length },
       recaps: { n: rc.length, tenders: rc.filter(r => r.kind === 'self-tender' && r.stage === 'open').length, dutch: rc.filter(r => r.type === 'Dutch auction').length, dividends: rc.filter(r => r.kind === 'special dividend').length },
       oddlots: { n: ol.length, open: ol.filter(x => x.stage === 'open').length, positive: ol.filter(x => x.stage === 'open' && fin(x.edge) && x.edge > 0 && ['stated', 'in letter', 'mentioned'].includes(x.priority)).length, funds: ol.filter(x => x.stage === 'open' && x.fund).length },
@@ -1007,7 +1160,7 @@ export function createSpecialSituations({ fetchYahooSparkline, FMP_KEY, UA, dir,
     const newThisWeek = [
       ...sp.filter(s => s.latestFiled >= wk).map(s => ({ cat: 'spinoff', name: s.spinco || s.parent, ticker: s.ticker || s.parentTicker, date: s.latestFiled, note: s.stage })),
       ...mg.filter(m => m.announced >= wk).map(m => ({ cat: 'merger', name: m.target, ticker: m.ticker, date: m.announced, note: m.acquirer ? `← ${m.acquirer}` : m.stage })),
-      ...rg.filter(r => (r.emerged || r.confirmed || '') >= wk).map(r => ({ cat: 'reorg', name: r.name, ticker: r.ticker, date: r.emerged || r.confirmed, note: r.stage })),
+      ...rg.map(r => ({ r, date: r.emerged || r.confirmed || (r.stage === 'filed' ? r.petition : null) })).filter(x => (x.date || '') >= wk).map(({ r, date }) => ({ cat: 'reorg', name: r.name, ticker: r.ticker, date, note: r.stage })),
       ...rt.filter(r => r.filed >= wk).map(r => ({ cat: 'rights', name: r.name, ticker: r.ticker, date: r.filed, note: fin(r.subPrice) ? `$${r.subPrice} sub` : r.stage })),
       ...rc.filter(r => r.filed >= wk).map(r => ({ cat: 'recap', name: r.name, ticker: r.ticker, date: r.filed, note: r.type })),
       ...ol.filter(x => x.filed >= wk && x.stage === 'open').map(x => ({ cat: 'oddlot', name: x.name, ticker: x.ticker, date: x.filed, note: fin(x.gross) ? `odd lot ${x.gross >= 0 ? '+' : '−'}$${Math.abs(Math.round(x.gross))}` : 'odd-lot tender' })),

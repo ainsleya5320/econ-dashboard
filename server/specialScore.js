@@ -122,14 +122,15 @@ const SCORERS = {
       else if (fin(since) && since <= 240) L.add(12, `emerged ${since} days ago`)
       if (r.listed && age(r.listed, now) <= 120) L.add(8, 'newly listed on an exchange — index and institutional buyers can now own it')
     } else if (r.stage === 'plan confirmed' || r.stage === 'effective date set') L.add(12, `${r.stage} — the new equity is weeks away`)
-    if (fin(r.since) && r.since <= -15) L.add(10, `down ${Math.abs(r.since).toFixed(0)}% since emergence`)
+    // the feed prices only the post-reorganisation stock, from its emergence when that is inside the three-month chart
+    if (fin(r.since) && r.since <= -15) L.add(10, `down ${Math.abs(r.since).toFixed(0)}% ${fin(since) && since <= 90 ? 'since emergence' : 'in three months'}`)
     if (r.otc) L.add(4, 'trades OTC — neglected by most buyers')
     if (r.freshStart) L.add(3, 'fresh-start accounting — a clean balance sheet to read')
-    if (!r.ticker) L.risk(-10, 'no new ticker yet')
+    if (!r.ticker) L.risk(-10, r.equityCancelled ? 'the plan cancels the old shares, and the new stock has no ticker yet' : 'no new ticker yet')
     freshness(L, r.emerged || r.confirmed || r.listed, now, r.emerged ? 'emerged' : 'confirmed')
     return {
       cat: 'reorg', key, name: r.name, ticker: r.ticker, url: r.url, date: r.emerged || r.confirmed || r.listed, catalyst: null, L,
-      headline: `${r.name} · ${r.stage}${r.emerged ? ` ${r.emerged}` : ''}${fin(r.since) ? ` · ${pct(r.since, 0)} since` : ''}`,
+      headline: `${r.name} · ${r.stage}${r.emerged ? ` ${r.emerged}` : r.stage === 'filed' && r.petition ? ` ${r.petition}` : ''}${fin(r.since) ? ` · ${pct(r.since, 0)} since` : ''}`,
       pin: { name: r.name, ticker: r.ticker, url: r.url, dates: [{ label: 'emerged', date: r.emerged }, { label: 'listed', date: r.listed }] },
       stale: fin(since) && since > 365,
     }
@@ -281,7 +282,7 @@ function signalMap(feed, now) {
   for (const r of feed.recaps || []) if (r.stage === 'open' || r.stage === 'declared') put(r.ticker, 'recap', r.type)
   for (const r of feed.spinoffs || []) { if (r.stage !== 'distributed') { put(r.parentTicker, 'spinoff', 'spinning off a business'); put(r.ticker, 'spinoff', 'a pending spin-off') } }
   for (const r of feed.rights || []) if (r.stage === 'open' || r.stage === 'announced') put(r.ticker, 'rights', 'rights offering')
-  for (const r of feed.reorg || []) if (age(r.emerged, now) <= 240) put(r.ticker, 'reorg', 'post-reorganisation equity')
+  for (const r of feed.reorg || []) if (r.emerged && age(r.emerged, now) <= 240) put(r.ticker, 'reorg', 'post-reorganisation equity')
   return m
 }
 

@@ -282,11 +282,11 @@ export default function SpecialSituations({ onSelectStock }) {
     return (
       <Board cols={cols}
         intro={<>Greenblatt ch.5: the new equity of a company leaving Chapter 11 goes to creditors who never wanted stock and sell it as soon as it lists, often into no coverage and no index. The window is the months after emergence. Fresh-start accounting resets the balance sheet — read the plan for leverage and the management incentive plan.</>}
-        foot="Petitions from the bankruptcy tracker's 8-K Item 1.03 list; plan confirmation and effectiveness from 8-K phrase sweeps; 8-A12B registrations matched by CIK for the listing. Companies with only a petition stay on the Credit › Defaults view. Old symbols ending in Q are the pre-emergence shares.">
-        {d.reorg.length === 0 && empty(cols.length, "No confirmations or emergences in the window.")}
+        foot="Petitions from the bankruptcy tracker's 8-K Item 1.03 list; each 8-K the plan-phrase sweeps find for those companies is dated by what it says happened (petitions filed, an order confirming the plan, the plan effective), never by its filing date; 8-A12B registrations matched by CIK for the listing. A prepack or a case with a restructuring support agreement reads filed until an 8-K reports the emergence; companies with only a petition stay on the Credit › Defaults view. The grey symbols are the pre-emergence shares; where the plan cancels them, the board prices nothing until the new stock trades.">
+        {d.reorg.length === 0 && empty(cols.length, "No plans filed, confirmed or effective in the window.")}
         {d.reorg.map(r => {
           const key = String(r.cik);
-          const tone = r.stage === "listed" ? GREEN : r.stage === "emerged" ? CYAN : AMBER;
+          const tone = r.stage === "listed" ? GREEN : r.stage === "emerged" ? CYAN : r.stage === "filed" ? SLATE : AMBER;
           return (
             <tr key={key} style={rowStyle}>
               {td(<PinBtn cat="reorg" k={key} fields={{ name: r.name, ticker: r.ticker, url: r.url, dates: [{ label: "emerged", date: r.emerged }, { label: "listed", date: r.listed }] }} />, DIM, { textAlign: "left" })}
@@ -297,10 +297,10 @@ export default function SpecialSituations({ onSelectStock }) {
               {td(fd(r.emerged))}
               {td(fin(r.daysSince) ? `${r.daysSince}d` : "—", fin(r.daysSince) && r.daysSince <= 120 ? AMBER : SLATE)}
               {td(fin(r.newShares) ? r.newShares.toLocaleString() : "—")}
-              {td(<span style={{ display: "inline-flex", gap: 4 }}><Flag on={r.exchange} color={GREEN}>exchange</Flag><Flag on={r.otc} color={AMBER}>OTC</Flag><Flag on={r.freshStart} color={SLATE}>fresh-start</Flag></span>, SLATE, { textAlign: "left" })}
+              {td(<span style={{ display: "inline-flex", gap: 4 }}><Flag on={r.exchange} color={GREEN}>exchange</Flag><Flag on={r.otc} color={AMBER}>OTC</Flag><Flag on={r.freshStart} color={SLATE}>fresh-start</Flag><Flag on={r.prepack} color={SLATE}>prepack</Flag><Flag on={r.equityCancelled} color={RED}>old equity cancelled</Flag></span>, SLATE, { textAlign: "left" })}
               {td(px(r.price))}
               {td(<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Spark values={r.spark} color={upGood(r.since)} /><span style={{ color: upGood(r.since), width: 44, textAlign: "right" }}>{pc(r.since)}</span></span>)}
-              {td(<A href={r.url}>{fd(r.filings?.[0]?.date)} ↗</A>)}
+              {td(<A href={r.url}>{fd((r.filings?.find(f => f.url === r.url) || r.filings?.[0])?.date)} ↗</A>)}
             </tr>
           );
         })}

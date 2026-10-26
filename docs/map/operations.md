@@ -8,7 +8,7 @@ Back to the [master map](../../CLAUDE.md).
 - [scripts/refresh-seeds.mjs](../../scripts/refresh-seeds.mjs): rebuilds data/seeds/ (BLS metro catalog, IMF DataMapper, the Market Map's annual Census and Realtor.com data, the Historical tab's long-run history, Stocks → Sin & Folly) and data/options/cboe-put-call.json (Options → Market put/call history)
 - [scripts/ritter-ipos.py](../../scripts/ritter-ipos.py): rebuilds data/folly/ritter-ipos.json from Jay Ritter's IPO statistics PDF (Table 9; needs pypdf)
 - [scripts/special-digest.mjs](../../scripts/special-digest.mjs): builds and scores the special-situations feed, emails new ideas through Resend
-- [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code
+- [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code, and the special-situations reorg stages (reorgStages.test.js)
 
 ## State
 - [state/](../../state): digest memory, what has been sent (gitignored; kept in the Actions cache)
