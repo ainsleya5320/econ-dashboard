@@ -314,8 +314,8 @@ export default function TighteningTab({ go }) {
 
     <div style={{ ...card, fontSize: 10.5, fontFamily: fonts.mono, color: SLATE, lineHeight: 1.7, marginBottom: 12 }}>
       <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>What is deliberately not on this page.</span> The full charts for
-      gauges in the table above live on their own pages: the yield curve, term premium and SOFR on the {link("rates", "treasuries", "Treasuries")} view;
-      the Fed's balance sheet, reserves and swap lines on the {link("rates", "fed", "Fed balance sheet")} view; credit spreads on {link("credit", "corporate", "Credit → Corporate")};
+      gauges in the table above live on their own pages: the yield curve, term premium and SOFR on the {link("rates", "treasuries", "Bonds → Rates & mortgages")} view;
+      the Fed's balance sheet, reserves and swap lines on the {link("rates", "fed", "Fed balance sheet")} view; credit spreads on {link("credit", "corporate", "Bonds → Corporate credit")};
       bank lending standards on {link("credit", "banks", "Credit → Banks")}. AI capex and the AI debt facilities are on the AI Economy tab, and the
       broad dollar on International. This page adds only what exists nowhere else — auctions, the debt mix, who holds the debt, the
       dollar's stock and flow — and the three views that join the rest together.

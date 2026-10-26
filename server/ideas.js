@@ -35,8 +35,8 @@ const monthYear = d => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US
 const year = d => (d ? d.slice(0, 4) : null)
 
 const LINK = {
-  rates: { label: 'U.S. Economy → Rates & Fed', href: '/?view=economy&sub=rates' },
-  credit: { label: 'U.S. Economy → Credit', href: '/?view=economy&sub=credit' },
+  rates: { label: 'Bonds → Rates & mortgages', href: '/?view=bonds&sub=rates' },
+  credit: { label: 'Bonds → Corporate credit', href: '/?view=bonds&sub=credit' },
   cef: { label: 'Stocks → Closed-end funds', href: '/?view=stocks&sub=cef' },
   special: { label: 'Stocks → Special Situations', href: '/?view=stocks&sub=special' },
 }

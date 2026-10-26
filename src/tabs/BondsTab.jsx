@@ -1,7 +1,15 @@
-// Income → Bonds: every marketable Treasury, bond by bond (server/treasuryBonds.js, /api/treasury-bonds).
-// The fitted curve with each issue on it, rich and cheap against that curve, TIPS breakevens by maturity,
-// auction results graded against their own history, and the full list to search and sort.
+// Income → Bonds: the fixed-income home, three views.
+//   Treasuries         every marketable Treasury, bond by bond (server/treasuryBonds.js, /api/treasury-bonds):
+//                      the fitted curve with each issue on it, rich and cheap against neighbouring issues, TIPS
+//                      breakevens by maturity, auctions graded against their own history, the full list
+//   Rates & mortgages  the constant-maturity curve's history, spreads and term premium, real yields, policy and
+//                      money-market rates, mortgages, bond ETFs (RatesTab.jsx, moved from U.S. Economy, Oct 2026)
+//   Corporate credit   spreads, the refi squeeze, corporate balance sheets (DebtMarketTab.jsx, moved from U.S. Economy)
+// The Fed balance sheet and the tightening monitor stay on U.S. Economy → Fed.
 import React, { useEffect, useMemo, useState } from "react";
+import SubViews from "../components/SubViews.jsx";
+import RatesTab from "./RatesTab.jsx";
+import DebtMarketTab from "./DebtMarketTab.jsx";
 import { ComposedChart, Scatter, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
 import "./options/OptionsResearch.css";
 import { VizCard, MiniTable, Kpi, Seg, Legend, finite, fx, signed, axisTick, gridProps, tipStyle, C, dayLabel } from "./options/ui.jsx";
@@ -27,7 +35,19 @@ function BondTip({ active, payload }) {
 
 const yearTicks = [0, 2, 5, 7, 10, 20, 30];
 
-export default function BondsTab() {
+export const BOND_VIEWS = ["treasuries", "rates", "credit"];
+
+export default function BondsTab({ md, td, fmpKey, fredKey, view, onView }) {
+  return (
+    <SubViews view={view} onChange={onView} views={[
+      { id: "treasuries", label: "Treasuries", hint: "every issue, bond by bond", render: () => <TreasuryTerminal /> },
+      { id: "rates", label: "Rates & mortgages", hint: "the curve over time, spreads, real yields, policy rates, mortgages", render: () => <RatesTab md={md} td={td} fmpKey={fmpKey} fredKey={fredKey} /> },
+      { id: "credit", label: "Corporate credit", hint: "spreads, the refi squeeze, balance sheets", render: () => <DebtMarketTab /> },
+    ]} />
+  );
+}
+
+function TreasuryTerminal() {
   const [d, setD] = useState(null), [err, setErr] = useState(null);
   const [aucKind, setAucKind] = useState("coupons"), [kind, setKind] = useState("all"), [q, setQ] = useState(""), [sort, setSort] = useState(["years", 1]);
   useEffect(() => {

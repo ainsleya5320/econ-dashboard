@@ -10,10 +10,8 @@ import ConsumerTab from "./ConsumerTab.jsx";
 import CpiTab from "./CpiTab.jsx";
 import GrowthTab from "./GrowthTab.jsx";
 import ProfitsEngineTab from "./ProfitsEngineTab.jsx";
-import DebtMarketTab from "./DebtMarketTab.jsx";
 import BankCreditTab from "./BankCreditTab.jsx";
 import BankruptcyTab from "./BankruptcyTab.jsx";
-import RatesTab from "./RatesTab.jsx";
 import FedSubTab from "./FedSubTab.jsx";
 import TighteningTab from "./TighteningTab.jsx";
 import BudgetSubTab from "./BudgetSubTab.jsx";
@@ -27,9 +25,9 @@ import TensionBoard from "../components/TensionBoard.jsx";
 //   Pulse · Regional · Labor · Consumer · Inflation · Growth · Credit ·
 //   Rates & Fed · Fiscal · Machine · Tensions
 // Five of them fold former pages into views (SubViews): Regional = metros /
-// states map; Growth = activity / profits engine; Credit = corporate / banks /
-// defaults; Rates & Fed = treasuries / Fed balance sheet / tightening
-// monitor; Machine = Dalio /
+// states map; Growth = activity / profits engine; Credit = banks / defaults
+// (corporate credit moved to Bonds, Oct 2026); Fed = Fed balance
+// sheet / tightening monitor (Treasuries & mortgages moved to Bonds); Machine = Dalio /
 // stock-flow model. Pulse rows and cross-links still use the old drill ids,
 // which DRILL maps onto a tab and a view.
 // ============================================================================
@@ -42,7 +40,7 @@ const ECON_SUB_TABS = [
   { id: "inflation", label: "Inflation" },
   { id: "growth",    label: "Growth" },
   { id: "credit",    label: "Credit" },
-  { id: "rates",     label: "Rates & Fed" },
+  { id: "rates",     label: "Fed" },
   { id: "fiscal",    label: "Fiscal" },
   { id: "machine",   label: "Machine" },
   { id: "tensions",  label: "Tensions" },
@@ -51,13 +49,15 @@ const ECON_SUB_TABS = [
 // Old sub-tab ids (still used by Pulse's drill field and older links) → [tab, view].
 const DRILL = {
   gdp: ["growth", "activity"], profits: ["growth", "profits"],
-  debt: ["credit", "corporate"], banks: ["credit", "banks"], bankruptcy: ["credit", "defaults"],
+  debt: ["bonds", "credit"], rates: ["bonds", "rates"], banks: ["credit", "banks"], bankruptcy: ["credit", "defaults"],
   fed: ["rates", "fed"], tightening: ["rates", "tightening"], budget: ["fiscal"], cpi: ["inflation"],
   model: ["machine", "sfc"], stateLevel: ["regional", "states"], municipal: ["regional", "metros"],
 };
-const DEFAULT_VIEW = { regional: "metros", growth: "activity", credit: "corporate", rates: "treasuries", machine: "dalio" };
+const DEFAULT_VIEW = { regional: "metros", growth: "activity", credit: "banks", rates: "fed", machine: "dalio" };
+// Views that moved to the Bonds tab (Oct 2026): links to them open Bonds instead
+const MOVED = { "rates/treasuries": "rates", "credit/corporate": "credit" };
 
-function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
+function USEconomyTab({ openTab, md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, choroplethCache, choroplethMetric, setChoroplethMetric, fetchChoroplethData, choroplethLoading, choroplethProgress }) {
   // ?view=economy&sub=rates (links from the Ideas page) opens a sub-tab directly
   const [econSubTab, setEconSubTab] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get("view") === "economy" && ECON_SUB_TABS.some(t => t.id === p.get("sub")) ? p.get("sub") : "dashboard"; });
   const [views, setViews] = useState(DEFAULT_VIEW);
@@ -73,6 +73,8 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
     const m = DRILL[id];
     const tab = m ? m[0] : id;
     const v = view || (m && m[1]);
+    if (tab === "bonds") return openTab?.("bonds", v);
+    if (MOVED[`${tab}/${v}`]) return openTab?.("bonds", MOVED[`${tab}/${v}`]);
     setEconSubTab(tab);
     if (v) setViews(s => ({ ...s, [tab]: v }));
   };
@@ -116,20 +118,18 @@ function USEconomyTab({ md, td, gd, cd, csm, hd, zillowData, fredKey, fmpKey, ch
       ]} />
     )}
 
-    {/* Credit — corporate spreads and balance sheets, bank lending and losses, the default cycle */}
+    {/* Credit — bank lending and losses, the default cycle (corporate spreads and balance sheets live on Bonds) */}
     {econSubTab === "credit" && (
       <SubViews view={views.credit} onChange={setView("credit")} views={[
-        { id: "corporate", label: "Corporate", hint: "spreads, the refi squeeze, balance sheets", render: () => <DebtMarketTab /> },
         { id: "banks", label: "Banks", hint: "loan growth, delinquencies, lending standards, charge-offs", render: () => <BankCreditTab /> },
         { id: "defaults", label: "Defaults", hint: "bankruptcies, Seattle first", render: () => <BankruptcyTab /> },
       ]} />
     )}
 
-    {/* Rates & Fed — the price of money, the balance sheet behind it, and the
-        leading-indicator board for tightening that starts in the bond market */}
+    {/* Fed — the balance sheet, and the leading-indicator board for tightening that starts in the
+        bond market (the rates themselves live on Bonds → Rates & mortgages) */}
     {econSubTab === "rates" && (
       <SubViews view={views.rates} onChange={setView("rates")} views={[
-        { id: "treasuries", label: "Treasuries & mortgages", render: () => <RatesTab md={md} td={td} fmpKey={fmpKey} fredKey={fredKey} /> },
         { id: "fed", label: "Fed balance sheet", render: () => <FedSubTab fredKey={fredKey} /> },
         { id: "tightening", label: "Tightening monitor", hint: "does the AI boom tighten through bonds before stocks?", render: () => <TighteningTab go={go} /> },
       ]} />

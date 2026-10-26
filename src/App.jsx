@@ -12,7 +12,7 @@ import WorldTab from "./tabs/WorldTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
 import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
-import BondsTab from "./tabs/BondsTab.jsx";
+import BondsTab, { BOND_VIEWS } from "./tabs/BondsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
 import HistoricalTab from "./tabs/HistoricalTab.jsx";
 import ForecastsTab from "./tabs/ForecastsTab.jsx";
@@ -98,6 +98,9 @@ export default function Dashboard() {
   useResponsiveTables();
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
   const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','bonds','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
+  // Bonds' view (Treasuries, Rates & mortgages, Corporate credit): ?view=bonds&sub=… or a link from U.S. Economy
+  const [bondsView, setBondsView] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get('view') === 'bonds' && BOND_VIEWS.includes(p.get('sub')) ? p.get('sub') : 'treasuries'; });
+  const openTab = (id, view) => { if (id === 'bonds' && view) setBondsView(view); setTab(id); window.scrollTo(0, 0); };
   useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
@@ -498,13 +501,13 @@ export default function Dashboard() {
           <TabErrorBoundary key={tab}>
             {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
             {tab === "news" && <NewsDeskTab />}
-            {tab === "economy" && <USEconomyTab md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
+            {tab === "economy" && <USEconomyTab openTab={openTab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "world" && <WorldTab />}
             {tab === "intl" && <InternationalTab fmpKey={fmpKey} fredKey={fredKey} />}
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} treasury={td} />}
             {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
-            {tab === "bonds" && <BondsTab />}
+            {tab === "bonds" && <BondsTab md={md} td={td} fmpKey={fmpKey} fredKey={fredKey} view={bondsView} onView={setBondsView} />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab />}
             {tab === "forecasts" && <ForecastsTab />}
