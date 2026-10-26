@@ -24,7 +24,9 @@
 // fallback model finished lists each attempt in usage.iterations with its
 // own model; each attempt is priced at its own model's rates, and attempts
 // declined before any output are counted too (the cap errs high, not low).
-// A model missing from the table is priced at the top rate.
+// A model missing from the table is priced at the top rate. Web searches add
+// $10 per 1,000. The Ideas page's one-pagers keep a separate cap in their
+// own file (file / label below).
 //
 // The file is re-read before each check and each record, so two processes
 // (the dev server and a script) share one cap. The in-flight holds live in
@@ -89,6 +91,9 @@ function costOfBlock(model, u) {
 
 // Price one response's usage. Returns { usd, parts: [{ model, usd, ... }] }:
 // one part per attempt when usage.iterations lists them, else one part.
+// Web searches (the server-side search tool) bill $10 per 1,000 on top of
+// tokens; they are credited to the attempt that answered (the last).
+export const WEB_SEARCH_USD = 10 / 1000
 export function costOf(model, usage) {
   if (!usage) return { usd: 0, parts: [] }
   const its = Array.isArray(usage.iterations) ? usage.iterations.filter(Boolean) : []
@@ -99,6 +104,8 @@ export function costOf(model, usage) {
   // attempt that answered (the last). Observability only: output_tokens
   // already includes thinking.
   if (its.length && !parts.some(p => p.thinking)) parts[parts.length - 1].thinking = num(usage.output_tokens_details?.thinking_tokens)
+  const searches = num(usage.server_tool_use?.web_search_requests)
+  if (searches && parts.length) { const last = parts[parts.length - 1]; last.searches = searches; last.usd += searches * WEB_SEARCH_USD }
   return { usd: parts.reduce((s, p) => s + p.usd, 0), parts }
 }
 
@@ -118,9 +125,10 @@ const BUSY = new Set(['EBUSY', 'EPERM', 'EACCES'])
 // this process.
 const HOLDS = globalThis.__newsDeskBudgetHolds || (globalThis.__newsDeskBudgetHolds = new Map())
 
-export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
+// file / label / about let a second spender (the Ideas page's one-pagers) keep its own cap in its own file.
+export function createBudget({ dir, dailyUsd = 2, file = 'news-usage.json', label = 'news-desk', about = 'News Desk Claude spending per local day (USD), written by server/newsDesk/budget.js. Gitignored.', log = console } = {}) {
   if (!dir) throw new Error('createBudget needs { dir }')
-  const FILE = path.join(dir, 'news-usage.json')
+  const FILE = path.join(dir, file)
   const cap = Number(dailyUsd) > 0 ? Number(dailyUsd) : 2
   let state = { days: {} }
   let stamp = null // mtime + size of the copy in memory
@@ -143,7 +151,7 @@ export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
       } catch (e) {
         if (e.code === 'ENOENT') { if (stamp !== 'none') { state = { days: {} }; stamp = 'none' } return }
         if (BUSY.has(e.code) && attempt < 4) { pause(60); continue }
-        log.warn?.(`[news-desk] budget: could not read news-usage.json (${e.code || e.message}); using the copy in memory`)
+        log.warn?.(`[${label}] budget: could not read ${file} (${e.code || e.message}); using the copy in memory`)
         return
       }
     }
@@ -154,13 +162,13 @@ export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
   // it cannot be moved, it is left untouched and the pause lives in memory.
   const setAside = (why, sig) => {
     const ts = new Date().toISOString().replace(/[:.]/g, '-')
-    const aside = path.join(dir, `news-usage.corrupt-${ts}.json`)
+    const aside = path.join(dir, `${file.replace(/\.json$/, '')}.corrupt-${ts}.json`)
     let moved = true
-    try { fs.renameSync(FILE, aside) } catch (e) { moved = false; log.error?.(`[news-desk] budget: could not move the unreadable news-usage.json aside (${e.code || e.message})`) }
-    log.error?.(`[news-desk] budget: news-usage.json could not be read (${why})${moved ? `; moved to ${path.basename(aside)}` : ''}. Claude spending is paused until tomorrow.`)
+    try { fs.renameSync(FILE, aside) } catch (e) { moved = false; log.error?.(`[${label}] budget: could not move the unreadable ${file} aside (${e.code || e.message})`) }
+    log.error?.(`[${label}] budget: ${file} could not be read (${why})${moved ? `; moved to ${path.basename(aside)}` : ''}. Claude spending is paused until tomorrow.`)
     state = { days: { [localDay()]: { spent: 0, calls: 0, byModel: {}, paused: moved
-      ? `news-usage.json could not be read and was set aside as ${path.basename(aside)}; Claude spending is paused for the rest of today so the cap holds.`
-      : 'news-usage.json could not be read; Claude spending is paused for the rest of today so the cap holds.' } } }
+      ? `${file} could not be read and was set aside as ${path.basename(aside)}; Claude spending is paused for the rest of today so the cap holds.`
+      : `${file} could not be read; Claude spending is paused for the rest of today so the cap holds.` } } }
     if (moved) { stamp = null; writeFile() } else stamp = sig
   }
 
@@ -168,7 +176,7 @@ export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
     const keep = Object.keys(state.days).sort().slice(-KEEP_DAYS)
     const days = {}
     for (const d of keep) days[d] = state.days[d]
-    state = { _about: 'News Desk Claude spending per local day (USD), written by server/newsDesk/budget.js. Gitignored.', cap, days }
+    state = { _about: about, cap, days }
     const tmp = `${FILE}.${process.pid}.tmp`
     try {
       fs.writeFileSync(tmp, JSON.stringify(state, null, 1))
@@ -182,7 +190,7 @@ export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
       stamp = `${st.mtimeMs}:${st.size}`
     } catch (e) {
       try { fs.unlinkSync(tmp) } catch { /* already gone */ }
-      log.error?.(`[news-desk] budget: could not save news-usage.json (${e.code || e.message}); this process keeps counting in memory`)
+      log.error?.(`[${label}] budget: could not save ${file} (${e.code || e.message}); this process keeps counting in memory`)
     }
   }
 
@@ -232,6 +240,7 @@ export function createBudget({ dir, dailyUsd = 2, log = console } = {}) {
       m.calls += 1
       m.usd = round6(m.usd + p.usd)
       m.input += p.input; m.output += p.output; m.cacheRead += p.cacheRead; m.cacheWrite += p.cacheWrite; m.thinking += p.thinking
+      if (p.searches) m.searches = (m.searches || 0) + p.searches
       if (!p.known) m.unpriced = 'not in the price table: billed here at the top rate'
     }
     state.days[day] = e

@@ -12,6 +12,7 @@ import WorldTab from "./tabs/WorldTab.jsx";
 import StocksTab from "./tabs/StocksTab.jsx";
 import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
+import BondsTab from "./tabs/BondsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
 import HistoricalTab from "./tabs/HistoricalTab.jsx";
 import ForecastsTab from "./tabs/ForecastsTab.jsx";
@@ -96,7 +97,7 @@ export default function Dashboard() {
   // Label every table from its own thead so it can reflow to cards on a phone.
   useResponsiveTables();
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
+  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','options','bonds','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
   useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
@@ -418,7 +419,7 @@ export default function Dashboard() {
   const NAV_GROUPS = [
     { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }, { id: "ideas", label: "Ideas ↗", href: "/ideas" }] },
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "realestate", label: "Real Estate" }] },
-    { label: "Income",    items: [{ id: "options", label: "Options" }] },
+    { label: "Income",    items: [{ id: "options", label: "Options" }, { id: "bonds", label: "Bonds" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "world", label: "World" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
     { label: "Themes",    items: [{ id: "ai", label: "AI Economy" }, { id: "forecasts", label: "Forecasts" }, { id: "history", label: "Historical" }] },
   ];
@@ -503,6 +504,7 @@ export default function Dashboard() {
             {tab === "stocks" && <StocksTab fmpKey={fmpKey} openTicker={pendingTicker} onTickerOpened={() => setPendingTicker(null)} treasury={td} />}
             {tab === "realestate" && <RealEstateTab hd={hd} md={md} zillowData={zillowData} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "options" && <OptionsTab fmpKey={fmpKey} />}
+            {tab === "bonds" && <BondsTab />}
             {tab === "commodities" && <CommoditiesTab fredKey={fredKey} />}
             {tab === "ai" && <AIEconomyTab />}
             {tab === "forecasts" && <ForecastsTab />}

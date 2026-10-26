@@ -52,7 +52,9 @@ import { createSinMonitor } from './server/sinMonitor.js'
 import { createFollyMarkets } from './server/follyMarkets.js'
 import { createPredictionMarkets } from './server/predictionMarkets.js'
 import { createTensions } from './server/tensions/index.js'
-import { createNewsDesk } from './server/newsDesk/index.js'
+import { createNewsDesk, fromLoopback, sameOrigin } from './server/newsDesk/index.js'
+import { createOnePagers } from './server/onePager.js'
+import { createTreasuryBonds } from './server/treasuryBonds.js'
 import { createMunicipalities } from './server/municipalities.js'
 import { STATE_FIPS } from './src/lib/constants.js'
 import Anthropic from '@anthropic-ai/sdk'
@@ -73,6 +75,8 @@ const ANTHROPIC_KEY = env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || 
 const CHAT_MODEL = 'claude-opus-5'
 // News Desk: the hard daily cap on its Claude spending, in dollars (server/newsDesk/budget.js)
 const NEWS_DAILY_BUDGET = Number(env.NEWS_DAILY_BUDGET_USD || process.env.NEWS_DAILY_BUDGET_USD) || 2
+// the Ideas page's one-pagers (server/onePager.js) keep their own daily cap
+const IDEAS_DAILY_BUDGET = Number(env.IDEAS_DAILY_BUDGET_USD || process.env.IDEAS_DAILY_BUDGET_USD) || 5
 // X API bearer token for the News Desk's X reader (server/newsDesk/xposts.js); .env only, never committed
 const X_TOKEN = env.X_BEARER_TOKEN || process.env.X_BEARER_TOKEN || ''
 
@@ -3800,6 +3804,12 @@ const magicFormula = createMagicFormula({ FMP_KEY, UA, dir: __dirname })
 // Ideas (server/ideas.js): the trade recommender behind /ideas — Magic Formula stocks by sector, graded special situations and
 // odd-lot tenders, and fixed-income rules on FRED and bond closed-end fund discounts. Rules only, no model.
 const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries })
+// One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
+// what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
+// Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
+// yields, duration, a fitted curve with rich/cheap, TIPS breakevens, on-the-runs and graded auctions; cache treasury-bonds.json (gitignored)
+const treasuryBonds = createTreasuryBonds({ UA, dir: __dirname })
+const onePagers = createOnePagers({ ANTHROPIC_KEY, dir: __dirname, dailyUsd: IDEAS_DAILY_BUDGET, magic: magicFormula, ideas, fetchYahooSparkline })
 
 export default defineConfig({
   // two pages: the dashboard and the Ideas recommender
@@ -4027,7 +4037,20 @@ export default defineConfig({
         reRoute('/api/oil-market', () => oilMarket.get())
         reRoute('/api/cot-report', () => cotReport.get())
         reRoute('/api/ai-buildout', () => aiBuildout.get())
+        // One-pagers, registered ahead of /api/ideas (a prefix mount). GET reads. POST asks Claude to write one,
+        // which spends the ideas budget, so it is taken from this computer and this page only; no CORS headers.
+        server.middlewares.use('/api/ideas/onepager', (req, res) => {
+          res.setHeader('Content-Type', 'application/json')
+          const send = (code, obj) => { res.statusCode = code; res.end(JSON.stringify(obj)) }
+          if (req.method === 'GET') { try { send(200, onePagers.get(req)) } catch (e) { send(500, { error: e.message }) } return }
+          if (req.method !== 'POST') { req.resume(); send(405, { error: 'GET or POST' }); return }
+          if (!fromLoopback(req) || !sameOrigin(req)) { req.resume(); send(403, { error: 'One-pagers are written from this computer only.' }); return }
+          let body = ''
+          req.on('data', chunk => { body += chunk; if (body.length > 16e3) req.destroy() })
+          req.on('end', async () => { try { send(200, await onePagers.request(JSON.parse(body || '{}'))) } catch (e) { send(400, { error: e.message }) } })
+        })
         reRoute('/api/ideas', req => ideas.get(req))
+        reRoute('/api/treasury-bonds', () => treasuryBonds.get())
         reRoute('/api/policy-rates', async () => applyDecisions(await policyRates.get(), await fetchCbRates().catch(() => ({}))))
         reRoute('/api/token-estimates', () => tokenEstimates.get())
         reRoute('/api/fred-cache', () => fredCacheStats())

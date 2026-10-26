@@ -103,7 +103,34 @@ button { font: inherit; color: inherit; }
 .i-method p { margin: 0 0 8px; }
 .i-empty { padding: 26px; text-align: center; color: var(--i-muted); border: 1px dashed var(--i-rule); border-radius: 8px; }
 
+/* one-pagers */
+.i-op { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.i-op-btn { background: var(--i-fill); border: 1px solid var(--i-accent); color: var(--i-ink); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; text-align: left; }
+.i-op-btn:hover { background: var(--i-raise); }
+.i-op-btn span { color: var(--i-ink2); font-size: 12px; }
+.i-op-status { color: var(--i-ink2); font-size: 13px; }
+.i-drawer-back { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.5); display: flex; justify-content: flex-end; }
+.i-drawer { width: min(760px, 100%); height: 100%; overflow-y: auto; background: var(--i-bg); border-left: 1px solid var(--i-rule); padding: 24px 36px 56px; box-shadow: -12px 0 40px rgba(0,0,0,.25); }
+.i-drawer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.i-memo h2 { margin: 0 0 10px; font: 500 30px/1.15 'Newsreader', Georgia, serif; letter-spacing: -.5px; }
+.i-memo h2 .i-num { font-size: 18px; color: var(--i-ink2); }
+.i-memo-head { font: 400 19px/1.45 'Newsreader', Georgia, serif; margin: 12px 0 8px; }
+.i-memo section { margin-top: 20px; }
+.i-memo h3 { margin: 0 0 6px; font: 10.5px 'IBM Plex Mono', monospace; letter-spacing: 1.2px; text-transform: uppercase; color: var(--i-accent); }
+.i-memo ul, .i-memo ol { margin: 0; padding-left: 20px; }
+.i-memo li { margin: 5px 0; line-height: 1.6; font-size: 14.5px; }
+.i-memo .i-sources li { font-size: 13px; }
+.i-memo .i-sources span { color: var(--i-muted); }
+.i-memo .i-note { margin-top: 24px; }
+.i-verdict { display: inline-block; font: 500 12px 'IBM Plex Mono', monospace; letter-spacing: .6px; text-transform: uppercase; padding: 3px 9px; border-radius: 4px; border: 1px solid currentColor; }
+.i-verdict[data-v="market looks wrong"] { color: var(--i-good); }
+.i-verdict[data-v="market may be right"] { color: var(--i-bad); }
+.i-verdict[data-v="too close to call"] { color: var(--i-ink2); }
+.i-drawer-foot { margin-top: 14px; }
+
 @media (max-width: 720px) {
+  .i-drawer { padding: 18px 16px 48px; border-left: 0; }
+  .i-memo h2 { font-size: 24px; }
   .i-mast { flex-direction: column; align-items: flex-start; }
   .i-mast-side { align-items: flex-start; flex-direction: row; }
   .i-grid { grid-template-columns: 1fr; }

@@ -126,3 +126,8 @@ long-run.json
 /cot-report.json
 /ai-buildout.json
 /magic-formula.json
+# Ideas one-pagers (server/onePager.js): the memos and their daily Claude spend; the patterns cover
+# the temp files and set-aside copies too
+/ideas-onepagers*
+/ideas-usage*
+/treasury-bonds.json

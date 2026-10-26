@@ -1,6 +1,7 @@
 // Ideas (/ideas): trade ideas with the reasons, a separate page on the dashboard's server.
-// Everything comes from /api/ideas (server/ideas.js); this page only lays it out.
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+// Everything comes from /api/ideas (server/ideas.js) and /api/ideas/onepager (server/onePager.js,
+// Claude's memo per idea); this page only lays it out.
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 const TABS = [['shortlist', 'Shortlist'], ['stocks', 'Stocks'], ['special', 'Special situations'], ['fixed', 'Fixed income']]
 const FLAG_LABEL = { check: 'Check:', risk: 'Risk:', note: 'Note:' }
@@ -51,8 +52,122 @@ function Flags({ flags }) {
   return <ul className="i-flags">{flags.map(f => <li key={f.id} data-k={f.kind}><b>{FLAG_LABEL[f.kind]}</b>{f.text}.</li>)}</ul>
 }
 
-// a special-situations or fixed-income idea
-function IdeaCard({ idea }) {
+// ── one-pagers: Claude's memo per idea ───────────────────────────────────────
+// Cards register their key ("stock:XYZ", "special:XYZ"); statuses are polled every 5 seconds while
+// one is being written, every minute otherwise. The shortlist asks for its memos without a click.
+const OnePagers = createContext(null)
+const VERDICT = { 'market looks wrong': 'Market looks wrong', 'market may be right': 'Market may be right', 'too close to call': 'Too close to call' }
+
+function useOnePagers() {
+  const [state, setState] = useState({ items: {}, budget: null, enabled: false })
+  const [open, setOpen] = useState(null) // { key, ideaId }
+  const keys = useRef(new Set()), asked = useRef(new Set())
+  const [watched, setWatched] = useState(0)
+  const poll = useCallback(async () => {
+    if (!keys.current.size) return
+    try {
+      const j = await fetch(`/api/ideas/onepager?keys=${encodeURIComponent([...keys.current].join(','))}`).then(r => r.json())
+      if (j.items) setState(s => ({ items: { ...s.items, ...j.items }, budget: j.budget, enabled: !!j.enabled }))
+    } catch { /* the next poll tries again */ }
+  }, [])
+  const watch = useCallback(key => { if (!keys.current.has(key)) { keys.current.add(key); setWatched(n => n + 1) } }, [])
+  useEffect(() => { const t = setTimeout(poll, 150); return () => clearTimeout(t) }, [watched, poll])
+  const busy = Object.values(state.items).some(x => x.status === 'queued' || x.status === 'running')
+  useEffect(() => { const t = setInterval(poll, busy ? 5e3 : 60e3); return () => clearInterval(t) }, [busy, poll])
+  const request = useCallback(async (key, ideaId, force = false) => {
+    setState(s => ({ ...s, items: { ...s.items, [key]: { ...s.items[key], status: 'queued' } } }))
+    try {
+      const j = await fetch('/api/ideas/onepager', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, ideaId, force }) }).then(r => r.json())
+      setState(s => ({ ...s, items: { ...s.items, [key]: j.status ? j : { status: 'error', error: j.error || 'request failed' } } }))
+    } catch (e) { setState(s => ({ ...s, items: { ...s.items, [key]: { status: 'error', error: e.message } } })) }
+  }, [])
+  return { ...state, watch, request, asked: asked.current, open, setOpen }
+}
+
+function OnePagerButton({ k, ideaId, auto }) {
+  const op = useContext(OnePagers)
+  useEffect(() => { op.watch(k) }, [k, op.watch])
+  const it = op.items[k]
+  // a recommended card asks once per page load, when it has no memo or an outdated one
+  useEffect(() => {
+    if (!auto || !op.enabled || !it || !['none', 'stale'].includes(it.status) || op.asked.has(k)) return
+    if (op.budget && op.budget.remaining < op.budget.perMemo) return
+    op.asked.add(k); op.request(k, ideaId)
+  }, [auto, op.enabled, it?.status, k])
+  if (!op.enabled || !it) return null
+  const read = <button className="i-op-btn" onClick={() => op.setOpen({ key: k, ideaId })}>Read the one-pager{it.verdict ? ` · ${VERDICT[it.verdict]}` : ''}{it.status === 'stale' ? ' (older)' : ''}</button>
+  return (
+    <div className="i-op">
+      {it.status === 'none' && <button className="i-op-btn" onClick={() => op.request(k, ideaId)}>Write a one-pager <span>(Claude, about $1)</span></button>}
+      {(it.status === 'queued' || it.status === 'running') && <span className="i-op-status" role="status">{it.status === 'queued' ? 'One-pager queued…' : 'Claude is researching and writing the one-pager (1 to 3 minutes)…'}</span>}
+      {(it.status === 'ready' || it.status === 'stale') && read}
+      {it.status === 'error' && <><span className="i-op-status" title={it.error}>One-pager failed: {it.error}</span><button className="i-ghost" onClick={() => op.request(k, ideaId, true)}>Try again</button></>}
+      {it.status === 'budget' && <span className="i-op-status">{it.error}</span>}
+    </div>
+  )
+}
+
+function OnePagerDrawer() {
+  const op = useContext(OnePagers)
+  const k = op.open?.key
+  const [data, setData] = useState(null)
+  const status = op.items[k]?.status
+  useEffect(() => {
+    if (!k) return
+    let live = true
+    fetch(`/api/ideas/onepager?key=${encodeURIComponent(k)}`).then(r => r.json()).then(j => { if (live) setData(j) }).catch(() => {})
+    return () => { live = false }
+  }, [k, status])
+  // Escape closes it; the page behind doesn't scroll while it is open
+  useEffect(() => {
+    if (!k) return
+    const esc = e => { if (e.key === 'Escape') op.setOpen(null) }
+    window.addEventListener('keydown', esc)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', esc); document.body.style.overflow = prev }
+  }, [k])
+  if (!k) return null
+  const it = data?.key === k ? data.item : null, m = it?.memo
+  const sym = k.split(':')[1]
+  const sec = (title, points) => (points?.length ? <section><h3>{title}</h3><ul>{points.map((p, i) => <li key={i}>{p}</li>)}</ul></section> : null)
+  return (
+    <div className="i-drawer-back" onClick={() => op.setOpen(null)}>
+      <aside className="i-drawer" role="dialog" aria-modal="true" aria-label={`One-pager for ${sym}`} onClick={e => e.stopPropagation()}>
+        <div className="i-drawer-top">
+          <span className="i-kind">One-pager · {k.startsWith('stock:') ? 'Magic Formula' : 'Special situation'}</span>
+          <button className="i-ghost" onClick={() => op.setOpen(null)}>Close</button>
+        </div>
+        {!m ? <p className="i-why">{status === 'queued' || status === 'running' ? 'Claude is still writing this one.' : 'Loading…'}</p> : (
+          <article className="i-memo">
+            <h2>{it.name} <span className="i-num">({sym})</span></h2>
+            <div className="i-verdict" data-v={m.verdict}>{VERDICT[m.verdict]}</div>
+            <p className="i-memo-head">{m.headline}</p>
+            {sec('Why it is cheap', m.whyCheap)}
+            {sec('What the market is focused on', m.marketFocus)}
+            {sec(m.verdict === 'market may be right' ? 'Is the market wrong?' : 'Why the market may be wrong', m.whyWrong)}
+            {sec('Where the bears could be right', m.bearsRight)}
+            {m.catalysts?.length > 0 && <section><h3>Catalysts</h3><ul>{m.catalysts.map((c, i) => <li key={i}>{c.when && <b>{c.when}: </b>}{c.what}</li>)}</ul></section>}
+            {sec('What to watch', m.watch)}
+            {m.sources?.length > 0 && <section><h3>Sources</h3><ol className="i-sources">{m.sources.map(s => <li key={s.url}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a>{s.date && <span> · {s.date}</span>}</li>)}</ol></section>}
+            <p className="i-note">
+              Written by Claude ({it.model}) on {shortDate(it.generatedAt)} from web research and the dashboard's numbers{m.dataAsOf ? `, with information through ${shortDate(m.dataAsOf)}` : ''}: {it.searches} searches{it.fetches ? `, ${it.fetches} pages read` : ''}, ${it.usd?.toFixed(2)}.
+              {it.sourcesChecked === false ? ' Its sources could not be checked against what the searches returned.' : it.droppedSources ? ` ${it.droppedSources} listed source${it.droppedSources > 1 ? 's' : ''} that no search returned ${it.droppedSources > 1 ? 'were' : 'was'} dropped.` : ''}
+              {status === 'stale' ? ' The company has filed since, or the memo is over a month old.' : ''}
+            </p>
+            <div className="i-drawer-foot">
+              {(status === 'queued' || status === 'running') ? <span className="i-op-status">Rewriting…</span>
+                : <button className="i-ghost" onClick={() => op.request(k, op.open.ideaId, true)}>Rewrite it (about $1)</button>}
+            </div>
+          </article>
+        )}
+      </aside>
+    </div>
+  )
+}
+
+// a special-situations or fixed-income idea; graded special situations with a ticker get a one-pager
+function IdeaCard({ idea, auto }) {
   const graded = !!idea.grade
   const title = graded ? `${idea.call}: ${idea.ticker || idea.name}` : idea.call
   const sub = graded ? (idea.ticker ? idea.name : null) : idea.bucket === 'special' && idea.name ? `${idea.name}${idea.ticker ? ` (${idea.ticker})` : ''}` : null
@@ -68,6 +183,7 @@ function IdeaCard({ idea }) {
       )}
       <p className="i-why">{idea.why}</p>
       <Change text={idea.change} />
+      {idea.bucket === 'special' && graded && idea.ticker && <OnePagerButton k={`special:${idea.ticker}`} ideaId={idea.id} auto={auto} />}
       <div className="i-foot"><span className="i-horizon">{idea.horizon}</span><Links links={idea.links} /></div>
     </article>
   )
@@ -77,7 +193,7 @@ const rankLine = (r, floor) => `Ranks ${ord(r.rank)} of ${r.n.toLocaleString()} 
 const stockLink = sym => [{ label: 'Stock page', href: `/?view=stocks&symbol=${encodeURIComponent(sym)}` }]
 const isNew = (s, floor, sinceStart) => { const d = s.since?.[floor.id]; return !!d && d !== sinceStart && Date.now() - Date.parse(`${d}T12:00:00`) < 8 * 864e5 }
 
-function StockCard({ s, floor, sinceStart }) {
+function StockCard({ s, floor, sinceStart, auto }) {
   const r = s.rank[floor.id]
   if (!r) return null
   return (
@@ -92,6 +208,7 @@ function StockCard({ s, floor, sinceStart }) {
       <p className="i-why">{rankLine(r, floor)} {s.why}</p>
       <Flags flags={s.flags} />
       <Change text={s.change} />
+      <OnePagerButton k={`stock:${s.sym}`} auto={auto} />
       <div className="i-foot"><span className="i-horizon">{s.horizon} · figures through {s.quarter?.label}</span><Links links={stockLink(s.sym)} /></div>
     </article>
   )
@@ -120,6 +237,7 @@ function StockRows({ syms, m, floor, sinceStart }) {
                   <p className="i-why">{rankLine(r, floor)} {s.why}</p>
                   <Flags flags={s.flags} />
                   <Change text={s.change} />
+                  <OnePagerButton k={`stock:${sym}`} />
                   <div className="i-foot"><span className="i-horizon">{s.horizon} · figures through {s.quarter?.label}</span><Links links={stockLink(sym)} /></div>
                 </div>
               )}
@@ -173,6 +291,7 @@ function Lookup({ floor }) {
               <Flags flags={res.flags} />
             </>
           )}
+          {res.found && <OnePagerButton k={`stock:${res.sym}`} />}
           {res.found && <div className="i-foot"><span className="i-horizon">figures through {res.quarter?.label}</span><Links links={stockLink(res.sym)} /></div>}
         </div>
       )}
@@ -271,13 +390,20 @@ function Shortlist({ data, floor, setFloor, go }) {
   // the best idea of each kind, so one kind (four cheap bond funds, say) doesn't fill the list
   const oneOfEach = (ideas, n) => ideas.filter((x, i, a) => a.findIndex(y => y.kind === x.kind) === i).slice(0, n)
   const groups = [
-    ['stocks', 'Stocks', stocks.map(s => <StockCard key={s.sym} s={s} floor={f} sinceStart={m.sinceStart} />), f ? `${f.n.toLocaleString()} ranked at ${f.label}` : ''],
-    ['special', 'Special situations', oneOfEach(data.special?.ideas || [], 2).map(i => <IdeaCard key={i.id} idea={i} />), `${data.special?.ideas?.length || 0} ideas`],
+    // the recommended picks write their one-pagers without a click (auto)
+    ['stocks', 'Stocks', stocks.map(s => <StockCard key={s.sym} s={s} floor={f} sinceStart={m.sinceStart} auto />), f ? `${f.n.toLocaleString()} ranked at ${f.label}` : ''],
+    ['special', 'Special situations', oneOfEach(data.special?.ideas || [], 2).map(i => <IdeaCard key={i.id} idea={i} auto />), `${data.special?.ideas?.length || 0} ideas`],
     ['fixed', 'Fixed income', oneOfEach(data.fixed?.ideas || [], 3).map(i => <IdeaCard key={i.id} idea={i} />), `${data.fixed?.ideas?.length || 0} calls`],
   ]
+  const op = useContext(OnePagers), b = op.budget
   return (
     <>
       {m && <Progress m={m} />}
+      {op.enabled && b && (
+        <p className="i-note" style={{ margin: '0 0 22px' }}>
+          Claude Opus 5.5 researches and writes a one-pager for each stock and special situation recommended here; other cards write one on request. Today's one-pagers: ${b.spent.toFixed(2)} of ${b.cap.toFixed(2)}{b.paused ? ` (${b.paused})` : ''}.
+        </p>
+      )}
       {groups.map(([id, label, cards, count]) => (
         <section key={id} className="i-section">
           <div className="i-head">
@@ -296,6 +422,7 @@ function Shortlist({ data, floor, setFloor, go }) {
 
 export default function IdeasApp() {
   const { data, error } = useIdeas()
+  const onePagers = useOnePagers()
   const [tab, setTab] = useState(tabFromHash)
   const [floor, setFloorRaw] = useState(() => read('ideas.floor', 'all'))
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'dark')
@@ -310,6 +437,7 @@ export default function IdeasApp() {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
+    <OnePagers.Provider value={onePagers}>
     <div className="i-app">
       <header className="i-mast">
         <div>
@@ -342,6 +470,8 @@ export default function IdeasApp() {
           )}
         </main>
       )}
+      <OnePagerDrawer />
     </div>
+    </OnePagers.Provider>
   )
 }

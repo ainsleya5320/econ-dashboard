@@ -119,8 +119,17 @@ Each rule reads one market and makes at most one call. Thresholds are in `fixedB
 - The horizon is weeks. The dashboard's backtest found most of the edge in the first month.
 - When one category is most of the cheap list, the note says so.
 
+## One-pagers
+
+Each stock and graded special situation on the shortlist gets a one-page memo from Claude Opus 5.5, written without a click; every other ranked stock (cards, sector rows, the lookup box) and graded special situation has a button to write one. Odd lots and fixed-income calls don't get one.
+
+- **What it answers:** why it is cheap, what the market is focused on, and whether the market is wrong. The verdict is "market looks wrong", "market may be right" or "too close to call"; the prompt says a memo that talks the reader into a value trap is worse than none.
+- **How** (`server/onePager.js`): the model gets the dashboard's numbers first (the Magic Formula measures, ranks, flags and eight quarters as filed, or the special-situations card, plus a year of prices), researches with the server-side web search and web fetch tools (up to 8 searches and 4 pages), and returns the memo through a strict `submit_one_pager` tool with fixed sections. Adaptive thinking at high effort, streamed, with the server-side refusal fallback (`fallbacks: "default"`) on. A listed source must be a URL its own searches or fetches returned; others are dropped and the footer says how many.
+- **Cost:** the first four ran $0.40 to $0.66 each, about 2.5 minutes. Their own daily cap, `IDEAS_DAILY_BUDGET_USD` in `.env` (default $5), kept in `ideas-usage.json` by the News Desk's budget module (which also prices web searches at $0.01); each memo is held at $1 from the moment it is queued, and one is written at a time.
+- **Freshness:** a stock's memo goes stale when the company files a new quarter or after 30 days, a special situation's after 14; the shortlist rewrites stale ones, elsewhere a Rewrite button does. Cached in `ideas-onepagers.json` (gitignored).
+- **Routes:** `GET /api/ideas/onepager?keys=stock:XYZ,special:ABC` (statuses and today's spend), `?key=…` (one memo); `POST` with `{ key, ideaId?, force? }` writes one, from this computer and this page only (the News Desk's `fromLoopback` / `sameOrigin`), with no CORS headers. Registered ahead of the `/api/ideas` prefix mount.
+
 ## Not built (possible next steps)
 
-- A Claude "explain more" button under the News Desk's daily cap.
 - A weekly email of the shortlist, like the special-situations digest.
 - Options income ideas (Options → Strategies screener), COT extremes and the Market Map's correction-risk scores as further buckets.

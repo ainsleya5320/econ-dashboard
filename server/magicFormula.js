@@ -391,5 +391,19 @@ export function createMagicFormula({ FMP_KEY, UA, dir }) {
     }
   }
 
-  return { get, lookup }
+  // the fact sheet a one-pager starts from: the measures, the ranks, and eight quarters as filed
+  function facts(symbol) {
+    const sym = String(symbol || '').trim().toUpperCase()
+    const l = lookup(sym)
+    if (!l.found) return null
+    const u = universe().find(x => x.sym === sym), m = measure(u), r = store.rows[sym]
+    return {
+      ...l, industry: u.industry, exchange: u.ex, price: u.price,
+      ebit: m.ebit, revenue: m.rev, ev: m.ev, cash: m.cash, debt: m.debt, capital: m.capital, ppeProxy: m.ppeProxy,
+      quarters: (r.q || []).map(x => ({ quarter: x.p && x.fy ? `${x.p} FY${x.fy}` : x.d, ended: x.d, filed: x.filed, revenue: x.rev, operatingIncome: x.oi, netIncome: x.ni })),
+      balanceSheetDate: r.b?.d || null,
+    }
+  }
+
+  return { get, lookup, facts }
 }

@@ -14,6 +14,8 @@ Back to the [master map](../../CLAUDE.md).
 - [server/aiBuildout.js](../../server/aiBuildout.js): /api/ai-buildout — funding loop vs productivity scoring: SEC XBRL (capex, OCF, debt proceeds, backlog, finance-lease adds) for the capexReturns hyperscalers, Census construction (data centers) and BTOS, SF Fed TFP, BEA via FRED, plus the Dark Output and AI pulse feeds; rules and hand inputs in data/ai-tracker/ (see docs/ai-tracker.md)
 - [server/magicFormula.js](../../server/magicFormula.js): Greenblatt's Magic Formula across all U.S. stocks: the FMP screener universe (daily) and each company's quarterly income statements and balance sheet, fetched in the background at 150 requests a minute, pausing when FMP refuses (a cold build takes about 35 minutes, then a company is refetched when a new quarter should be out); ranked at four market-value floors; one fetch loop per process across dev-server restarts
 - [server/ideas.js](../../server/ideas.js): /api/ideas, the Ideas page's three buckets: Magic Formula stocks, special situations (the scorer's A and B grades plus open odd-lot tenders) and fixed-income rules (FRED curve, TIPS, ICE BofA spreads, mortgage rates; bond closed-end fund discounts). `?symbol=` looks up one stock's rank, `?only=stocks` returns the stock bucket alone. Rules only, no model; see [docs/ideas.md](../ideas.md)
+- [server/onePager.js](../../server/onePager.js): /api/ideas/onepager, Claude Opus 5.5 one-pagers for the Ideas page (web search and fetch, a strict submit tool, sources checked against what the searches returned); its own daily cap through newsDesk/budget.js; see [docs/ideas.md](../ideas.md)
+- [server/treasuryBonds.js](../../server/treasuryBonds.js): /api/treasury-bonds, Income → Bonds: every marketable Treasury from TreasuryDirect FedInvest end-of-day prices (a session-and-CSRF form; the table needs a same-site Referer) and TreasuryDirect auction results: yields, duration, DV01, a Svensson curve, rich / cheap against neighbouring issues, TIPS breakevens, on-the-runs, auctions graded against the six before
 - [server/fxFundamentals.js](../../server/fxFundamentals.js): FX valuation, PPP and central-bank stance for 14 currencies
 - [server/tradeFlows.js](../../server/tradeFlows.js): tariffs, pass-through and dollar invoicing (/api/trade-flows)
 - [server/machine.js](../../server/machine.js): Dalio "economic machine" tracker from FRED
@@ -65,7 +67,7 @@ Back to the [master map](../../CLAUDE.md).
 
 ## State
 - [.env.example](../../.env.example): key names; the real `.env` also takes ANTHROPIC_API_KEY, EIA_API_KEY, ARTIFICIAL_ANALYSIS_KEY
-- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it. NEWS_DAILY_BUDGET_USD sets the News Desk's daily Claude cap (default 2)
+- [.env](../../.env): API keys, gitignored; every key is optional and its feed degrades without it. NEWS_DAILY_BUDGET_USD sets the News Desk's daily Claude cap (default 2), IDEAS_DAILY_BUDGET_USD the Ideas one-pagers' (default 5)
 - [fred-cache.json](../../fred-cache.json): shared FRED observation cache (gitignored)
 - [tickers.json](../../tickers.json): the saved watchlist behind /api/tickers (gitignored)
 - [special-dealbook.json](../../special-dealbook.json): the personal Deal Book behind /api/special-dealbook (gitignored)
