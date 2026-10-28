@@ -136,3 +136,9 @@ long-run.json
 # finra.org bond data: personal use only under its Fixed Income Data User Agreement, never committed
 /corporate-bonds.json
 /corporate-watchlist.json
+
+# Claude Duet copy (scripts/duet/): the snapshot names the watchlist, so it never enters this public repo
+/duet-snapshot/
+/duet-snapshot.tar.gz
+/.duet-page/
+/.duet-page-files.json

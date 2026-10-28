@@ -8,12 +8,14 @@ Back to the [master map](../../CLAUDE.md).
 - [scripts/refresh-seeds.mjs](../../scripts/refresh-seeds.mjs): rebuilds data/seeds/ (BLS metro catalog, IMF DataMapper, the Market Map's annual Census and Realtor.com data, the Historical tab's long-run history, Stocks → Sin & Folly) and data/options/cboe-put-call.json (Options → Market put/call history)
 - [scripts/ritter-ipos.py](../../scripts/ritter-ipos.py): rebuilds data/folly/ritter-ipos.json from Jay Ritter's IPO statistics PDF (Table 9; needs pypdf)
 - [scripts/special-digest.mjs](../../scripts/special-digest.mjs): builds and scores the special-situations feed, emails new ideas through Resend
+- [scripts/duet/](../../scripts/duet): the Claude Duet copy of the dashboard, a published page with no server: snapshot.mjs saves every /api answer and the FRED cache on this computer, build-page.mjs turns that snapshot into the page, shim.js answers the page's /api requests from it, shared.mjs holds the rules the three share
 - [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code, and the special-situations reorg stages (reorgStages.test.js)
 
 ## State
 - [state/](../../state): digest memory, what has been sent (gitignored; kept in the Actions cache)
 - [special-digest-preview.html](../../special-digest-preview.html): `--dry-run` output (gitignored)
 - [.env.example](../../.env.example): the key names to copy into `.env`
+- `duet-snapshot/`, `duet-snapshot.tar.gz`, `.duet-page/`: the Duet snapshot and the page built from it (gitignored: the snapshot names the watchlist)
 
 ## Skills
 - `npm install`: required before anything else
@@ -23,6 +25,8 @@ Back to the [master map](../../CLAUDE.md).
 - `node scripts/refresh-seeds.mjs [bls|imf|market-map|long-run|sin|folly|putcall]`: after the releases its header lists, then commit data/seeds/ (putcall: data/options/)
 - `python -I scripts/ritter-ipos.py`: each January, when Ritter updates his IPO statistics
 - `node scripts/special-digest.mjs --dry-run`: build and score the digest without sending
+- `npm run duet:snapshot`: save every /api answer to duet-snapshot.tar.gz for the Duet page (`-- --with-finra` keeps the FINRA bond data)
+- `node scripts/duet/build-page.mjs duet-snapshot.tar.gz`: build the Duet page into .duet-page/ (no .env present)
 
 ## Memory
 - [README.md](../../README.md): quick start and data sources

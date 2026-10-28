@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "duet:snapshot": "node scripts/duet/snapshot.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
