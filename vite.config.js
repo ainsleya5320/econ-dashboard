@@ -46,6 +46,7 @@ import { createLongRun } from './server/longRun.js'
 import { createCapexReturns } from './server/capexReturns.js'
 import { createMagicFormula } from './server/magicFormula.js'
 import { createIdeas } from './server/ideas.js'
+import { createGuruTracker } from './server/guruTracker.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3806,6 +3807,9 @@ const magicFormula = createMagicFormula({ FMP_KEY, UA, dir: __dirname })
 // Ideas (server/ideas.js): the trade recommender behind /ideas — Magic Formula stocks by sector, graded special situations and
 // odd-lot tenders, and fixed-income rules on FRED and bond closed-end fund discounts. Rules only, no model.
 const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries, corporate: { distressedEntrants: () => corporateBonds.distressedEntrants() } })
+// Guru tracker (server/guruTracker.js): the Research Database's 13F summary (what 96 managers hold, build and hedge), read
+// from its checkout (RESEARCH_DB_DIR) or, with RESEARCH_DB_TOKEN, from GitHub; drawn by the Gurus tab
+const guruTracker = createGuruTracker({ dir: __dirname, env, UA })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
@@ -4058,6 +4062,7 @@ export default defineConfig({
           req.on('end', async () => { try { send(200, await onePagers.request(JSON.parse(body || '{}'))) } catch (e) { send(400, { error: e.message }) } })
         })
         reRoute('/api/ideas', req => ideas.get(req))
+        reRoute('/api/gurus', () => guruTracker.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())
         reRoute('/api/treasury-volume', () => treasuryVolume.get())
         // the issuer watchlist is a write: this computer and this page only (ahead of the /api/corporate-bonds prefix)
