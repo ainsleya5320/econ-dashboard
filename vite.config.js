@@ -4062,6 +4062,9 @@ export default defineConfig({
           req.on('end', async () => { try { send(200, await onePagers.request(JSON.parse(body || '{}'))) } catch (e) { send(400, { error: e.message }) } })
         })
         reRoute('/api/ideas', req => ideas.get(req))
+        // the two deeper guru routes go first: connect matches '/api/gurus' as a prefix
+        reRoute('/api/gurus/manager', req => guruTracker.manager(new URL(req.url || '/', 'http://x').searchParams.get('slug') || ''))
+        reRoute('/api/gurus/held', () => guruTracker.held())
         reRoute('/api/gurus', () => guruTracker.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())
         reRoute('/api/treasury-volume', () => treasuryVolume.get())

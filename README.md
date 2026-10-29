@@ -28,7 +28,7 @@ npm run dev
 - **CPI & Inflation**: CPI, Core CPI, Core PCE, breakeven inflation, yield curve spread
 - **Housing**: Median home price, Case-Shiller index, housing starts, permits, sales, months' supply
 - **Stocks**: Fundamental screener with market cap, ROE, ROIC, FCF yield, PEG, SBC/revenue, and more
-- **Gurus**: the Research Database's 13F guru tracker: what 96 managers are building and selling, theme flows, options and moves in your own names. It reads that repo's `data/generated/gurus.json`, so set `RESEARCH_DB_DIR` in `.env` to your Research Database folder (or `RESEARCH_DB_TOKEN` to read it from GitHub) and `RESEARCH_DB_URL` to where its app runs
+- **Gurus**: the Research Database's 13F guru tracker, managers first: a sortable roster of 96 managers (book, holdings, concentration, turnover, this quarter's moves), each opening a page with twelve quarters of book value, the theme mix, new buys, adds, trims and exits and every position with estimated cost and return since; the most widely held names; and a Consensus view (builds against sells, theme flows, exits, moves in your own names, names bought together, options). It reads that repo's `data/generated/gurus.json` and `data/generated/gurus/`, so set `RESEARCH_DB_DIR` in `.env` to your Research Database folder (or `RESEARCH_DB_TOKEN` to read it from GitHub) and `RESEARCH_DB_URL` to where its app runs
 
 ## Deploying (optional)
 
