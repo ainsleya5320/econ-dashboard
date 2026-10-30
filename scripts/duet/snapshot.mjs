@@ -77,7 +77,7 @@ function plainRoutes() {
   const found = new Set()
   for (const f of files) for (const m of fs.readFileSync(f, 'utf8').matchAll(/['"`]\/api\/([a-zA-Z0-9_/-]+)/g)) found.add(m[1].replace(/\/+$/, ''))
   return [...found].filter(r => !SKIP.has(r) && (WITH_FINRA || !FINRA.has(r))
-    && !['municipality', 'options-context', 're-metro', 're-metro-employment', 'market-map', 'market-map/history', 'tensions'].includes(r))
+    && !['municipality', 'options-context', 're-metro', 're-metro-employment', 'market-map', 'market-map/history', 'tensions', 'gurus/manager'].includes(r))
     .sort().map(r => `/api/${r}`)
 }
 
@@ -127,6 +127,10 @@ async function main() {
     catch (e) { missing.push(u); log(`  miss  ${u}  ${e.message}`) }
   })
   await fetchAll(urls)
+  // the Gurus tab opens a page per manager; the slugs come from the summary just saved
+  let managers = []
+  try { managers = (JSON.parse(got['/api/gurus'] || '{}').managers || []).map(m => m?.slug).filter(Boolean) } catch {}
+  if (managers.length) { log(`${managers.length} Gurus manager pages`); await fetchAll(managers.map(s => `/api/gurus/manager?slug=${encodeURIComponent(s)}`)) }
   // rate-limited sources (BLS especially) often answer when asked one at a time
   const retry = missing.splice(0)
   for (const u of retry) { await sleep(1500); await fetchAll([u]) }
