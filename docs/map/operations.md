@@ -9,7 +9,7 @@ Back to the [master map](../../CLAUDE.md).
 - [scripts/ritter-ipos.py](../../scripts/ritter-ipos.py): rebuilds data/folly/ritter-ipos.json from Jay Ritter's IPO statistics PDF (Table 9; needs pypdf)
 - [scripts/special-digest.mjs](../../scripts/special-digest.mjs): builds and scores the special-situations feed, emails new ideas through Resend
 - [scripts/duet/](../../scripts/duet): the Claude Duet copy of the dashboard, a published page with no server: snapshot.mjs saves every /api answer and the FRED cache on this computer, build-page.mjs turns that snapshot into the page, shim.js answers the page's /api requests from it, shared.mjs holds the rules the three share
-- [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code, and the special-situations reorg stages (reorgStages.test.js)
+- [tests/](../../tests): node:test unit tests for local market, metro, options, property and stock-research code, the special-situations reorg stages (reorgStages.test.js) and the Gurus tab's feed (guruTracker.test.js)
 
 ## State
 - [state/](../../state): digest memory, what has been sent (gitignored; kept in the Actions cache)
