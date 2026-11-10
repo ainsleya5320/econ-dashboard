@@ -136,3 +136,8 @@ long-run.json
 # finra.org bond data: personal use only under its Fixed Income Data User Agreement, never committed
 /corporate-bonds.json
 /corporate-watchlist.json
+
+# AI Economy → Supply Chain and the AI credit basket: caches built from the Research Database's company lists,
+# which name holdings (taiwan-revenue.json), and from the finra.org tape (ai-credit.json, personal use only)
+/taiwan-revenue.json
+/ai-credit.json

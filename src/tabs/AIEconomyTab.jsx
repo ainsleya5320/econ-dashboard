@@ -15,6 +15,10 @@ import IntelligencePerMwPanel from "./ai/IntelligencePerMw.jsx";
 import TokenSpotPanel from "./ai/TokenSpot.jsx";
 import CapexReturnsPanel from "./ai/CapexReturns.jsx";
 import TokenEstimatesPanel from "./ai/TokenEstimates.jsx";
+import SupplyChainRevenue from "./ai/SupplyChainRevenue.jsx";
+import AiCredit from "./ai/AiCredit.jsx";
+import LabEconomics from "./ai/LabEconomics.jsx";
+import ComputeFlows from "./ai/ComputeFlows.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -2053,14 +2057,19 @@ function ModelsLabsTab() {
   return (<>
     <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
       Stage 2 of the chain: who converts tokens into money, and at what realized price. The wedge tracker is the
-      master KPI; the Ornn token price index is what a token actually sells for.
+      master KPI; the filed income statement says whether selling tokens covers the compute; the flow chart shows
+      who that compute bill is owed to; the Ornn token price index is what a token actually sells for.
     </div>
     <LabRevenueTracker />
+    <SH>Lab Economics — the Filed Income Statement</SH>
+    <LabEconomics />
+    <SH>Who Pays Whom — Compute Commitments, Lab to Supplier</SH>
+    <ComputeFlows />
     <OrnnTokenPriceSection />
   </>);
 }
 
-// ── Compute: rentals, power, capex, silicon and memory ────────────────────
+// ── Compute: rentals, power and capex ─────────────────────────────────────
 function ComputeForecast() {
   const d = useAiPulse();
   return <ForecastPanel tag="ai" live={{
@@ -2071,8 +2080,8 @@ function ComputeForecast() {
 function ComputeTab() {
   return (<>
     <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
-      Stages 3 and 4 of the chain: what compute costs to rent today, whether the power and capex build-out keeps
-      pace, and the silicon and memory supply behind it.
+      Stage 3 of the chain: what compute costs to rent today and whether the power and capex build-out keeps
+      pace. The silicon and memory behind it are on the Supply Chain tab.
     </div>
     <GpuRentalsPanel />
     <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
@@ -2086,9 +2095,21 @@ function ComputeTab() {
     <TokenSpotPanel />
     <CapexReturnsPanel />
     <ComputePowerTab />
+    <ComputeForecast />
+  </>);
+}
+
+// ── Supply Chain: the hardware makers, month by month, then packaging and memory ──
+function SupplyChainTab() {
+  return (<>
+    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
+      Stage 4 of the chain: the companies that make the hardware. Monthly revenue along the Taiwan supply chain is
+      the fastest hard number on what was built and shipped; packaging capacity and memory prices are the ceilings
+      and the cost behind it.
+    </div>
+    <SupplyChainRevenue />
     <SupplyCeilingPanel />
     <MemoryPricesPanel />
-    <ComputeForecast />
   </>);
 }
 
@@ -2275,7 +2296,7 @@ function ChainTab({ go }) {
         kpi={c.ddr5 ? `$${c.ddr5.avg.toFixed(1)}` : "—"}
         kpiSub={`DDR5 16Gb spot avg · memory breadth ${c.memUp}▲/${c.memDown}▼ of ${c.memTotal} parts this session`}
         verdict={vSilicon[0]} color={vSilicon[1]} onClick={() => go("silicon")}
-        extra="H100 contract/spot, all-generation rental, CoWoS/HBM ceiling, and TrendForce memory spot — the upstream repricing evidence." />
+        extra="Monthly revenue along the Taiwan hardware chain, the CoWoS/HBM ceiling and TrendForce memory spot — on the Supply Chain tab." />
     </div>
 
     <InfoBox color="#818cf8">
@@ -2303,6 +2324,7 @@ function AIEconomyTab() {
     { id: "pulse",    label: "Pulse"          },
     { id: "tokens",   label: "Tokens"         },
     { id: "compute",  label: "Compute"        },
+    { id: "silicon",  label: "Supply Chain"   },
     { id: "models",   label: "Models & Labs"  },
     { id: "buildout", label: "Build-Out"      },
     { id: "dark",     label: "Dark Output"    },
@@ -2321,7 +2343,8 @@ function AIEconomyTab() {
     {subTab === "tokens"  && <TokenDemandTab />}
     {subTab === "compute" && <ComputeTab />}
     {subTab === "models"  && <ModelsLabsTab />}
-    {subTab === "buildout" && <BuildOut />}
+    {subTab === "silicon" && <SupplyChainTab />}
+    {subTab === "buildout" && <><BuildOut /><SH>AI Credit Basket — What the Bond Market Charges the Build-Out</SH><AiCredit /></>}
     {subTab === "dark"    && <DarkOutput />}
     {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);

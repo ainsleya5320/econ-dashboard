@@ -47,6 +47,10 @@ import { createCapexReturns } from './server/capexReturns.js'
 import { createMagicFormula } from './server/magicFormula.js'
 import { createIdeas } from './server/ideas.js'
 import { createGuruTracker } from './server/guruTracker.js'
+import { createResearchDb } from './server/researchDb.js'
+import { createTaiwanRevenue } from './server/taiwanRevenue.js'
+import { createAiCredit } from './server/aiCredit.js'
+import { createAiFlows } from './server/aiFlows.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3809,7 +3813,14 @@ const magicFormula = createMagicFormula({ FMP_KEY, UA, dir: __dirname })
 const ideas = createIdeas({ magic: magicFormula, special: specialSituations, cef: cefDiscounts, fred: fetchFredSeries, corporate: { distressedEntrants: () => corporateBonds.distressedEntrants() } })
 // Guru tracker (server/guruTracker.js): the Research Database's 13F summary (what 96 managers hold, build and hedge), read
 // from its checkout (RESEARCH_DB_DIR) or, with RESEARCH_DB_TOKEN, from GitHub; drawn by the Gurus tab
-const guruTracker = createGuruTracker({ dir: __dirname, env, UA })
+// The private Research Database, read from its checkout or GitHub (server/researchDb.js): the guru tracker's files and the
+// AI section's company-level inputs, which name holdings and so are not kept in this repository
+const researchDb = createResearchDb({ dir: __dirname, env, UA })
+const guruTracker = createGuruTracker({ dir: __dirname, env, UA, research: researchDb })
+// AI Economy → Supply Chain (server/taiwanRevenue.js): monthly revenue of the Taiwan-listed AI hardware chain, from the exchange's pages
+const taiwanRevenue = createTaiwanRevenue({ dir: __dirname, research: researchDb, UA })
+// AI Economy → Models & Labs (server/aiFlows.js): who pays whom for compute, against each supplier's backlog
+const aiFlows = createAiFlows({ research: researchDb })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
@@ -3820,6 +3831,8 @@ const treasuryBonds = createTreasuryBonds({ UA, dir: __dirname })
 // Corporate bonds (server/corporateBonds.js): Bonds → Corporate bonds, from finra.org's Fixed Income Data service, PERSONAL USE
 // (its user agreement forbids automated copying; the user chose to run it, Oct 2026): light polling, gitignored caches, never baked
 const corporateBonds = createCorporateBonds({ UA, dir: __dirname, treasury: treasuryBonds })
+// AI Economy → Build-Out (server/aiCredit.js): the AI credit basket, priced from the corporate tape's own snapshots (personal use, as above)
+const aiCredit = createAiCredit({ dir: __dirname, research: researchDb, corporate: corporateBonds, treasury: treasuryBonds })
 const treasuryVolume = createTreasuryVolume({ dir: __dirname, clientId: env.FINRA_CLIENT_ID || process.env.FINRA_CLIENT_ID, clientSecret: env.FINRA_CLIENT_SECRET || process.env.FINRA_CLIENT_SECRET })
 const onePagers = createOnePagers({ ANTHROPIC_KEY, dir: __dirname, dailyUsd: IDEAS_DAILY_BUDGET, magic: magicFormula, ideas, fetchYahooSparkline })
 
@@ -4066,6 +4079,9 @@ export default defineConfig({
         reRoute('/api/gurus/manager', req => guruTracker.manager(new URL(req.url || '/', 'http://x').searchParams.get('slug') || ''))
         reRoute('/api/gurus/held', () => guruTracker.held())
         reRoute('/api/gurus', () => guruTracker.get())
+        reRoute('/api/ai-supply-chain', () => taiwanRevenue.get())
+        reRoute('/api/ai-flows', () => aiFlows.get())
+        reRoute('/api/ai-credit', () => aiCredit.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())
         reRoute('/api/treasury-volume', () => treasuryVolume.get())
         // the issuer watchlist is a write: this computer and this page only (ahead of the /api/corporate-bonds prefix)

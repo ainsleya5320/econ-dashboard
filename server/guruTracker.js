@@ -12,33 +12,17 @@
 //                  options, twelve quarters of history, filings: /api/gurus/manager?slug=
 //   held()         the most widely held names across every manager, from
 //                  holdings.json: /api/gurus/held
-//   local     RESEARCH_DB_DIR in .env, else a Research Database checkout next
-//             to this folder or one level up. Each file is re-read whenever it
-//             changes (a `git pull` there, or its own weekly refresh).
-//   github    when no checkout is found and RESEARCH_DB_TOKEN (or GITHUB_TOKEN)
-//             holds a token that can read the private repo: the same files from
-//             RESEARCH_DB_BRANCH (default codex/research-workspace), cached an
-//             hour, the last copy served if GitHub fails.
-//   link      RESEARCH_DB_URL is where the Research Database app runs
-//             (`python scripts/serve.py`, http://localhost:5050/app/ unless
-//             given another port).
+// Where the files come from (a local checkout, or GitHub with a token) and the
+// link to the Research Database app are server/researchDb.js's business.
 // ============================================================================
-import fs from 'node:fs'
-import path from 'node:path'
+import { createResearchDb, findCheckout } from './researchDb.js'
+
+export { findCheckout }
 
 const FILE = ['data', 'generated', 'gurus.json']
 const HOLDINGS = ['data', 'generated', 'gurus', 'holdings.json']
 const managerFile = slug => ['data', 'generated', 'gurus', 'managers', `${slug}.json`]
-const NAMES = ['Research-Database', 'research-database', 'Research Database', 'ResearchDatabase']
-const HOUR = 3600e3
 const SLUG = /^[a-z0-9][a-z0-9-]{0,60}$/
-
-// The first folder that holds the tracker's summary: the one named in .env, then siblings and cousins of this repo.
-export function findCheckout(dir, configured) {
-  const candidates = configured ? [path.resolve(dir, configured)]
-    : NAMES.flatMap(n => [path.resolve(dir, '..', n), path.resolve(dir, '..', '..', n)])
-  return candidates.find(c => fs.existsSync(path.join(c, ...FILE))) || null
-}
 
 // The most widely held names: every security at least `min` managers hold, with the holders' combined
 // value, average and largest weights, this quarter's buyers and sellers and who holds the most.
@@ -56,52 +40,10 @@ export function widelyHeld(holdings, { limit = 60, min = 5 } = {}) {
   return rows.sort((a, b) => b.n - a.n || b.value - a.value).slice(0, limit)
 }
 
-export function createGuruTracker({ dir, env = {}, UA = 'econ-dashboard' }) {
-  const configured = env.RESEARCH_DB_DIR || process.env.RESEARCH_DB_DIR || ''
-  const token = env.RESEARCH_DB_TOKEN || process.env.RESEARCH_DB_TOKEN || env.GITHUB_TOKEN || process.env.GITHUB_TOKEN || ''
-  const repo = env.RESEARCH_DB_REPO || 'ainsleya5320/Research-Database'
-  const branch = env.RESEARCH_DB_BRANCH || 'codex/research-workspace'
-  const researchUrl = (env.RESEARCH_DB_URL || process.env.RESEARCH_DB_URL || 'http://localhost:5050/app/').replace(/#.*$/, '')
-  const local = new Map()    // file → { mtime, data }
-  const remote = new Map()   // file → { data, ts }
+export function createGuruTracker({ dir, env = {}, UA = 'econ-dashboard', research = createResearchDb({ dir, env, UA }) }) {
+  const { read, researchUrl } = research
+  const missing = () => research.missing('guru summary', FILE)
   let heldCache = { key: null, rows: null }
-
-  // One file from the checkout, re-parsed only when its mtime moves; null when the checkout or the file is missing.
-  function readLocal(parts) {
-    const root = findCheckout(dir, configured)
-    if (!root) return null
-    const file = path.join(root, ...parts)
-    if (!fs.existsSync(file)) return { data: null, source: 'local', where: root, file }
-    const mtime = fs.statSync(file).mtimeMs, hit = local.get(file)
-    if (!hit || hit.mtime !== mtime) local.set(file, { mtime, data: JSON.parse(fs.readFileSync(file, 'utf8')) })
-    return { data: local.get(file).data, source: 'local', where: root, file, mtime }
-  }
-
-  async function readGitHub(parts) {
-    if (!token) return null
-    const key = parts.join('/'), hit = remote.get(key)
-    if (hit?.data !== undefined && Date.now() - hit.ts < HOUR) return { data: hit.data, source: 'github', where: `${repo}@${branch}`, mtime: hit.ts }
-    try {
-      const r = await fetch(`https://api.github.com/repos/${repo}/contents/${key}?ref=${encodeURIComponent(branch)}`, {
-        headers: { Accept: 'application/vnd.github.raw', Authorization: `Bearer ${token}`, 'User-Agent': UA },
-      })
-      if (r.status === 404) remote.set(key, { data: null, ts: Date.now() })
-      else if (!r.ok) throw new Error(`GitHub answered ${r.status}`)
-      else remote.set(key, { data: await r.json(), ts: Date.now() })
-    } catch (e) {
-      if (!hit) throw e
-    }
-    const now = remote.get(key)
-    return { data: now.data, source: 'github', where: `${repo}@${branch}`, mtime: now.ts }
-  }
-
-  const read = async parts => readLocal(parts) || await readGitHub(parts)
-
-  function missing() {
-    return { available: false, researchUrl,
-      reason: configured ? `No guru summary at ${configured}/${FILE.join('/')}.`
-        : 'No Research Database checkout next to this folder. Set RESEARCH_DB_DIR in .env to its folder (or RESEARCH_DB_TOKEN to read it from GitHub).' }
-  }
 
   async function get() {
     const found = await read(FILE)

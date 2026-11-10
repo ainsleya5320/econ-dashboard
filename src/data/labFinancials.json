@@ -1,0 +1,35 @@
+{
+  "_about": "Audited and reviewed financial statements of frontier labs, as filed (AI Economy → Models & Labs, src/tabs/ai/LabEconomics.jsx). USD millions. 'quarters' is the filing's quarterly statement of operations, which groups costs by what was bought (compute, people, sales, other); 'periods' adds its by-function table (cost of revenue against research and development) and cash flows, which the filing gives only for years and half-years. Nothing here is estimated: a figure the filing does not give is left out, and anything computed from two filed figures is computed on the page and labelled. Add a lab when it files; add a quarter when an amendment or a 10-Q gives one.",
+  "reviewed": "2026-11-09",
+  "labs": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "source": { "title": "Form S-1, filed 26 October 2026", "url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "locator": "MD&A: Quarterly Results of Operations, Results of Operations, Non-GAAP Financial Measures, Cash Flows; Note: Supplemental Operating Expense Information" },
+      "pending": "An amended S-1 was filed on 2 November 2026 (accession 0001628280-26-068676) and has not been read into this table yet; it should add the third quarter of 2026.",
+      "quarters": [
+        { "end": "2025-03-31", "label": "Q1 2025", "revenue": 376, "compute": 944, "personnel": 218, "sbc": 105, "salesMarketing": 24, "other": 125, "oneOff": 0, "operatingIncome": -935, "interestIncome": 51, "netLoss": -6592 },
+        { "end": "2025-06-30", "label": "Q2 2025", "revenue": 787, "compute": 1390, "personnel": 320, "sbc": 181, "salesMarketing": 96, "other": 181, "oneOff": 0, "operatingIncome": -1200, "interestIncome": 64, "netLoss": -6377 },
+        { "end": "2025-09-30", "label": "Q3 2025", "revenue": 1382, "compute": 2047, "personnel": 489, "sbc": 305, "salesMarketing": 202, "other": 233, "oneOff": 1500, "oneOffNote": "Bartz copyright settlement", "operatingIncome": -3089, "interestIncome": 124, "netLoss": -12138 },
+        { "end": "2025-12-31", "label": "Q4 2025", "revenue": 2040, "compute": 2945, "personnel": 812, "sbc": 574, "salesMarketing": 246, "other": 873, "oneOff": 0, "operatingIncome": -2836, "interestIncome": 192, "netLoss": -16858 },
+        { "end": "2026-03-31", "label": "Q1 2026", "revenue": 4731, "compute": 3387, "personnel": 1295, "sbc": 924, "salesMarketing": 1033, "other": 683, "oneOff": 0, "operatingIncome": -1667, "interestIncome": 349, "netLoss": -14439 },
+        { "end": "2026-06-30", "label": "Q2 2026", "revenue": 11555, "compute": 5558, "personnel": 1857, "sbc": 1261, "sbcNote": "First-half stock compensation of $2,185M less the first quarter's $924M; the quarterly table rounds it to $1.3 billion", "salesMarketing": 2135, "other": 1031, "oneOff": 0, "operatingIncome": 974, "interestIncome": 762, "netLoss": -66309 }
+      ],
+      "netLossNote": "Net loss is dominated by non-cash changes in the fair value of convertible notes as the company's valuation rose ($59.6B in Q2 2026 alone); operating income is the figure that describes the business.",
+      "periods": [
+        { "label": "2023", "kind": "year", "revenue": 41, "costOfRevenue": 26, "rnd": 422, "salesMarketing": 76, "ga": 68, "oneOff": 0, "compute": 433, "operatingIncome": -551, "sbc": 29, "adjOperating": -522, "cashOps": -1627, "cashInvesting": -2, "cashFinancing": 2320 },
+        { "label": "2024", "kind": "year", "revenue": 386, "costOfRevenue": 752, "rnd": 2275, "salesMarketing": 163, "ga": 176, "oneOff": 0, "compute": 2522, "operatingIncome": -2980, "sbc": 192, "adjOperating": -2788, "cashOps": -5692, "cashInvesting": -22, "cashFinancing": 7248 },
+        { "label": "2025", "kind": "year", "revenue": 4585, "costOfRevenue": 2773, "rnd": 6338, "salesMarketing": 911, "ga": 1123, "oneOff": 1500, "compute": 7326, "computeNote": "Sum of the four quarters", "operatingIncome": -8060, "sbc": 1165, "adjOperating": -4854, "cashOps": -2637, "cashInvesting": -3077, "cashFinancing": 19960 },
+        { "label": "H1 2025", "kind": "half", "revenue": 1163, "costOfRevenue": 1019, "rnd": 1850, "salesMarketing": 239, "ga": 190, "oneOff": 0, "compute": 2334, "operatingIncome": -2135, "sbc": 286, "adjOperating": -1849, "cashOps": -1513, "cashInvesting": -49, "cashFinancing": 4749 },
+        { "label": "H1 2026", "kind": "half", "revenue": 16286, "costOfRevenue": 2380, "rnd": 9741, "salesMarketing": 3808, "ga": 1050, "oneOff": 0, "compute": 8945, "operatingIncome": -693, "sbc": 2185, "adjOperating": 1618, "cashOps": 3929, "cashInvesting": -17181, "cashFinancing": 110774 }
+      ],
+      "costOfRevenueNote": "The filing says substantially all of cost of revenue is compute and infrastructure for customer-serving workloads, plus some personnel and overhead; research and development is mostly compute for model development. So total compute less cost of revenue is a slight understatement of the compute spent on research and training.",
+      "balance": { "asOf": "2026-06-30", "cash": 112400, "shortTermInvestments": 19300, "creditAvailable": 3200, "accumulatedDeficit": 132900, "deficitFromFairValue": 113200 },
+      "facts": [
+        "Compute is bought 12 to 18 months ahead, so its cost is fixed in the near term and does not move with demand: revenue growth, not cost cuts, produced the swing to operating profit.",
+        "Customers paying $100,000 or more a year grew from about 400 (March 2025) to more than 6,000 (June 2026) and were 74% of first-half 2026 revenue.",
+        "Of the $15.1B rise in first-half revenue, $12.1B was consumption-based (the API and usage plans) and $3.0B subscriptions."
+      ]
+    }
+  ]
+}

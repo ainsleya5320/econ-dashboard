@@ -283,5 +283,11 @@ export function createCorporateBonds({ UA, dir, treasury }) {
   // distressed new entrants, for the Ideas page's special-situations bucket
   function distressedEntrants() { return mem?.distressed?.list?.filter(g => g.newly) || [] }
 
-  return { get, setWatchlist, distressedEntrants }
+  // every kept snapshot's rows for a set of exact issuer names, for the AI credit basket (server/aiCredit.js): no request of its own
+  function issuerSnapshots(names) {
+    const want = new Set(names), mine = Object.entries(store.meta).filter(([, m]) => want.has(m.i))
+    return { at: store.at, err: store.err, days: Object.keys(store.snaps).sort().map(day => ({ day, bonds: mine.filter(([c]) => store.snaps[day][c]).map(([c, m]) => { const r = store.snaps[day][c]; return { cusip: c, issuer: m.i, coupon: m.c, maturity: m.m, cv: m.cv, price: r[0], yield: r[1], last: r[2], sp: r[3], moodys: r[4] } }) })) }
+  }
+
+  return { get, setWatchlist, distressedEntrants, issuerSnapshots }
 }
