@@ -141,3 +141,5 @@ long-run.json
 # which name holdings (taiwan-revenue.json), and from the finra.org tape (ai-credit.json, personal use only)
 /taiwan-revenue.json
 /ai-credit.json
+# AI Economy → Compute balance: the board's daily verdicts (some signals derive from personal-use feeds)
+/compute-balance.json

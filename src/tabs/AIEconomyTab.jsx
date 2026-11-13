@@ -19,6 +19,7 @@ import SupplyChainRevenue from "./ai/SupplyChainRevenue.jsx";
 import AiCredit from "./ai/AiCredit.jsx";
 import LabEconomics from "./ai/LabEconomics.jsx";
 import ComputeFlows from "./ai/ComputeFlows.jsx";
+import ComputeBalance from "./ai/ComputeBalance.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -1985,7 +1986,7 @@ function AIDebtPanel() {
         </tr></thead>
         <tbody>
           {calc.deals.map((d, i) => (
-            <tr key={`${d.date}-${d.borrower}`} style={{ borderBottom: i < calc.deals.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", opacity: d.contingent ? 0.65 : 1 }}>
+            <tr key={`${d.date}-${d.borrower}-${i}`} style={{ borderBottom: i < calc.deals.length - 1 ? "1px solid rgba(255,255,255,0.03)" : "none", opacity: d.contingent ? 0.65 : 1 }}>
               <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#64748b" }}>{d.date}</td>
               <td style={{ padding: "8px 12px", fontSize: 11.5, fontFamily: fonts.heading, color: "#e2e8f0", fontWeight: 600 }}>{d.borrower}</td>
               <td style={{ padding: "8px 12px", fontSize: 10.5, fontFamily: fonts.mono, color: "#94a3b8" }}>{d.type}{d.contingent ? " ⓘ contingent" : ""}</td>
@@ -2083,6 +2084,7 @@ function ComputeTab() {
       Stage 3 of the chain: what compute costs to rent today and whether the power and capex build-out keeps
       pace. The silicon and memory behind it are on the Supply Chain tab.
     </div>
+    <ComputeBalance />
     <GpuRentalsPanel />
     <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
     <NebiusSpot />

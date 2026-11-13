@@ -52,6 +52,7 @@ import { createTaiwanRevenue } from './server/taiwanRevenue.js'
 import { createAiCredit } from './server/aiCredit.js'
 import { createAiFlows } from './server/aiFlows.js'
 import { createInflationDecomp } from './server/inflationDecomp.js'
+import { createComputeBalance } from './server/computeBalance.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3822,6 +3823,8 @@ const guruTracker = createGuruTracker({ dir: __dirname, env, UA, research: resea
 const taiwanRevenue = createTaiwanRevenue({ dir: __dirname, research: researchDb, UA })
 // AI Economy → Models & Labs (server/aiFlows.js): who pays whom for compute, against each supplier's backlog
 const aiFlows = createAiFlows({ research: researchDb })
+// AI Economy → Compute (server/computeBalance.js): shortage or glut, graded from the GPU market, lab and backlog feeds above
+const computeBalance = createComputeBalance({ dir: __dirname, research: researchDb, feeds: { futures: () => gpuFutures.get(), market: () => gpuMarketData.get(), nebius: () => nebiusSpot.get(), hyperscalers: () => gpuHyperscalers.get(), pulse: () => aiPulse.get(), chain: () => taiwanRevenue.get() } })
 const inflationDecomp = createInflationDecomp({ fred: fetchFredSeries })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
@@ -4084,6 +4087,7 @@ export default defineConfig({
         // U.S. Economy → Inflation: each component's contribution to PCE inflation (server/inflationDecomp.js), FRED via the shared cache
         reRoute('/api/inflation-decomp', () => inflationDecomp.get())
         reRoute('/api/ai-supply-chain', () => taiwanRevenue.get())
+        reRoute('/api/compute-balance', () => computeBalance.get())
         reRoute('/api/ai-flows', () => aiFlows.get())
         reRoute('/api/ai-credit', () => aiCredit.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())

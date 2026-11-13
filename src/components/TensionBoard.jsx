@@ -137,18 +137,18 @@ function TensionCard({ c, history, startOpen }) {
         {(c.claims?.length > 0 || c.implied?.length > 0 || c.gives?.length > 0) && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: "0 18px" }}>
             {c.claims?.length > 0 && (
-              <Section title="What the sources say">
+              <Section title={c.labels?.claims || "What the sources say"}>
                 {c.claims.map((x, i) => <Row key={i} tag={x.kind} left={x.label} right={x.display} sub={[x.source, x.asOf && `as of ${asOfText(x.asOf)}`, x.note].filter(Boolean).join(" · ")} />)}
               </Section>
             )}
             <div>
               {c.implied?.length > 0 && (
-                <Section title="What that requires">
+                <Section title={c.labels?.implied || "What that requires"}>
                   {c.implied.map((x, i) => <Row key={i} tag="estimate" left={x.label} right={x.display} sub={x.note} />)}
                 </Section>
               )}
               {c.gives?.length > 0 && (
-                <Section title="What has to give">
+                <Section title={c.labels?.gives || "What has to give"}>
                   {c.gives.map((g, i) => (
                     <div key={i} style={{ padding: "4px 0", borderTop: "1px solid var(--border-subtle)" }}>
                       <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-primary)", fontFamily: fonts.mono }}>{g.label}</div>

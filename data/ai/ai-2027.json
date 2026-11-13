@@ -1,0 +1,24 @@
+{
+  "_about": "The dated numbers the AI 2027 scenario (Kokotajlo, Alexander, Larsen, Lifland, Dean; April 2025) commits to, from the tables of its compute forecast supplement (Romeo Dean), read from the page on 2026-11-13. Used by the Tensions check server/tensions/checks/ai-2027.js to set the scenario's path beside what has been filed and disclosed. Each series is keyed by calendar year, exactly as the table gives it; nothing here is interpolated or estimated (the check does that, and says so). The scenario is one fast-takeoff story, and its 'leading AI company' is fictional: the check compares it with whichever real lab is furthest along. The site's side panels round some of these differently; only the supplement's tables are used.",
+  "reviewed": "2026-11-13",
+  "source": { "title": "AI 2027, Compute Forecast supplement", "url": "https://ai-2027.com/research/compute-forecast", "published": "2025-04" },
+  "series": {
+    "leadRevenue": { "label": "Leading AI company, annual revenue", "unit": "USD billions a year", "locator": "Section 5 table, Annual Revenue", "values": { "2023": 1, "2024": 4, "2025": 14, "2026": 45, "2027": 140 } },
+    "leadCompute": { "label": "Leading AI company, annual compute cost", "unit": "USD billions a year", "locator": "Section 5 table, Annual Compute Cost", "values": { "2023": 1.8, "2024": 6, "2025": 16, "2026": 40, "2027": 100 } },
+    "globalSpend": { "label": "Total AI datacenter spending, world", "unit": "USD billions a year", "locator": "Section 1 table", "values": { "2023": 110, "2024": 270, "2025": 400, "2026": 600, "2027": 1000 } },
+    "tcoPerH100e": { "label": "Total cost of ownership per H100-equivalent", "unit": "USD thousands", "locator": "Section 1 table", "values": { "2023": 50, "2024": 40, "2025": 25, "2026": 20, "2027": 15 } },
+    "stockH100e": { "label": "AI-relevant compute in existence, year end", "unit": "millions of H100-equivalents", "locator": "Section 1 table, Cumulative H100e available", "values": { "2023": 4, "2024": 8.5, "2025": 18, "2026": 40, "2027": 100 } },
+    "chipsProduced": { "label": "AI chips produced in the year", "unit": "millions of H100-equivalents", "locator": "Section 1 table", "values": { "2023": 2, "2024": 5, "2025": 11, "2026": 25, "2027": 60 } },
+    "power": { "label": "AI datacenter power requirement, world", "unit": "GW", "locator": "Section 1 table", "values": { "2023": 5, "2024": 9, "2025": 15, "2026": 29, "2027": 62 } },
+    "leadComputeUsed": { "label": "Leading AI company, average compute in use", "unit": "millions of H100-equivalents", "locator": "Section 3 table", "values": { "2024": 0.25, "2025": 1, "2026": 4 } },
+    "externalDeploymentShare": { "label": "Leading AI company, share of compute serving customers", "unit": "fraction", "locator": "Section 3 table, External deployment (2027 is its first quarter; the table falls to 13% by the fourth)", "values": { "2024": 0.33, "2025": 0.3, "2026": 0.28, "2027": 0.2 } }
+  },
+  "narrative": [
+    { "id": "stocks2026", "claim": "The stock market has gone up 30% in 2026", "value": 30, "unit": "percent, calendar 2026", "locator": "Main scenario, late 2026", "url": "https://ai-2027.com/" }
+  ],
+  "notGradable": [
+    "The stock of compute (40 million H100-equivalents by the end of 2026) and world AI power (29 GW): nobody publishes a count.",
+    "The AI R&D progress multiplier (1.5× in early 2026, 10× by mid-2027): the labs do not disclose one.",
+    "How the leading lab splits its compute between research and customers, beyond the one filed figure."
+  ]
+}

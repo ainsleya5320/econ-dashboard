@@ -11,7 +11,8 @@
 // domain 'economy'. One engine, one board.
 //
 // A check module (server/tensions/checks/<id>.js) default-exports
-//   { id, domain: 'ai'|'economy', title, question, see?, order?, compute(ctx) }
+//   { id, domain: 'ai'|'economy', title, question, see?, order?, labels?, compute(ctx) }
+// (labels renames the board's three evidence sections for a check that is a scorecard, not a contradiction)
 // and compute returns
 //   { status, headline, claims[], gap, gives[], watch[], math[], sources[], asOf }
 // (the full shape is documented in docs/map/server.md). A check that throws
@@ -112,7 +113,7 @@ export function createTensions({ fetchFredSeries, markets, sources = {}, UA, dir
   const withTimeout = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`timed out after ${ms / 1000}s`)), ms) })]).finally(() => clearTimeout(t)) }
 
   const runCheck = async m => {
-    const head = { id: m.id, domain: m.domain, title: m.title, question: m.question || null, see: m.see || null, order: m.order ?? 99 }
+    const head = { id: m.id, domain: m.domain, title: m.title, question: m.question || null, see: m.see || null, order: m.order ?? 99, labels: m.labels || null }
     if (m.loadError) return { ...head, status: 'unavailable', error: `failed to load: ${m.loadError}` }
     const t0 = Date.now()
     try {

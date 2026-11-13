@@ -203,7 +203,10 @@ export function createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, 
       }
       const store = load('ai-pulse-archive.json') || { days: [] }
       const today = new Date().toISOString().slice(0, 10)
-      const row = { d: today, bestIdx: bestM.idx, bestName: bestM.name, frontierPrice: frontier?.price ?? null, top10MedianPrice: aaOut.top10MedianPrice, top10CostPerPoint: aaOut.top10CostPerPoint, cheapest80: aaOut.tiers[1]?.model?.price ?? null, n: valid.length }
+      const row = { d: today, bestIdx: bestM.idx, bestName: bestM.name, frontierPrice: frontier?.price ?? null, top10MedianPrice: aaOut.top10MedianPrice, top10CostPerPoint: aaOut.top10CostPerPoint, cheapest80: aaOut.tiers[1]?.model?.price ?? null, n: valid.length,
+        // the cheapest priced model at or above each FIXED intelligence level: unlike cheapest80 these do not move with the
+        // frontier, so a year of them is the price history of a constant capability (the input a token-price surplus needs)
+        fixed: Object.fromEntries([20, 30, 40, 50].map(t => { const ok = valid.filter(m => m.idx >= t && m.price > 0); return [t, ok.length ? Math.min(...ok.map(m => m.price)) : null] })) }
       const i = store.days.findIndex(x => x.d === today); if (i >= 0) store.days[i] = row; else store.days.push(row)
       save('ai-pulse-archive.json', store); aaOut.history = store.days
     }
