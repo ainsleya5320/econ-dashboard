@@ -4,6 +4,7 @@ import { fonts } from "../lib/styles.js";
 import { CPI_COMPONENTS, PCE_COMPONENTS } from "../lib/constants.js";
 import { fetchFred } from "../lib/api.js";
 import { SH } from "../components/shared.jsx";
+import InflationDecomposition from "./InflationDecomposition.jsx";
 import {
   GREEN, AMBER, RED, INDIGO, SLATE, DIM, CYAN, VIOLET, BLUE, ORANGE, PINK, TEAL,
   fin, card, label, note, tip, axis, pc, pp, fmtMon, th, td, tdL, tableStyle,
@@ -232,6 +233,9 @@ function CpiTab({ cd }) {
         Colour is relative to each row's own twelve-month rate: <span style={{ color: GREEN }}>green</span> means the short window is running cooler than the annual figure, <span style={{ color: RED }}>red</span> hotter. The trimmed measures publish as rates rather than indices, so only the windows their sources compute are shown. The range marker is the percentile of the twelve-month rate within its last twenty years.
       </Note>
     </Panel>
+
+    {/* what the rate is made of: each PCE component's contribution, month by month */}
+    <InflationDecomposition />
 
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(340px, 100%),1fr))", gap: 12, marginBottom: 12 }}>
       <Panel title="Goods against services — two different inflations" style={{ marginBottom: 0 }}>
