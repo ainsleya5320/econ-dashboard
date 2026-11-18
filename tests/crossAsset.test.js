@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fridays, onWeeks, change, zscore, trend, splice, buildHistory, playbook, stanceFor, SIGNALS } from '../server/crossAsset.js'
+import { fridays, onWeeks, change, zscore, trend, splice, buildHistory, playbook, stanceFor, SIGNALS, breakout, blended, readInstrument, INSTRUMENTS } from '../server/crossAsset.js'
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`)
 
@@ -78,4 +78,43 @@ test('the playbook reports forward returns by regime and counts separate episode
   const high = book.clarity.at(-1)
   assert.equal(high.weeks, 20)
   assert.equal(high.pointedRight, 1)                                 // growth said up, stocks went up
+})
+
+test('breakouts and breakdowns are closes beyond every close of the prior 51 weeks; otherwise a recent average cross or the range edge', () => {
+  const flat = Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i) * 2)
+  const up = [...flat.slice(0, 59), 110], down = [...flat.slice(0, 59), 90]
+  assert.equal(breakout(up, 59).event, 'new-high')
+  assert.equal(breakout(up, 59).pos, 1)
+  assert.match(breakout(up, 59).label, /Breakout/)
+  assert.equal(breakout(down, 59).event, 'new-low')
+  assert.equal(breakout(flat, 30), null)                                       // under a year of weeks
+  // a long decline that turns up through its 40-week average two weeks ago, without a new high
+  const turn = [...Array.from({ length: 56 }, (_, i) => 150 - i), 99, 118, 121, 123]
+  const b = breakout(turn, 59)
+  assert.equal(b.event, 'cross-up')
+  assert.equal(b.cross.weeksAgo, 2)
+  assert.match(b.label, /2 weeks ago/)
+})
+
+test('blended momentum averages the 13, 26 and 52-week returns and needs the first two', () => {
+  assert.equal(blended({ m13: 0.1, m26: 0.2, m52: 0.3 }).toFixed(3), '0.200')
+  assert.equal(blended({ m13: 0.1, m26: 0.2, m52: null }).toFixed(3), '0.150')
+  assert.equal(blended({ m13: 0.1, m26: null }), null)
+})
+
+test('an instrument read carries trend, breakout, momentum, relative strength against the S&P and a sparkline ending at 1', () => {
+  const spy = Array.from({ length: 60 }, (_, i) => 100 + i * 0.1), stock = Array.from({ length: 60 }, (_, i) => 50 + i)
+  const r = readInstrument({ id: 'X', market: 'stocks' }, stock, 59, spy)
+  assert.equal(r.trend.state, 'uptrend')
+  assert.equal(r.breakout.event, 'new-high')
+  assert.ok(r.momentum > 0)
+  assert.ok(r.rs.change13 > 0 && r.rs.newHigh)                                 // outrunning the index, ratio at a high
+  assert.equal(r.spark.length, 52)
+  assert.equal(r.spark.at(-1), 1)
+  const y = readInstrument({ id: 'Y', kind: 'yield' }, Array.from({ length: 60 }, (_, i) => 4 + i * 0.02), 59)
+  assert.equal(y.read, 'Yield at a 52-week high')
+  assert.equal(y.change13.toFixed(2), '0.26')
+  // every currency quoted per dollar is inverted, so up always means the currency strengthened
+  for (const c of INSTRUMENTS.filter(x => x.market === 'currencies' && /^DEX..US$/.test(x.id))) assert.equal(c.invert, true, c.id)
+  for (const c of INSTRUMENTS.filter(x => /^DEXUS/.test(x.id))) assert.equal(c.invert, false, c.id)
 })

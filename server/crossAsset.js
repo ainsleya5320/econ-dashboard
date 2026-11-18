@@ -157,6 +157,77 @@ export const CELLS = {
 }
 export const STANCES = [[60, 'Press', 'The signals agree, strongly and steadily: the conditions under which concentration has paid.'], [40, 'Normal size', 'Most signals agree.'], [20, 'Small and two-way', 'The signals are mixed or weak: keep positions small and hedged.'], [-1, 'Flat: preserve capital', 'No clear picture. Druckenmiller\'s word for this is "taking a break".']]
 
+// The instruments under each market, for the expandable lists: what moved, its trend, whether it is breaking out
+// and how strong it is against the rest. `fmp` instruments are ETF closes (two-odd years are enough for these
+// reads); `fred` ones are FRED series. `invert` turns a units-per-dollar quote into the currency's value in dollars,
+// so every currency row reads "up = that currency strengthened against the dollar". Yields are read as levels.
+export const INSTRUMENTS = [
+  ...[['SPY', 'S&P 500'], ['RSP', 'S&P 500 equal weight'], ['QQQ', 'Nasdaq 100'], ['IWM', 'Russell 2000 (small caps)']].map(([id, label]) => ({ market: 'stocks', group: 'Indexes', id, label, src: 'fmp' })),
+  ...[['XLK', 'Technology'], ['XLC', 'Communication services'], ['XLY', 'Consumer discretionary'], ['XLF', 'Financials'], ['XLI', 'Industrials'], ['XLB', 'Materials'], ['XLE', 'Energy'], ['XLV', 'Health care'], ['XLP', 'Consumer staples'], ['XLU', 'Utilities'], ['XLRE', 'Real estate']].map(([id, label]) => ({ market: 'stocks', group: 'Sectors', id, label, src: 'fmp' })),
+  ...[['EFA', 'Developed markets ex-U.S.'], ['EEM', 'Emerging markets'], ['EWJ', 'Japan'], ['EWY', 'South Korea'], ['EWT', 'Taiwan'], ['FXI', 'China (large caps)'], ['INDA', 'India']].map(([id, label]) => ({ market: 'stocks', group: 'Regions', id, label, src: 'fmp' })),
+  ...[['DGS3MO', '3-month bill'], ['DGS2', '2-year'], ['DGS5', '5-year'], ['DGS10', '10-year'], ['DGS30', '30-year'], ['DFII10', '10-year real (TIPS)'], ['T10YIE', '10-year breakeven inflation']].map(([id, label]) => ({ market: 'bonds', group: 'Treasury yields', id, label, src: 'fred', kind: 'yield' })),
+  ...[['SHY', 'Treasuries, 1-3 years'], ['IEF', 'Treasuries, 7-10 years'], ['TLT', 'Treasuries, 20+ years'], ['TIP', 'Inflation-protected Treasuries'], ['MBB', 'Mortgage-backed'], ['LQD', 'Investment-grade corporates'], ['HYG', 'High-yield corporates'], ['EMB', 'Emerging-market dollar bonds']].map(([id, label]) => ({ market: 'bonds', group: 'Bond funds (price)', id, label, src: 'fmp' })),
+  { market: 'currencies', group: 'Dollar', id: 'DTWEXBGS', label: 'Broad trade-weighted dollar', src: 'fred' },
+  ...[['DEXUSEU', 'Euro', false], ['DEXJPUS', 'Japanese yen', true], ['DEXUSUK', 'British pound', false], ['DEXSZUS', 'Swiss franc', true], ['DEXCAUS', 'Canadian dollar', true], ['DEXUSAL', 'Australian dollar', false]].map(([id, label, invert]) => ({ market: 'currencies', group: 'Developed, against the dollar', id, label, src: 'fred', invert })),
+  ...[['DEXCHUS', 'Chinese yuan'], ['DEXKOUS', 'Korean won'], ['DEXTAUS', 'Taiwan dollar'], ['DEXINUS', 'Indian rupee'], ['DEXMXUS', 'Mexican peso'], ['DEXBZUS', 'Brazilian real']].map(([id, label]) => ({ market: 'currencies', group: 'Emerging, against the dollar', id, label, src: 'fred', invert: true })),
+  { market: 'currencies', group: 'Other money', id: 'CBBTCUSD', label: 'Bitcoin', src: 'fred' },
+  ...[['GLD', 'Gold', 'fmp'], ['SLV', 'Silver', 'fmp']].map(([id, label, src]) => ({ market: 'commodities', group: 'Precious metals', id, label, src })),
+  ...[['CPER', 'Copper', 'fmp'], ['DBB', 'Industrial metals basket', 'fmp']].map(([id, label, src]) => ({ market: 'commodities', group: 'Industrial metals', id, label, src })),
+  ...[['DCOILWTICO', 'Oil, WTI', 'fred'], ['DCOILBRENTEU', 'Oil, Brent', 'fred'], ['DHHNGSP', 'Natural gas, Henry Hub', 'fred']].map(([id, label, src]) => ({ market: 'commodities', group: 'Energy', id, label, src })),
+  ...[['DBA', 'Agriculture basket', 'fmp'], ['DBC', 'Broad commodity basket', 'fmp']].map(([id, label, src]) => ({ market: 'commodities', group: 'Baskets', id, label, src })),
+]
+const RECENT_FROM = '2023-06-01'
+const BREAKOUT = {
+  'new-high': 'Breakout: new 52-week high', 'new-low': 'Breakdown: new 52-week low', 'cross-up': 'Crossed above its 40-week average', 'cross-down': 'Crossed below its 40-week average',
+  'near-high': 'In the top tenth of its 52-week range', 'near-low': 'In the bottom tenth of its 52-week range',
+}
+
+// The breakout read on weekly closes: a close above every close of the prior 51 weeks is a breakout, below every
+// one a breakdown; failing that, a cross of the 40-week average in the past eight weeks; failing that, a close in
+// the top or bottom tenth of the 52-week range. `pos` is where the close sits in that range, 0 to 1.
+export function breakout(x, i) {
+  if (!fin(x[i]) || i < 52) return null
+  const prior = x.slice(i - 51, i).filter(fin)
+  if (prior.length < 40) return null
+  const hi = Math.max(...prior), lo = Math.min(...prior), H = Math.max(hi, x[i]), L = Math.min(lo, x[i])
+  const pos = H > L ? (x[i] - L) / (H - L) : null
+  const ma = j => { const w = x.slice(j - 39, j + 1).filter(fin); return j >= 39 && w.length >= 30 ? mean(w) : null }
+  let cross = null
+  for (let k = 0; k < 8; k++) {
+    const a = x[i - k] - ma(i - k), b = x[i - k - 1] - ma(i - k - 1)
+    if (fin(a) && fin(b) && a !== 0 && Math.sign(a) !== Math.sign(b)) { cross = { dir: a > 0 ? 'up' : 'down', weeksAgo: k }; break }
+  }
+  const newHigh = x[i] > hi, newLow = x[i] < lo
+  const event = newHigh ? 'new-high' : newLow ? 'new-low' : cross ? `cross-${cross.dir}` : pos >= 0.9 ? 'near-high' : pos <= 0.1 ? 'near-low' : null
+  const label = event ? BREAKOUT[event] + (event.startsWith('cross') ? (cross.weeksAgo ? `, ${cross.weeksAgo} week${cross.weeksAgo === 1 ? '' : 's'} ago` : ', this week') : '') : null
+  return { pos: rnd(pos, 3), newHigh, newLow, cross, event, label, high: hi, low: lo }
+}
+
+// blended momentum, the average of the 13, 26 and 52-week returns (at least the first two), the usual
+// relative-strength ranking: it rewards a move that has lasted, not just a jump
+export const blended = t => (t && fin(t.m13) && fin(t.m26) ? mean([t.m13, t.m26, t.m52]) : null)
+
+// one instrument's read from its weekly series (`rel`: the S&P 500, for a stock's relative strength)
+export function readInstrument(inst, x, i, rel) {
+  if (inst.kind === 'yield') {
+    if (!fin(x[i])) return null
+    const y = x.slice(Math.max(0, i - 51), i + 1).filter(fin), hi = Math.max(...y), lo = Math.min(...y), b = breakout(x, i)
+    const c13 = fin(x[i - 13]) ? x[i] - x[i - 13] : null, c52 = fin(x[i - 52]) ? x[i] - x[i - 52] : null
+    return { level: rnd(x[i], 3), change13: rnd(c13, 3), change52: rnd(c52, 3), pos: hi > lo ? rnd((x[i] - lo) / (hi - lo), 3) : null, high: hi, low: lo,
+      read: b?.newHigh ? 'Yield at a 52-week high' : b?.newLow ? 'Yield at a 52-week low' : fin(c13) ? (Math.abs(c13) < 0.1 ? 'Little changed over 13 weeks' : `${c13 > 0 ? 'Rising' : 'Falling'} over 13 weeks`) : null,
+      spark: x.slice(Math.max(0, i - 51), i + 1).map(v => rnd(v, 3)) }
+  }
+  const t = trend(x, i), b = breakout(x, i)
+  if (!t) return null
+  let rs = null
+  if (rel && inst.id !== 'SPY') {
+    const r = x.map((v, k) => (fin(v) && fin(rel[k]) && rel[k] > 0 ? v / rel[k] : null)), rb = breakout(r, i)
+    rs = { change13: fin(r[i]) && fin(r[i - 13]) ? rnd(r[i] / r[i - 13] - 1, 4) : null, newHigh: !!rb?.newHigh, newLow: !!rb?.newLow }
+  }
+  // the sparkline is relative to the latest close (1 = now), so a currency quoted at 0.0007 dollars keeps its shape
+  return { trend: t, breakout: b, momentum: rnd(blended(t), 4), rs, spark: x.slice(Math.max(0, i - 51), i + 1).map(v => (fin(v) ? rnd(v / x[i], 4) : null)) }
+}
+
 // one series spliced onto an older one where the newer starts, rescaled to meet it: the broad dollar onto the major-currency
 // index, the copper ETF onto the IMF's monthly copper price. Only changes are used, so the scale does not matter
 export function splice(newer, older) {
@@ -248,7 +319,8 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
   // fails keeps what is on file; the failure is reported with the reading rather than stopping it
   async function prices() {
     if (!FMP_KEY) throw new Error('No FMP key configured')
-    if (now() - (store.checked || 0) < 12 * H && ETFS.every(s => store.symbols[s]?.length)) return { symbols: store.symbols, errors: [] }
+    const fmpInstruments = INSTRUMENTS.filter(x => x.src === 'fmp' && !ETFS.includes(x.id)).map(x => x.id)
+    if (now() - (store.checked || 0) < 12 * H && ETFS.every(s => store.symbols[s]?.length) && fmpInstruments.every(s => store.recent?.[s]?.length)) return { symbols: { ...store.recent, ...store.symbols }, errors: [] }
     const errors = []
     for (const s of ETFS) {
       const have = store.symbols[s] || []
@@ -259,15 +331,25 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
       } catch (e) { errors.push(String(e?.message || e).slice(0, 80)); continue }
       store.symbols[s] = [...got].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({ d, v }))
     }
+    // the instrument ETFs: only the past two-odd years, then topped up the same way
+    store.recent ||= {}
+    for (const inst of INSTRUMENTS.filter(x => x.src === 'fmp' && !ETFS.includes(x.id))) {
+      const have = store.recent[inst.id] || []
+      const from = have.length ? iso(Date.parse(have.at(-1).d) - 14 * DAY) : RECENT_FROM
+      const got = new Map(have.map(x => [x.d, x.v]))
+      try { for (const x of await fmp(inst.id, from, null)) got.set(x.d, x.v); await sleep(450) } catch (e) { errors.push(String(e?.message || e).slice(0, 80)); continue }
+      store.recent[inst.id] = [...got].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({ d, v }))
+    }
     if (!errors.length) store.checked = now()
     try { fs.writeFileSync(FILE, JSON.stringify(store)) } catch (e) { console.error('cross-asset-prices.json save:', e.message) }
     if (!store.symbols.SPY?.length) throw new Error(errors[0] || 'No price history')
-    return { symbols: store.symbols, errors }
+    return { symbols: { ...store.recent, ...store.symbols }, errors }
   }
 
   async function build() {
-    const [{ symbols: etf, errors }, ...fredSeries] = await Promise.all([prices(), ...FRED_IDS.map(id => fred(id, 9000))])
-    const F = Object.fromEntries(FRED_IDS.map((id, i) => [id, fredSeries[i] || []]))
+    const extraFred = [...new Set(INSTRUMENTS.filter(x => x.src === 'fred' && !FRED_IDS.includes(x.id)).map(x => x.id))]
+    const [{ symbols: etf, errors }, ...fredSeries] = await Promise.all([prices(), ...FRED_IDS.map(id => fred(id, 9000)), ...extraFred.map(id => fred(id, 900).catch(() => []))])
+    const F = Object.fromEntries([...FRED_IDS, ...extraFred].map((id, i) => [id, fredSeries[i] || []]))
     const end = [etf.SPY?.at(-1)?.d, F.DGS10.at(-1)?.d].filter(Boolean).sort()[0]
     const weeks = fridays(START, end)
     const w = {}
@@ -286,9 +368,23 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
         says: fin(v) ? s.says[v >= 0 ? 0 : 1] : null, equity: fin(v) ? s.equity[v >= 0 ? 0 : 1] : null, rule: s.rule || null,
         series: rows.slice(-52).map((r, k) => [r.d, rnd(sig[s.id].scored[i - 51 + k], 2)]) }
     })
-    const markets = TREND_ASSETS.map(a => ({ ...a, trend: trend(px[a.id], i), level: rnd(px[a.id][i], 3),
+    // every instrument's read; the cash return over 26 weeks, for "beats cash"
+    const series = id => { if (w[id]) return w[id]; if (F[id]) return onWeeks(F[id], weeks, 10); return onWeeks(etf[id] || [], weeks) }
+    const bill = series('DGS3MO'), cash26 = fin(bill[i]) ? bill[i] / 100 / 2 : null
+    const instruments = INSTRUMENTS.map(inst => {
+      const raw = series(inst.id), x = inst.invert ? raw.map(v => (fin(v) && v > 0 ? 1 / v : null)) : raw
+      const read = readInstrument(inst, x, i, inst.market === 'stocks' ? w.SPY : null)
+      // the level is shown as quoted (yen per dollar, dollars per euro), the reads on the currency's value in dollars
+      return read && { id: inst.id, market: inst.market, group: inst.group, label: inst.label, kind: inst.kind || 'price', src: inst.src, invert: !!inst.invert, ...read,
+        level: inst.kind === 'yield' ? read.level : fin(raw[i]) ? rnd(raw[i], raw[i] >= 100 ? 2 : 4) : null, beatsCash: fin(cash26) && fin(read.trend?.m26) ? read.trend.m26 > cash26 : null }
+    }).filter(Boolean)
+    const ranked = instruments.filter(x => fin(x.momentum)).sort((a, b) => b.momentum - a.momentum)
+    ranked.forEach((x, k) => { x.rank = k + 1 })
+    const markets = TREND_ASSETS.map(a => ({ ...a, trend: trend(px[a.id], i), breakout: breakout(px[a.id], i), level: rnd(px[a.id][i], 3),
       series: rows.slice(-104).map((r, k) => { const j = i - 103 + k, ma = j >= 39 ? mean(px[a.id].slice(j - 39, j + 1)) : null; return [r.d, rnd(px[a.id][j], 3), rnd(ma, 3)] }),
       signals: signals.filter(s => s.market === a.market).map(s => s.id) }))
+    // relative strength across the four: blended momentum of each headline market, ranked
+    markets.map(m => ({ m, v: blended(m.trend) })).filter(x => fin(x.v)).sort((a, b) => b.v - a.v).forEach((x, k) => { x.m.momentum = rnd(x.v, 4); x.m.rank = k + 1 })
     const oil = onWeeks(F.DCOILWTICO, weeks), oil13 = fin(oil[i]) && fin(oil[i - 13]) ? oil[i] / oil[i - 13] - 1 : null
     // how long the cell has held, and the last time it changed
     let since = i
@@ -298,7 +394,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
       built: new Date(now()).toISOString(), asOf: last.d, errors,
       now: { cell: last.cell, cellLabel: CELLS[last.cell]?.label || null, liquidity: last.liq, growth: last.growth, liqAgree: last.liqAgree, growthAgree: last.growthAgree, clarity: last.clarity, flips: last.flips,
         stance: stance ? { label: stance[1], note: stance[2] } : null, since: rows[since].d, weeksInCell: i - since + 1 },
-      signals, markets, context: { oil: { level: rnd(oil[i], 2), change13: rnd(oil13, 4), note: 'WTI crude, shown for context and not graded: oil moves on supply as much as on demand' } },
+      signals, markets, instruments, cash26: rnd(cash26, 4), ranked: ranked.length, context: { oil: { level: rnd(oil[i], 2), change13: rnd(oil13, 4), note: 'WTI crude, shown for context and not graded: oil moves on supply as much as on demand' } },
       history: rows.map(r => [r.d, r.liq, r.growth, r.clarity, r.cell ? Object.keys(CELLS).indexOf(r.cell) : null]),
       cells: CELLS, playbook: book, stances: STANCES.map(([min, label, note]) => ({ min: Math.max(0, min), label, note })),
       method: [
@@ -306,6 +402,9 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
         'Each axis is the average of its signals, with at least two on file. The signs of the two axes place the week in a cell.',
         'Clarity, 0 to 100: for each axis, agreement (half the signals agreeing counts 0, all of them 1) times strength (an average score of 0.75 or more counts in full); the two axes averaged; then each change of cell in the past eight weeks takes off a fifth, to a floor of 0.4.',
         'Trend: a market above its 40-week average with positive 26-week momentum is in an uptrend; below with negative momentum, a downtrend; otherwise turning.',
+        'Breakout, on weekly closes: above every close of the prior 51 weeks is a breakout and below every one a breakdown; failing that, a cross of the 40-week average in the past eight weeks; failing that, a close in the top or bottom tenth of the 52-week range.',
+        'Relative strength: blended momentum, the average of the 13, 26 and 52-week returns, ranked across every instrument; for stocks also the move against the S&P 500 over 13 weeks and whether that ratio is at a 52-week high. "Beats cash" compares the 26-week return with what a 3-month bill paid over the same time.',
+        'Currencies are shown as each currency\'s value in dollars, so up means the currency strengthened; yields are read as levels, in percentage points.',
         'Playbook: every past week in a cell, and what each market did over the next 26 weeks. Overlapping windows and few separate episodes: a cell seen in three runs is three data points, not hundreds.',
         'Inputs start at different dates (real yields 2003, gold 2004, regional banks 2006, the broad dollar 2006 with the major-currency index spliced before it, the copper ETF late 2011 with the IMF\'s monthly copper price before it), so early readings rest on fewer signals.',
       ],

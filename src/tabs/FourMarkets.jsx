@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { finite, C, VizCard, Kpi, Seg, Legend } from "./options/ui.jsx";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { finite, C, VizCard, Kpi, Seg, Legend, Spark } from "./options/ui.jsx";
 import "./options/OptionsResearch.css";
 
 // ============================================================================
@@ -9,29 +9,50 @@ import "./options/OptionsResearch.css";
 // size set by how clear the picture is. The rules are this dashboard's.
 //   header     the regime (easing or tightening × improving or deteriorating),
 //              clarity and the stance it maps to, beside the Cockpit's own
-//              valuation lens: what you are paid, and how sure you can be
-//   markets    one card per market: the chart read (price against its 40-week
-//              average, momentum) and the signals it gives, each with what it
-//              says and what it means for an equity book
-//   map        the two axes as a plane with the past six months' path, and
-//              every week since 2000 as a strip coloured by regime
-//   playbook   what each market did over the next 26 weeks from past weeks in
-//              each regime, and whether clarity helped
-// Data: /api/cross-asset (server/crossAsset.js). Supportive readings are blue
-// (--oc-1), headwinds orange (--oc-2); regimes use the four categorical slots
-// in a fixed order. Every grade is also written out.
+//              valuation lens; then a row of links to every section
+//   sections   each opens and closes, and shows a one-line summary when closed:
+//     markets      one per market: the chart read (trend, breakout, momentum,
+//                  rank among the four), the signals it gives with what each
+//                  means for an equity book, and its instruments (sectors and
+//                  regions; yields and bond funds; currencies one by one;
+//                  metals, energy and baskets) with breakout, relative
+//                  strength and a year's sparkline
+//     leaderboard  every instrument ranked by blended momentum
+//     map          the liquidity-growth plane, and every week since 2000
+//     playbook     what each market did next in each regime; did clarity help
+//     method       the rules
+// Which sections are open is remembered in this browser only.
+// Data: /api/cross-asset (server/crossAsset.js). Supportive readings and
+// strength are blue (--oc-1), headwinds and weakness orange (--oc-2); regimes
+// use the four categorical slots in a fixed order. Every grade is written out.
 // ============================================================================
 
 const CELL_ORDER = ["easing-improving", "easing-deteriorating", "tightening-improving", "tightening-deteriorating"];
 const CELL_COLOR = { "easing-improving": "var(--oc-3)", "easing-deteriorating": "var(--oc-1)", "tightening-improving": "var(--oc-4)", "tightening-deteriorating": "var(--oc-2)" };
+const MARKETS = ["stocks", "bonds", "currencies", "commodities"];
 const MARKET_NAME = { stocks: "Stocks", bonds: "Bonds", currencies: "Currencies", commodities: "Commodities" };
 const STATE = { uptrend: ["Uptrend", C[1]], downtrend: ["Downtrend", C[2]], "turning up": ["Turning up", "var(--text-muted)"], "turning down": ["Turning down", "var(--text-muted)"] };
+const EVENT_TONE = { "new-high": C[1], "cross-up": C[1], "near-high": C[1], "new-low": C[2], "cross-down": C[2], "near-low": C[2] };
+const SECTIONS = [["stocks", "Stocks"], ["bonds", "Bonds"], ["currencies", "Currencies"], ["commodities", "Commodities"], ["leaders", "Momentum leaderboard"], ["map", "Regime map"], ["playbook", "Playbook"], ["method", "Method"]];
+const STORE = "fourMarkets.open.v1";
 const pct = (v, dp = 0) => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(dp)}%` : "—");
+const bp = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.round(Math.abs(v * 100))} bp` : "—");
 const sc = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}` : "—");
+const ord = n => { const t = n % 100; return `${n}${t >= 11 && t <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`; };
 const day = d => (d ? new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+const num = v => (!finite(v) ? "—" : Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : Math.abs(v) >= 100 ? v.toFixed(2) : v.toFixed(v < 10 ? 4 : 2));
+const tone = v => (!finite(v) || v === 0 ? "var(--text-muted)" : v > 0 ? C[1] : C[2]);
 const left = { textAlign: "left" }, right = { textAlign: "right" };
-// an axis near zero is on the line between two regimes, and says so
+// the breakout read in a few words, for the dense tables (the full sentence is the hover)
+const SHORT = { "new-high": "New 52-wk high", "new-low": "New 52-wk low", "cross-up": "Above 40-wk avg", "cross-down": "Below 40-wk avg", "near-high": "Top of range", "near-low": "Bottom of range" };
+const shortRead = b => (!b?.event ? "Inside range" : SHORT[b.event] + (b.cross && b.event.startsWith("cross") ? ` (${b.cross.weeksAgo ? `${b.cross.weeksAgo} wk ago` : "this wk"})` : ""));
 const axisWord = (v, up, down) => (!finite(v) ? "unread" : Math.abs(v) < 0.25 ? `on the line, leaning ${v >= 0 ? up : down}` : v >= 0 ? up : down);
+const loadOpen = () => { try { return JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch { return {}; } };
+const saveOpen = o => { try { localStorage.setItem(STORE, JSON.stringify(o)); } catch { /* private window: not remembered */ } };
+
+function Chip({ label, color }) {
+  return <span className="otag" style={{ display: "inline-flex", alignItems: "center", gap: 5, borderColor: color, color: "var(--text-primary)", whiteSpace: "nowrap" }}><i aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: color, display: "inline-block" }} />{label}</span>;
+}
 
 // one score on the shared −2…+2 scale: blue to the right (supportive), orange to the left (a headwind)
 function ScoreBar({ v, width = 110 }) {
@@ -40,6 +61,18 @@ function ScoreBar({ v, width = 110 }) {
     <svg width={width} height={12} role="img" aria-label={finite(v) ? `score ${sc(v)}` : "no reading"} style={{ display: "block" }}>
       <line x1={mid} x2={mid} y1={0} y2={12} stroke="var(--text-muted)" />
       {finite(v) && v !== 0 && <rect x={v > 0 ? mid + 1 : mid - 1 - s(v)} y={2} width={Math.max(2, s(v))} height={8} rx={2} fill={v > 0 ? C[1] : C[2]} />}
+    </svg>
+  );
+}
+
+// where the close sits in its 52-week range: a hairline from low to high and a dot
+function RangeDot({ pos, width = 70 }) {
+  if (!finite(pos)) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+  const x = 4 + pos * (width - 8);
+  return (
+    <svg width={width} height={12} role="img" aria-label={`${Math.round(pos * 100)}% of the way from the 52-week low to the high`} style={{ display: "block" }}>
+      <line x1={4} x2={width - 4} y1={6} y2={6} stroke="var(--border-subtle)" strokeWidth={2} />
+      <circle cx={x} cy={6} r={4} fill={pos >= 0.9 ? C[1] : pos <= 0.1 ? C[2] : "var(--text-secondary)"} stroke="var(--card-bg)" strokeWidth={1.5} />
     </svg>
   );
 }
@@ -59,39 +92,81 @@ function PriceChart({ series, color }) {
   );
 }
 
-function MarketCard({ m, signals, oil }) {
-  const t = m.trend, [stateLabel, stateColor] = STATE[t?.state] || ["No read", "var(--text-muted)"];
-  const mine = signals.filter(s => s.market === m.market);
+// a section that opens and closes; its summary line stays visible when closed
+function Section({ id, title, summary, open, onToggle, children }) {
   return (
-    <section style={{ border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "10px 12px", minWidth: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div><strong style={{ font: "600 14px var(--font-body)", color: "var(--text-primary)" }}>{MARKET_NAME[m.market]}</strong> <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.note}</span></div>
-        <span className="otag" style={{ display: "inline-flex", alignItems: "center", gap: 5, borderColor: stateColor, color: "var(--text-primary)" }}><i aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: stateColor, display: "inline-block" }} />{stateLabel}</span>
-      </div>
-      <PriceChart series={m.series} color={stateColor === "var(--text-muted)" ? "var(--text-secondary)" : stateColor} />
-      {t && <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, fontFamily: "var(--font-number)", color: "var(--text-secondary)", margin: "2px 0 6px" }}>
-        <span title="Against its 40-week average">vs 40-wk avg <b style={{ color: "var(--text-primary)" }}>{pct(t.vsMa, 1)}</b></span>
-        <span>13 wk <b style={{ color: "var(--text-primary)" }}>{pct(t.m13, 1)}</b></span>
-        <span>26 wk <b style={{ color: "var(--text-primary)" }}>{pct(t.m26, 1)}</b></span>
-        <span>52 wk <b style={{ color: "var(--text-primary)" }}>{pct(t.m52, 1)}</b></span>
-        <span title="Distance from the 52-week high">from high <b style={{ color: "var(--text-primary)" }}>{pct(t.fromHigh, 1)}</b></span>
-      </div>}
-      <div style={{ display: "grid", gap: 7 }}>
-        {mine.map(s => (
-          <div key={s.id} style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{s.label} <span className="otag" style={{ marginLeft: 3 }}>{s.axis}</span></span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ScoreBar v={s.score} /><span style={{ width: 38, textAlign: "right", fontSize: 11, fontFamily: "var(--font-number)", color: "var(--text-secondary)" }}>{sc(s.score)}</span></span>
-            </div>
-            {s.says ? <>
-              <div style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.45, marginTop: 2 }}>{s.says}</div>
-              <div style={{ fontSize: 11.5, color: "var(--text-primary)", lineHeight: 1.45 }}><span style={{ color: "var(--text-muted)" }}>For an equity book: </span>{s.equity}</div>
-            </> : <div className="onote">No reading yet.</div>}
-          </div>
-        ))}
-        {m.market === "commodities" && finite(oil?.change13) && <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 6, fontSize: 11.5, color: "var(--text-secondary)" }}>Oil (WTI) ${oil.level} · {pct(oil.change13, 1)} over 13 weeks. <span style={{ color: "var(--text-muted)" }}>{oil.note}.</span></div>}
-      </div>
+    <section id={`fm-${id}`} style={{ borderTop: "1px solid var(--border-subtle)", scrollMarginTop: 70 }}>
+      <button type="button" onClick={() => onToggle(id)} aria-expanded={open} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "none", border: 0, padding: "8px 2px", cursor: "pointer", textAlign: "left", color: "var(--text-primary)" }}>
+        <span aria-hidden="true" style={{ width: 12, color: "var(--text-muted)", fontSize: 11 }}>{open ? "▾" : "▸"}</span>
+        <strong style={{ font: "600 13.5px var(--font-body)", minWidth: 110 }}>{title}</strong>
+        <span style={{ flex: "1 1 300px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontSize: 11.5, color: "var(--text-secondary)", fontFamily: "var(--font-number)" }}>{summary}</span>
+      </button>
+      {open && <div style={{ padding: "2px 2px 12px 22px" }}>{children}</div>}
     </section>
+  );
+}
+
+function SignalList({ signals }) {
+  return (
+    <div style={{ display: "grid", gap: 7 }}>
+      {signals.map(s => (
+        <div key={s.id} style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--text-primary)", fontFamily: "var(--font-body)" }}>{s.label} <span className="otag" style={{ marginLeft: 3 }}>{s.axis}</span></span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><ScoreBar v={s.score} /><span style={{ width: 38, textAlign: "right", fontSize: 11, fontFamily: "var(--font-number)", color: "var(--text-secondary)" }}>{sc(s.score)}</span></span>
+          </div>
+          {s.says ? <>
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.45, marginTop: 2 }}>{s.says}</div>
+            <div style={{ fontSize: 11.5, color: "var(--text-primary)", lineHeight: 1.45 }}><span style={{ color: "var(--text-muted)" }}>For an equity book: </span>{s.equity}</div>
+          </> : <div className="onote">No reading yet.</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// the instruments under a market, grouped; yields get their own columns
+function InstrumentTable({ rows, showRs, total }) {
+  const groups = [...new Set(rows.map(r => r.group))];
+  const yields = rows[0]?.kind === "yield";
+  return (
+    <div className="otable-wrap">
+      <table className="otable">
+        <thead>{yields
+          ? <tr><th style={left}>Yield</th><th style={right}>Level</th><th style={right}>13 wk</th><th style={right}>52 wk</th><th style={left}>52-wk range</th><th style={left}>Year</th><th style={left}>Read</th></tr>
+          : <tr><th style={left}>Instrument</th><th style={right}>Last</th><th style={right}>13 wk</th><th style={right}>26 wk</th><th style={right}>52 wk</th><th style={left}>Trend</th><th style={left}>Breakout read</th><th style={left}>52-wk range</th><th style={left}>Year</th><th style={right} title={`Blended momentum rank among ${total} instruments`}>Mom. rank</th>{showRs && <th style={right} title="13-week move against the S&P 500">vs S&amp;P</th>}</tr>}</thead>
+        <tbody>{groups.map(g => (
+          <React.Fragment key={g}>
+            <tr><td colSpan={yields ? 7 : showRs ? 11 : 10} style={{ ...left, background: "var(--bg-subtle)", fontFamily: "var(--font-body)", fontWeight: 600, color: "var(--text-primary)", fontSize: 11.5 }}>{g}</td></tr>
+            {rows.filter(r => r.group === g).map(r => yields ? (
+              <tr key={r.id}>
+                <td style={{ ...left, fontFamily: "var(--font-body)" }}>{r.label}</td>
+                <td style={right}>{finite(r.level) ? `${r.level.toFixed(2)}%` : "—"}</td>
+                <td style={{ ...right, color: tone(r.change13) }}>{bp(r.change13)}</td>
+                <td style={{ ...right, color: tone(r.change52) }}>{bp(r.change52)}</td>
+                <td style={left}><RangeDot pos={r.pos} /></td>
+                <td style={left}><Spark values={r.spark} width={80} height={20} color="var(--text-secondary)" /></td>
+                <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>{r.read || "—"}</td>
+              </tr>
+            ) : (
+              <tr key={r.id}>
+                <td style={{ ...left, fontFamily: "var(--font-body)", whiteSpace: "normal", minWidth: 150 }}>{r.label} <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-number)", fontSize: 10.5 }}>{r.src === "fmp" ? r.id : ""}{r.invert ? "per $" : ""}</span></td>
+                <td style={right}>{num(r.level)}</td>
+                <td style={{ ...right, color: tone(r.trend?.m13) }}>{pct(r.trend?.m13, 1)}</td>
+                <td style={{ ...right, color: tone(r.trend?.m26) }}>{pct(r.trend?.m26, 1)}</td>
+                <td style={{ ...right, color: tone(r.trend?.m52) }}>{pct(r.trend?.m52, 1)}</td>
+                <td style={left}>{r.trend ? <Chip label={STATE[r.trend.state][0]} color={STATE[r.trend.state][1]} /> : "—"}</td>
+                <td style={{ ...left, fontFamily: "var(--font-body)", color: r.breakout?.event ? "var(--text-primary)" : "var(--text-muted)" }} title={[r.breakout?.label, r.beatsCash === false && r.trend?.m26 > 0 ? "up over 26 weeks, but by less than a 3-month bill paid" : null].filter(Boolean).join("; ") || undefined}>{r.breakout?.event && <i aria-hidden="true" style={{ display: "inline-block", width: 7, height: 7, borderRadius: 2, background: EVENT_TONE[r.breakout.event], marginRight: 5 }} />}{shortRead(r.breakout)}{r.beatsCash === false && r.trend?.m26 > 0 ? <span style={{ color: "var(--text-muted)" }}> · trails cash</span> : null}</td>
+                <td style={left}><RangeDot pos={r.breakout?.pos} /></td>
+                <td style={left}><Spark values={r.spark} width={80} height={20} color={STATE[r.trend?.state]?.[1] || "var(--text-secondary)"} /></td>
+                <td style={right}>{r.rank ? ord(r.rank) : "—"}</td>
+                {showRs && <td style={{ ...right, color: tone(r.rs?.change13) }} title={r.rs?.newHigh ? "Its ratio to the S&P 500 is at a 52-week high" : undefined}>{r.rs ? `${pct(r.rs.change13, 1)}${r.rs.newHigh ? " ▲" : r.rs.newLow ? " ▼" : ""}` : "—"}</td>}
+              </tr>
+            ))}
+          </React.Fragment>
+        ))}</tbody>
+      </table>
+    </div>
   );
 }
 
@@ -117,7 +192,7 @@ function RegimeMap({ history, cells }) {
 // every week since 2000 as a thin band coloured by regime, with clarity as the band's height
 function HistoryStrip({ history, cells }) {
   const rows = history.filter(r => r[4] != null), W = 640, H = 46, bw = W / rows.length;
-  const years = rows.map((r, i) => [r[0].slice(0, 4), i]).filter(([y], i, a) => i === 0 || y !== a[i - 1][0]).filter(([y]) => +y % 4 === 0)
+  const years = rows.map((r, i) => [r[0].slice(0, 4), i]).filter(([y], i, a) => i === 0 || y !== a[i - 1][0]).filter(([y]) => +y % 4 === 0);
   return (
     <div>
       <svg width="100%" viewBox={`0 0 ${W} ${H + 14}`} preserveAspectRatio="none" role="img" aria-label="Regime by week since 2000; taller marks are clearer weeks" style={{ display: "block", height: H + 14 }}>
@@ -130,81 +205,157 @@ function HistoryStrip({ history, cells }) {
 }
 
 export default function FourMarkets({ erp }) {
-  const [d, setD] = useState(null), [err, setErr] = useState(null), [show, setShow] = useState("markets");
+  const [d, setD] = useState(null), [err, setErr] = useState(null);
+  const [open, setOpen] = useState(loadOpen), [leadFilter, setLeadFilter] = useState("");
+  const root = useRef(null);
   useEffect(() => { let live = true; fetch("/api/cross-asset").then(r => r.json()).then(j => { if (live) { if (j.error) setErr(j.error); else setD(j); } }).catch(e => live && setErr(e.message)); return () => { live = false; }; }, []);
   const byMarket = useMemo(() => (d ? Object.fromEntries(d.markets.map(m => [m.market, m])) : {}), [d]);
+  const toggle = id => setOpen(o => { const n = { ...o, [id]: !o[id] }; saveOpen(n); return n; });
+  const setAll = v => { const n = Object.fromEntries(SECTIONS.map(([id]) => [id, v])); saveOpen(n); setOpen(n); };
+  const jump = id => { setOpen(o => { const n = { ...o, [id]: true }; saveOpen(n); return n; }); setTimeout(() => root.current?.querySelector(`#fm-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); };
   if (err) return <div className="options-research"><section className="ocard"><h3 className="ocard-title">Four markets</h3><p className="ocard-finding">The cross-asset read could not be built: {err}</p></section></div>;
   if (!d) return <div className="options-research"><section className="ocard"><h3 className="ocard-title">Four markets</h3><p className="onote">Reading stocks, bonds, currencies and commodities… (the first build fetches 27 years of history and can take a minute)</p></section></div>;
 
   const n = d.now, cellColor = CELL_COLOR[n.cell], here = d.playbook.cells[n.cell];
   const liqSig = d.signals.filter(s => s.axis === "liquidity" && finite(s.score)), grSig = d.signals.filter(s => s.axis === "growth" && finite(s.score));
-  const against = s => s.filter(x => Math.sign(x.score) !== Math.sign(s === liqSig ? n.liquidity : n.growth));
-  const dissent = [...against(liqSig), ...against(grSig)];
+  const dissent = [...liqSig.filter(s => Math.sign(s.score) !== Math.sign(n.liquidity)), ...grSig.filter(s => Math.sign(s.score) !== Math.sign(n.growth))];
   const erpPct = erp?.percentile, paid = finite(erpPct) ? (erpPct >= 60 ? "well paid" : erpPct <= 40 ? "poorly paid" : "fairly paid") : null;
   const highClar = d.playbook.clarity.at(-1), lowClar = d.playbook.clarity[0];
+  const inst = m => d.instruments.filter(x => x.market === m);
+  const leaders = d.instruments.filter(x => x.rank && (!leadFilter || x.market === leadFilter)).sort((a, b) => a.rank - b.rank);
+  const breakouts = d.instruments.filter(x => x.breakout?.newHigh).length, breakdowns = d.instruments.filter(x => x.breakout?.newLow).length;
+
+  const marketSummary = m => {
+    const mk = byMarket[m], t = mk?.trend, list = inst(m).filter(x => x.kind !== "yield"), sig = d.signals.filter(s => s.market === m && finite(s.score));
+    const up = list.filter(x => x.trend?.state === "uptrend").length, highs = list.filter(x => x.breakout?.newHigh).length, lows = list.filter(x => x.breakout?.newLow).length;
+    return <>
+      {t && <Chip label={STATE[t.state][0]} color={STATE[t.state][1]} />}
+      {mk?.breakout?.event && <Chip label={mk.breakout.label.split(":")[0].replace(/ its 40-week average.*/, " 40-wk avg")} color={EVENT_TONE[mk.breakout.event]} />}
+      {t && <span>26 wk <b style={{ color: tone(t.m26) }}>{pct(t.m26, 1)}</b> · 52 wk <b style={{ color: tone(t.m52) }}>{pct(t.m52, 1)}</b></span>}
+      {mk?.rank && <span>{ord(mk.rank)} of 4 on momentum</span>}
+      {sig.length > 0 && <span>signals {sig.filter(s => s.score > 0).length} supportive / {sig.filter(s => s.score < 0).length} headwind</span>}
+      {list.length > 0 && <span>{up} of {list.length} in uptrends{highs ? ` · ${highs} new high${highs === 1 ? "" : "s"}` : ""}{lows ? ` · ${lows} new low${lows === 1 ? "" : "s"}` : ""}</span>}
+    </>;
+  };
 
   return (
-    <div className="options-research">
+    <div className="options-research" ref={root}>
       <VizCard eyebrow={`Stocks · bonds · currencies · commodities · weekly to ${day(d.asOf)}`} title="Four markets: is the wind at your back, and how sure can you be?"
         finding={`${n.cellLabel}, for ${n.weeksInCell} week${n.weeksInCell === 1 ? "" : "s"}: liquidity ${axisWord(n.liquidity, "easing", "tightening")} (${sc(n.liquidity)}), growth signals ${axisWord(n.growth, "improving", "deteriorating")} (${sc(n.growth)}). Clarity ${n.clarity} of 100${dissent.length ? `, held down by ${dissent.length} signal${dissent.length === 1 ? "" : "s"} pointing the other way (${dissent.slice(0, 4).map(s => s.label).join("; ")}${dissent.length > 4 ? "; and more" : ""})` : ""}. ${paid ? `Your valuation lens says equities are ${paid} (ERP in the ${erpPct}th percentile); ` : ""}this read says ${n.stance?.label.toLowerCase()}.`}
-        right={<Seg label="View" value={show} onChange={setShow} options={[["markets", "Four markets"], ["map", "Regime map"], ["playbook", "Playbook"]]} />}
         style={{ marginBottom: 0 }}>
-        <div className="okpis" style={{ marginBottom: 10 }}>
+        <div className="okpis" style={{ marginBottom: 8 }}>
           <Kpi label="Regime" value={n.cellLabel} sub={`since ${day(n.since)}`} tone={cellColor} />
           <Kpi label="Stance" value={n.stance?.label || "—"} sub={n.stance?.note} />
           <Kpi label="Clarity" value={`${n.clarity}/100`} sub={`liquidity signals agree ${Math.round((n.liqAgree || 0) * 100)}%, growth ${Math.round((n.growthAgree || 0) * 100)}%${n.flips ? `; ${n.flips} regime change${n.flips === 1 ? "" : "s"} in 8 weeks` : ""}`} />
           {finite(erpPct) && <Kpi label="Paid to own stocks?" value={`${erpPct}th pct`} sub={`equity risk premium ${erp.currentErp > 0 ? "+" : ""}${erp.currentErp?.toFixed(2)}pp: valuation, not timing`} />}
           {here && <Kpi label="Stocks after this regime" value={pct(here.markets.stocks.median, 1)} sub={`median next 26 weeks, up ${Math.round((here.markets.stocks.up || 0) * 100)}% of the time (${here.runs} episodes)`} />}
+          <Kpi label="Breakouts / breakdowns" value={`${breakouts} / ${breakdowns}`} sub={`new 52-week highs and lows among ${d.instruments.filter(x => x.kind !== "yield").length} instruments`} />
         </div>
 
-        {show === "markets" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
-          {["stocks", "bonds", "currencies", "commodities"].map(k => byMarket[k] && <MarketCard key={k} m={byMarket[k]} signals={d.signals} oil={d.context?.oil} />)}
-        </div>}
+        <nav aria-label="Four markets sections" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", margin: "4px 0 6px" }}>
+          {SECTIONS.map(([id, label]) => <button key={id} type="button" className="ochip" aria-pressed={!!open[id]} onClick={() => jump(id)}>{label}</button>)}
+          <span style={{ flex: 1 }} />
+          <button type="button" className="ochip" onClick={() => setAll(true)}>Open all</button>
+          <button type="button" className="ochip" onClick={() => setAll(false)}>Close all</button>
+        </nav>
 
-        {show === "map" && <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+        {MARKETS.map(m => byMarket[m] && (
+          <Section key={m} id={m} title={MARKET_NAME[m]} summary={marketSummary(m)} open={!!open[m]} onToggle={toggle}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 14, marginBottom: 10 }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-secondary)" }}><span>{byMarket[m].label}: {byMarket[m].note}</span><span>{byMarket[m].breakout?.label || "Inside its range"}</span></div>
+                <PriceChart series={byMarket[m].series} color={STATE[byMarket[m].trend?.state]?.[1] || "var(--text-secondary)"} />
+                {byMarket[m].trend && <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, fontFamily: "var(--font-number)", color: "var(--text-secondary)" }}>
+                  <span>vs 40-wk avg <b style={{ color: "var(--text-primary)" }}>{pct(byMarket[m].trend.vsMa, 1)}</b></span>
+                  <span>13 wk <b style={{ color: "var(--text-primary)" }}>{pct(byMarket[m].trend.m13, 1)}</b></span>
+                  <span>from high <b style={{ color: "var(--text-primary)" }}>{pct(byMarket[m].trend.fromHigh, 1)}</b></span>
+                  <span>52-wk range <RangeDot pos={byMarket[m].breakout?.pos} width={60} /></span>
+                </div>}
+                {m === "commodities" && finite(d.context?.oil?.change13) && <div className="onote" style={{ marginTop: 4 }}>Oil is listed below and not graded as a signal: it moves on supply as much as on demand.</div>}
+              </div>
+              <SignalList signals={d.signals.filter(s => s.market === m)} />
+            </div>
+            {m === "bonds" && <div style={{ marginBottom: 10 }}><InstrumentTable rows={inst(m).filter(x => x.kind === "yield")} total={d.ranked} /></div>}
+            <InstrumentTable rows={inst(m).filter(x => x.kind !== "yield")} showRs={m === "stocks"} total={d.ranked} />
+            {m === "currencies" && <p className="onote" style={{ marginTop: 4 }}>Each currency's reads are on its value in dollars, so up means it strengthened against the dollar; the last price is shown as quoted (per $ where marked).</p>}
+            {m === "stocks" && <p className="onote" style={{ marginTop: 4 }}>vs S&amp;P: the 13-week move against the S&amp;P 500; ▲ marks a ratio at a 52-week high, the classic relative-strength breakout.</p>}
+          </Section>
+        ))}
+
+        <Section id="leaders" title="Momentum leaderboard" open={!!open.leaders} onToggle={toggle}
+          summary={<>
+            <span>Strongest: <b style={{ color: "var(--text-primary)" }}>{leaders[0]?.label}</b> {pct(leaders[0]?.momentum, 1)}</span>
+            <span>Weakest: <b style={{ color: "var(--text-primary)" }}>{d.instruments.filter(x => x.rank).sort((a, b) => b.rank - a.rank)[0]?.label}</b></span>
+            <span>Four markets: {d.markets.filter(x => x.rank).sort((a, b) => a.rank - b.rank).map(x => MARKET_NAME[x.market]).join(" > ")}</span>
+          </>}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+            <span className="onote">Blended momentum: the average of the 13, 26 and 52-week returns. A 3-month bill paid {pct(d.cash26, 1)} over 26 weeks.</span>
+            <Seg label="Market" value={leadFilter} onChange={setLeadFilter} options={[["", "All"], ...MARKETS.map(k => [k, MARKET_NAME[k]])]} />
+          </div>
+          <div className="otable-wrap" style={{ maxHeight: 460, overflowY: "auto" }}>
+            <table className="otable">
+              <thead><tr><th style={right}>#</th><th style={left}>Instrument</th><th style={left}>Market</th><th style={right}>Blended</th><th style={right}>13 wk</th><th style={right}>26 wk</th><th style={right}>52 wk</th><th style={left}>Beats cash</th><th style={left}>Trend</th><th style={left}>Breakout read</th></tr></thead>
+              <tbody>{leaders.map(x => (
+                <tr key={x.id}>
+                  <td style={{ ...right, color: "var(--text-muted)" }}>{x.rank}</td>
+                  <td style={{ ...left, fontFamily: "var(--font-body)" }}>{x.label}</td>
+                  <td style={{ ...left, color: "var(--text-secondary)" }}>{MARKET_NAME[x.market]}</td>
+                  <td style={{ ...right, color: tone(x.momentum), fontWeight: 600 }}>{pct(x.momentum, 1)}</td>
+                  <td style={{ ...right, color: tone(x.trend?.m13) }}>{pct(x.trend?.m13, 1)}</td>
+                  <td style={{ ...right, color: tone(x.trend?.m26) }}>{pct(x.trend?.m26, 1)}</td>
+                  <td style={{ ...right, color: tone(x.trend?.m52) }}>{pct(x.trend?.m52, 1)}</td>
+                  <td style={left}>{x.beatsCash == null ? "—" : x.beatsCash ? "yes" : "no"}</td>
+                  <td style={left}>{x.trend ? <Chip label={STATE[x.trend.state][0]} color={STATE[x.trend.state][1]} /> : "—"}</td>
+                  <td style={{ ...left, fontFamily: "var(--font-body)", color: x.breakout?.event ? "var(--text-primary)" : "var(--text-muted)" }} title={x.breakout?.label || undefined}>{shortRead(x.breakout)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section id="map" title="Regime map" open={!!open.map} onToggle={toggle}
+          summary={<><Chip label={n.cellLabel} color={cellColor} /><span>liquidity {sc(n.liquidity)} · growth {sc(n.growth)}</span><span>{n.weeksInCell} weeks in this regime</span></>}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <RegimeMap history={d.history} cells={d.cells} />
             <div style={{ flex: "1 1 240px", fontSize: 12, lineHeight: 1.55, color: "var(--text-secondary)" }}>
               <p style={{ margin: "0 0 6px" }}>Across: liquidity, the average of {liqSig.length} signals ({sc(n.liquidity)}). Up: growth ahead as the markets price it, the average of {grSig.length} ({sc(n.growth)}). The dots are the past six months, faint to strong.</p>
-              <p style={{ margin: 0 }}>Druckenmiller's best-known rule sits on this plane: the strongest equity markets come when money is easing and the economy ahead is improving; the hardest when money tightens into weakness. The playbook tab shows what the record since 2000 says about each corner.</p>
+              <p style={{ margin: 0 }}>Druckenmiller's best-known rule sits on this plane: the strongest equity markets come when money is easing and the economy ahead is improving; the hardest when money tightens into weakness. The playbook shows what the record since 2000 says about each corner.</p>
             </div>
           </div>
-          <div>
-            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Every week since 2000 · colour is the regime, height is clarity</div>
-            <HistoryStrip history={d.history} cells={d.cells} />
-          </div>
-        </div>}
+          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Every week since 2000 · colour is the regime, height is clarity</div>
+          <HistoryStrip history={d.history} cells={d.cells} />
+        </Section>
 
-        {show === "playbook" && <div style={{ display: "grid", gap: 12 }}>
+        <Section id="playbook" title="Playbook" open={!!open.playbook} onToggle={toggle}
+          summary={<><span>In this regime stocks returned a median {pct(here?.markets.stocks.median, 1)} over 26 weeks</span><span>clear weeks called direction {Math.round((highClar.pointedRight || 0) * 100)}% vs {Math.round((lowClar.pointedRight || 0) * 100)}%</span></>}>
           <div className="otable-wrap">
             <table className="otable">
-              <thead><tr><th style={left}>Regime</th><th style={right}>Share of weeks</th><th style={right}>Episodes</th>{["stocks", "bonds", "currencies", "commodities"].map(k => <th key={k} style={right}>{MARKET_NAME[k]} next 26 wk</th>)}</tr></thead>
+              <thead><tr><th style={left}>Regime</th><th style={right}>Share of weeks</th><th style={right}>Episodes</th>{MARKETS.map(k => <th key={k} style={right}>{MARKET_NAME[k]} next 26 wk</th>)}</tr></thead>
               <tbody>{CELL_ORDER.map(k => { const c = d.playbook.cells[k]; return (
                 <tr key={k} style={{ background: k === n.cell ? "var(--bg-subtle)" : undefined }}>
                   <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-primary)", fontWeight: k === n.cell ? 600 : 400 }}><i aria-hidden="true" style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: CELL_COLOR[k], marginRight: 6 }} />{d.cells[k].label}{k === n.cell ? " (now)" : ""}</td>
                   <td style={right}>{finite(c.share) ? `${Math.round(c.share * 100)}%` : "—"}</td><td style={right}>{c.runs}</td>
-                  {["stocks", "bonds", "currencies", "commodities"].map(m => <td key={m} style={right} title={`${c.markets[m].n} weeks; mean ${pct(c.markets[m].mean, 1)}`}>{pct(c.markets[m].median, 1)}<div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>up {finite(c.markets[m].up) ? Math.round(c.markets[m].up * 100) : "—"}%</div></td>)}
+                  {MARKETS.map(m => <td key={m} style={right} title={`${c.markets[m].n} weeks; mean ${pct(c.markets[m].mean, 1)}`}>{pct(c.markets[m].median, 1)}<div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>up {finite(c.markets[m].up) ? Math.round(c.markets[m].up * 100) : "—"}%</div></td>)}
                 </tr>); })}</tbody>
             </table>
           </div>
-          <p className="onote" style={{ margin: 0 }}>Median return over the 26 weeks after every past week in each regime, and how often it was positive. Stocks: S&amp;P 500; bonds: long Treasuries; currencies: the dollar; commodities: a broad basket. One regime spans many overlapping weeks, so the episodes column is the honest count of separate data points.</p>
+          <p className="onote">Median return over the 26 weeks after every past week in each regime, and how often it was positive. Stocks: S&amp;P 500; bonds: long Treasuries; currencies: the dollar; commodities: a broad basket. Episodes is the honest count of separate data points.</p>
           <div className="otable-wrap">
             <table className="otable">
               <thead><tr><th style={left}>Clarity</th><th style={right}>Weeks</th><th style={right}>Stocks, median next 26 wk</th><th style={right}>Spread</th><th style={right}>Worst</th><th style={right}>Growth axis pointed the right way</th></tr></thead>
               <tbody>{d.playbook.clarity.map(b => <tr key={b.label}><td style={{ ...left, fontFamily: "var(--font-body)" }}>{b.label}</td><td style={right}>{b.weeks}</td><td style={right}>{pct(b.median, 1)}</td><td style={right}>{pct(b.spread, 1)}</td><td style={right}>{pct(b.worst, 1)}</td><td style={right}>{finite(b.pointedRight) ? `${Math.round(b.pointedRight * 100)}%` : "—"}</td></tr>)}</tbody>
             </table>
           </div>
-          <p className="onote" style={{ margin: 0 }}>Does doubt deserve its place? In clear weeks the growth axis called the direction of the next 26 weeks of stocks {Math.round((highClar.pointedRight || 0) * 100)}% of the time against {Math.round((lowClar.pointedRight || 0) * 100)}% in murky ones, and the worst outcome was {pct(highClar.worst, 0)} against {pct(lowClar.worst, 0)}. Clear weeks are rare ({highClar.weeks} of them), so read this as a tendency, not a rule.</p>
-        </div>}
+          <p className="onote">In clear weeks the growth axis called the direction of the next 26 weeks of stocks {Math.round((highClar.pointedRight || 0) * 100)}% of the time against {Math.round((lowClar.pointedRight || 0) * 100)}% in murky ones, and the worst outcome was {pct(highClar.worst, 0)} against {pct(lowClar.worst, 0)}. Clear weeks are rare ({highClar.weeks} of them): a tendency, not a rule.</p>
+        </Section>
 
-        <details style={{ marginTop: 10 }}>
-          <summary className="onote" style={{ cursor: "pointer" }}>How this is read, and what it is not</summary>
-          <ul className="onote" style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.55 }}>
+        <Section id="method" title="Method" open={!!open.method} onToggle={toggle} summary={<span>how each signal, breakout and ranking is computed; what this is not</span>}>
+          <ul className="onote" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.55 }}>
             {d.method.map((m, i) => <li key={i}>{m}</li>)}
             <li>The framing follows what Druckenmiller has said in public over many years (liquidity over earnings, markets as the forecast, the trend, size by conviction); the signals, thresholds and weights are this dashboard's choices, not his.</li>
             <li>Source: {d.source}.{d.errors?.length ? ` Feeds that failed this build (older prices used): ${d.errors.join("; ")}.` : ""}</li>
           </ul>
-        </details>
+        </Section>
       </VizCard>
     </div>
   );
