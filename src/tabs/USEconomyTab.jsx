@@ -14,6 +14,7 @@ import BankCreditTab from "./BankCreditTab.jsx";
 import BankruptcyTab from "./BankruptcyTab.jsx";
 import FedSubTab from "./FedSubTab.jsx";
 import TighteningTab from "./TighteningTab.jsx";
+import LiquidityTab from "./LiquidityTab.jsx";
 import BudgetSubTab from "./BudgetSubTab.jsx";
 import MachineTab from "./MachineTab.jsx";
 import SfcModelTab from "./SfcModelTab.jsx";
@@ -26,7 +27,7 @@ import TensionBoard from "../components/TensionBoard.jsx";
 //   Rates & Fed · Fiscal · Machine · Tensions
 // Five of them fold former pages into views (SubViews): Regional = metros /
 // states map; Growth = activity / profits engine; Credit = banks / defaults
-// (corporate credit moved to Bonds, Oct 2026); Fed = Fed balance
+// (corporate credit moved to Bonds, Oct 2026); Fed = liquidity / Fed balance
 // sheet / tightening monitor (Treasuries & mortgages moved to Bonds); Machine = Dalio /
 // stock-flow model. Pulse rows and cross-links still use the old drill ids,
 // which DRILL maps onto a tab and a view.
@@ -50,10 +51,10 @@ const ECON_SUB_TABS = [
 const DRILL = {
   gdp: ["growth", "activity"], profits: ["growth", "profits"],
   debt: ["bonds", "credit"], rates: ["bonds", "rates"], banks: ["credit", "banks"], bankruptcy: ["credit", "defaults"],
-  fed: ["rates", "fed"], tightening: ["rates", "tightening"], budget: ["fiscal"], cpi: ["inflation"],
+  fed: ["rates", "fed"], liquidity: ["rates", "liquidity"], tightening: ["rates", "tightening"], budget: ["fiscal"], cpi: ["inflation"],
   model: ["machine", "sfc"], stateLevel: ["regional", "states"], municipal: ["regional", "metros"],
 };
-const DEFAULT_VIEW = { regional: "metros", growth: "activity", credit: "banks", rates: "fed", machine: "dalio" };
+const DEFAULT_VIEW = { regional: "metros", growth: "activity", credit: "banks", rates: "liquidity", machine: "dalio" };
 // Views that moved to the Bonds tab (Oct 2026): links to them open Bonds instead
 const MOVED = { "rates/treasuries": "rates", "credit/corporate": "credit" };
 
@@ -130,6 +131,7 @@ function USEconomyTab({ openTab, md, td, gd, cd, csm, hd, zillowData, fredKey, f
         bond market (the rates themselves live on Bonds → Rates & mortgages) */}
     {econSubTab === "rates" && (
       <SubViews view={views.rates} onChange={setView("rates")} views={[
+        { id: "liquidity", label: "Liquidity", hint: "is money expanding or contracting, and where", render: () => <LiquidityTab /> },
         { id: "fed", label: "Fed balance sheet", render: () => <FedSubTab fredKey={fredKey} /> },
         { id: "tightening", label: "Tightening monitor", hint: "does the AI boom tighten through bonds before stocks?", render: () => <TighteningTab go={go} /> },
       ]} />
