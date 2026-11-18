@@ -53,6 +53,7 @@ import { createAiCredit } from './server/aiCredit.js'
 import { createAiFlows } from './server/aiFlows.js'
 import { createInflationDecomp } from './server/inflationDecomp.js'
 import { createComputeBalance } from './server/computeBalance.js'
+import { createCrossAsset } from './server/crossAsset.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3826,6 +3827,8 @@ const aiFlows = createAiFlows({ research: researchDb })
 // AI Economy → Compute (server/computeBalance.js): shortage or glut, graded from the GPU market, lab and backlog feeds above
 const computeBalance = createComputeBalance({ dir: __dirname, research: researchDb, feeds: { futures: () => gpuFutures.get(), market: () => gpuMarketData.get(), nebius: () => nebiusSpot.get(), hyperscalers: () => gpuHyperscalers.get(), pulse: () => aiPulse.get(), chain: () => taiwanRevenue.get() } })
 const inflationDecomp = createInflationDecomp({ fred: fetchFredSeries })
+// Cockpit → Four markets (server/crossAsset.js): stocks, bonds, currencies and commodities read together, weekly since 1999
+const crossAsset = createCrossAsset({ dir: __dirname, fred: fetchFredSeries, FMP_KEY, UA })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
@@ -4088,6 +4091,7 @@ export default defineConfig({
         reRoute('/api/inflation-decomp', () => inflationDecomp.get())
         reRoute('/api/ai-supply-chain', () => taiwanRevenue.get())
         reRoute('/api/compute-balance', () => computeBalance.get())
+        reRoute('/api/cross-asset', () => crossAsset.get())
         reRoute('/api/ai-flows', () => aiFlows.get())
         reRoute('/api/ai-credit', () => aiCredit.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())

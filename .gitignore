@@ -143,3 +143,5 @@ long-run.json
 /ai-credit.json
 # AI Economy → Compute balance: the board's daily verdicts (some signals derive from personal-use feeds)
 /compute-balance.json
+# Cockpit → Four markets: FMP daily closes behind the cross-asset read (licensed data, not committed)
+/cross-asset-prices.json

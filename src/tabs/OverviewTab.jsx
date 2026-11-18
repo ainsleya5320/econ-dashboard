@@ -8,13 +8,15 @@ import DAMODARAN from "../lib/damodaran.json";
 import { EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import { chainModel, chainHeadline } from "./AIEconomyTab.jsx";
 import { ValuationLensesCard, useDamodaranMonthly, damPct, damColor } from "../components/MarketFairValue.jsx";
+import FourMarkets from "./FourMarkets.jsx";
 
 // ============================================================================
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
 // Market on the left, my book on the right:
 //   LEFT   Today hero (SPY + regime + every asset on one bar scale) → a KPI
 //          band (ERP · Damodaran · earnings yield by index · yield curve ·
-//          real yield) →
+//          real yield) → Four markets (stocks, bonds, currencies and commodities read
+//          together: regime, clarity and stance; FourMarkets.jsx) →
 //          rates strip → Fear & Greed meter → implied move → commodities,
 //          with the full charts folded away at the bottom.
 //   RIGHT  a sticky rail: the watchlist (shared with Stocks & Options), its
@@ -734,6 +736,9 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
           <YieldCurve rates={rates} />
           <RealYieldCard ey={(indexYields.find(i => /s&p/i.test(i.name || "")) || indexYields[0])?.earningsYield ?? null} />
         </div>
+
+        {/* Four markets: the wind (liquidity, growth ahead) and how sure to be, beside the valuation band above */}
+        <FourMarkets erp={erp} />
 
         {/* Rates strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 8 }}>
