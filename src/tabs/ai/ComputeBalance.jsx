@@ -33,10 +33,10 @@ function Multiples({ rows, max, color }) {
     <div style={{ display: "grid", gap: 6 }}>
       {rows.map(r => (
         <div key={r.label} title={r.note} style={{ display: "grid", gridTemplateColumns: "minmax(140px, 1fr) 200px 52px", gap: 8, alignItems: "center", fontSize: 12 }}>
-          <span style={{ fontFamily: "var(--font-body)", color: "var(--text-primary)" }}>{r.label}{r.forecast && <span className="otag" style={{ marginLeft: 5 }}>forecast</span>}<div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{r.note}</div></span>
+          <span style={{ fontFamily: "var(--font-body)", color: "var(--text-primary)" }}>{r.label}{r.forecast && <span className="otag" style={{ marginLeft: 5 }}>forecast</span>}{r.extrapolated && <span className="otag" style={{ marginLeft: 5 }}>{r.months === 1 ? "1 month" : `${r.months} months`}, annualised</span>}<div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{r.note}</div></span>
           <svg width={200} height={12} role="img" aria-label={`${r.multiple} times a year`} style={{ display: "block" }}>
             <line x1={0} x2={0} y1={0} y2={12} stroke="var(--text-muted)" />
-            <rect x={1} y={2} width={Math.max(2, x(r.multiple))} height={8} rx={2} fill={color} opacity={r.forecast ? 0.45 : 1} />
+            <rect x={1} y={2} width={Math.max(2, x(r.multiple))} height={8} rx={2} fill={color} opacity={r.forecast || r.extrapolated ? 0.45 : 1} />
           </svg>
           <strong style={{ fontFamily: "var(--font-number)", textAlign: "right" }}>{r.multiple}×</strong>
         </div>
@@ -101,7 +101,7 @@ export default function ComputeBalance() {
           <div><div className="ocard-eyebrow" style={{ marginBottom: 6 }}>Demand</div><Multiples rows={d.growth.demand} max={max} color={C[2]} /></div>
           <div><div className="ocard-eyebrow" style={{ marginBottom: 6 }}>Supply</div><Multiples rows={d.growth.supply} max={max} color={C[1]} /></div>
         </div>
-        <Legend items={[["Demand", C[2]], ["Supply", C[1]], ["Supply, a forecast", `color-mix(in srgb, ${C[1]} 45%, transparent)`]]} />
+        <Legend items={[["Demand", C[2]], ["Demand, under a year of readings scaled up", `color-mix(in srgb, ${C[2]} 45%, transparent)`], ["Supply", C[1]], ["Supply, a forecast", `color-mix(in srgb, ${C[1]} 45%, transparent)`]]} />
       </VizCard>
     </div>
   );

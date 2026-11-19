@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildBalance, growthRace, yearChange } from '../server/computeBalance.js'
+import { buildBalance, growthRace, rampAnnual, yearChange } from '../server/computeBalance.js'
 
 const prices = (now, then) => ({ '2025-11-10': { h100: then, a100: 1 }, '2026-05-10': { h100: (now + then) / 2, a100: 1 }, '2026-11-12': { h100: now, a100: 0.7 } })
 const grade = (board, id) => board.signals.find(s => s.id === id).grade
@@ -75,4 +75,18 @@ test('the growth race lists yearly multiples for each side and flags the forecas
   })
   assert.deepEqual(g.demand.map(r => r.multiple), [5, 4])
   assert.deepEqual(g.supply.map(r => [r.multiple, !!r.forecast]), [[2, false], [1.5, false], [2.22, true]])
+})
+
+test('Ramp token spend growth: non-overlapping months compounded to a year, flagged until a year is on file', () => {
+  const w = (week, spendGrowth) => ({ week, spendGrowth, volumeGrowth: 20, price: [{ name: 'OpenAI & Anthropic', latest: 0.45, prior: 0.51 }] })
+  assert.equal(rampAnnual([]), null)
+  const one = rampAnnual([w('November 15, 2026', 12)])
+  assert.equal(one.months, 1); assert.ok(Math.abs(one.multiple - 1.12 ** 12) < 1e-9)
+  // the Nov 8 week overlaps Nov 15's month and is skipped; Oct 18 is four weeks back and counts
+  const two = rampAnnual([w('October 18, 2026', 0), w('November 8, 2026', 50), w('November 15, 2026', 21)])
+  assert.equal(two.months, 2); assert.ok(Math.abs(two.multiple - 1.21 ** 6) < 1e-9)
+  const g = growthRace({ ramp: [w('November 15, 2026', 12)] })
+  assert.equal(g.demand[0].label, 'Business token spending (Ramp)')
+  assert.deepEqual([g.demand[0].multiple, g.demand[0].extrapolated], [3.9, true])
+  assert.match(g.demand[0].note, /\+12\.0% in the month.*\$0\.51 to \$0\.45/)
 })

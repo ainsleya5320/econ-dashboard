@@ -3827,7 +3827,7 @@ const taiwanRevenue = createTaiwanRevenue({ dir: __dirname, research: researchDb
 // AI Economy → Models & Labs (server/aiFlows.js): who pays whom for compute, against each supplier's backlog
 const aiFlows = createAiFlows({ research: researchDb })
 // AI Economy → Compute (server/computeBalance.js): shortage or glut, graded from the GPU market, lab and backlog feeds above
-const computeBalance = createComputeBalance({ dir: __dirname, research: researchDb, feeds: { futures: () => gpuFutures.get(), market: () => gpuMarketData.get(), nebius: () => nebiusSpot.get(), hyperscalers: () => gpuHyperscalers.get(), pulse: () => aiPulse.get(), chain: () => taiwanRevenue.get() } })
+const computeBalance = createComputeBalance({ dir: __dirname, research: researchDb, feeds: { futures: () => gpuFutures.get(), market: () => gpuMarketData.get(), nebius: () => nebiusSpot.get(), hyperscalers: () => gpuHyperscalers.get(), pulse: () => aiPulse.get(), chain: () => taiwanRevenue.get(), ramp: () => rampAi.get() } })
 const inflationDecomp = createInflationDecomp({ fred: fetchFredSeries })
 // Cockpit → Four markets (server/crossAsset.js): stocks, bonds, currencies and commodities read together, weekly since 1999
 const crossAsset = createCrossAsset({ dir: __dirname, fred: fetchFredSeries, FMP_KEY, UA })

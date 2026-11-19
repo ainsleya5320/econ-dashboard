@@ -19,7 +19,7 @@
 // more per dollar of compute because it cannot buy more.
 //
 // Also returned, not graded: the growth race, the yearly multiples at which
-// demand (tokens, lab revenue) and supply (capex, hardware shipments, the
+// demand (tokens, lab revenue, businesses' token spend on Ramp) and supply (capex, hardware shipments, the
 // AI 2027 scenario's stock of compute) are growing. Dollars and tokens are not
 // the same unit and each new chip does more work, so the two columns are set
 // side by side and not netted.
@@ -164,11 +164,30 @@ export function buildBalance(x) {
   return { signals: S, counts, graded: graded.length, verdict }
 }
 
+// Ramp's archived token weeks (each: spend growth on the same week a month earlier, in %) → a yearly multiple.
+// Readings are taken going back from the newest, each at least four weeks before the one after it, so no two
+// overlap; up to twelve are compounded and scaled to twelve months. One month scaled up is noisy: flagged.
+export function rampAnnual(history) {
+  const h = (history || []).filter(w => fin(w.spendGrowth) && fin(Date.parse(w.week))).sort((a, b) => Date.parse(b.week) - Date.parse(a.week))
+  const used = []
+  for (const w of h) if (used.length < 12 && (!used.length || Date.parse(used.at(-1).week) - Date.parse(w.week) >= 27 * 864e5)) used.push(w)
+  if (!used.length) return null
+  const comp = used.reduce((p, w) => p * (1 + w.spendGrowth / 100), 1)
+  return { multiple: comp ** (12 / used.length), months: used.length, latest: used[0] }
+}
+
 // yearly multiples of demand and supply, each labelled with what it measures; nothing is netted
 export function growthRace(x) {
   const demand = [], supply = []
   const t = x.tokens?.growth
   if (fin(t?.w52)) demand.push({ label: 'Tokens through OpenRouter', multiple: rnd(1 + t.w52 / 100, 1), note: `weekly volume against a year ago (since ${t.w52Since}); a developer-heavy sample` })
+  const r = rampAnnual(x.ramp)
+  if (r) {
+    const l = r.latest, p = (l.price || []).find(q => /&/.test(q.name)) || l.price?.[0]
+    const sign = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`
+    demand.push({ label: 'Business token spending (Ramp)', multiple: rnd(r.multiple, 1), extrapolated: r.months < 12, months: r.months,
+      note: `${sign(l.spendGrowth)} in the month to the week ending ${l.week}${fin(l.volumeGrowth) ? `; volume ${sign(l.volumeGrowth)}` : ''}${p && fin(p.latest) && fin(p.prior) ? `, blended price $${p.prior.toFixed(2)} to $${p.latest.toFixed(2)} per million` : ''}. ${r.months === 1 ? 'One month compounded to a year' : `${r.months} months compounded to a year`}; API spend by Ramp's customers` })
+  }
   for (const [co, rows] of Object.entries(x.runRates || {})) {
     const l = rows.at(-1), from = l && [...rows].reverse().find(r => r.t <= l.t - 0.9)
     if (l && from && from.v > 0) demand.push({ label: `${co}, annualised revenue`, multiple: rnd((l.v / from.v) ** (1 / (l.t - from.t)), 1), note: `$${from.v.toFixed(1)}B (${from.d}) to $${l.v.toFixed(1)}B (${l.d}), per year` })
@@ -191,9 +210,10 @@ export function createComputeBalance({ dir, feeds, research, now = () => Date.no
   async function get() {
     if (cache && now() - cache.ts < H) return cache.out
     const errors = []
-    const [futures, market, nebius, hyperscalers, pulse, chainFeed, backlogFile] = await Promise.all([
+    const [futures, market, nebius, hyperscalers, pulse, chainFeed, rampFeed, backlogFile] = await Promise.all([
       safe('GPU futures', feeds.futures, errors), safe('GPU market data', feeds.market, errors), safe('spot auction', feeds.nebius, errors),
       safe('hyperscaler spot', feeds.hyperscalers, errors), safe('AI pulse', feeds.pulse, errors), safe('supply chain', feeds.chain, errors),
+      feeds.ramp ? safe('Ramp AI Index', feeds.ramp, errors) : null,
       safe('Research Database backlog', () => research.read(['data', 'curated', 'backlog.json']), errors),
     ])
     const lab = (read('src/data/labFinancials.json')?.labs || []).filter(l => (l.quarters || []).length >= 3).sort((a, b) => b.quarters.at(-1).end.localeCompare(a.quarters.at(-1).end))[0] || null
@@ -215,7 +235,7 @@ export function createComputeBalance({ dir, feeds, research, now = () => Date.no
     const end = cos.map(c => c.quarters.at(-1).date).sort()[0], sum = (c, a, b) => c.quarters.filter(q => q.date <= end).slice(a, b).reduce((s, q) => s + (q.capex || 0), 0) / 1e9
     const scenario = read('data/ai/ai-2027.json'), year = new Date(now()).getFullYear()
     const growth = growthRace({
-      tokens: pulse?.tokens || null, runRates,
+      tokens: pulse?.tokens || null, runRates, ramp: rampFeed?.tokenHistory || null,
       capex: cos.length ? { now: cos.reduce((s, c) => s + sum(c, -4), 0), prev: cos.reduce((s, c) => s + sum(c, -8, -4), 0), end: end?.slice(0, 7) } : null,
       chain: (chainFeed?.groups || []).filter(g => ['foundry', 'odm', 'memory'].includes(g.id) && g.latest).map(g => ({ label: g.label, yoy3: g.latest.yoy3, m: g.latest.m })),
       scenario: scenario ? { year, stock: Object.fromEntries(Object.entries(scenario.series?.stockH100e?.values || {}).map(([y, v]) => [+y, v])) } : null,
