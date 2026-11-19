@@ -17,6 +17,11 @@ import "./options/OptionsResearch.css";
 //                  regions; yields and bond funds; currencies one by one;
 //                  metals, energy and baskets) with breakout, relative
 //                  strength and a year's sparkline
+//     curve        the yield-curve regime (bull or bear, steepening or
+//                  flattening) over 13 and 4 weeks, two years of the 2s10s
+//                  spread, every week since 1999, and what followed each
+//     turn         the Fed turn: in a selloff, is the Fed blinking or holding
+//                  firm? Three tells, the state, and every past episode
 //     leaderboard  every instrument ranked by blended momentum
 //     map          the liquidity-growth plane, and every week since 2000
 //     playbook     what each market did next in each regime; did clarity help
@@ -33,8 +38,12 @@ const MARKETS = ["stocks", "bonds", "currencies", "commodities"];
 const MARKET_NAME = { stocks: "Stocks", bonds: "Bonds", currencies: "Currencies", commodities: "Commodities" };
 const STATE = { uptrend: ["Uptrend", C[1]], downtrend: ["Downtrend", C[2]], "turning up": ["Turning up", "var(--text-muted)"], "turning down": ["Turning down", "var(--text-muted)"] };
 const EVENT_TONE = { "new-high": C[1], "cross-up": C[1], "near-high": C[1], "new-low": C[2], "cross-down": C[2], "near-low": C[2] };
-const SECTIONS = [["stocks", "Stocks"], ["bonds", "Bonds"], ["currencies", "Currencies"], ["commodities", "Commodities"], ["leaders", "Momentum leaderboard"], ["map", "Regime map"], ["playbook", "Playbook"], ["method", "Method"]];
+const SECTIONS = [["stocks", "Stocks"], ["bonds", "Bonds"], ["currencies", "Currencies"], ["commodities", "Commodities"], ["curve", "Yield curve"], ["turn", "Fed turn"], ["leaders", "Momentum leaderboard"], ["map", "Regime map"], ["playbook", "Playbook"], ["method", "Method"]];
 const STORE = "fourMarkets.open.v1";
+// curve regimes and Fed-turn states in fixed categorical slots; "no clear move" and "no test" are neutral grey
+const CURVE_COLOR = { "bull-steep": "var(--oc-1)", "bear-flat": "var(--oc-2)", "bull-flat": "var(--oc-3)", "bear-steep": "var(--oc-4)", none: "var(--border-subtle)" };
+const TURN_COLOR = { blink: "var(--oc-1)", firm: "var(--oc-2)", easing: "var(--oc-3)", testing: "var(--oc-4)", calm: "var(--border-subtle)" };
+const TELLS = [["twoYear", "2-year yield falling hard"], ["dollar", "Dollar rolling over"], ["curve", "Curve bull-steepening"]];
 const pct = (v, dp = 0) => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(dp)}%` : "—");
 const bp = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.round(Math.abs(v * 100))} bp` : "—");
 const sc = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}` : "—");
@@ -204,6 +213,57 @@ function HistoryStrip({ history, cells }) {
   );
 }
 
+// one label per week since 1999 as a thin coloured band
+function LabelStrip({ rows, colors, names, title }) {
+  const W = 640, H = 22, bw = W / Math.max(1, rows.length);
+  const years = rows.map((r, i) => [r[0].slice(0, 4), i]).filter(([y], i, a) => i === 0 || y !== a[i - 1][0]).filter(([y]) => +y % 4 === 0);
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H + 14}`} preserveAspectRatio="none" role="img" aria-label={title} style={{ display: "block", height: H + 14 }}>
+      {rows.map((r, i) => <rect key={r[0]} x={i * bw} y={0} width={bw + 0.3} height={H} fill={colors[r[1]]}><title>{`${day(r[0])}: ${names[r[1]]?.label}`}</title></rect>)}
+      {years.map(([y, i]) => <text key={y} x={i * bw} y={H + 11} style={{ fontSize: 9, fill: "var(--text-muted)", fontFamily: "var(--font-number)" }}>{y}</text>)}
+    </svg>
+  );
+}
+
+// two years of the 10-year minus 2-year spread, the zero line, and the 13-week regime as a band underneath
+function CurveChart({ series, regimes }) {
+  const [hover, setHover] = useState(null);
+  const pts = series.filter(p => finite(p[1]));
+  if (pts.length < 10) return <div className="onote" style={{ height: 90 }}>Not enough history.</div>;
+  const W = 300, H = 92, band = 8, vals = [...pts.map(p => p[1]), 0], lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const x = i => 2 + (i / (series.length - 1)) * (W - 4), y = v => 4 + (1 - (v - lo) / span) * (H - band - 12), bw = (W - 4) / series.length;
+  const h = hover != null ? series[hover] : null;
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="The 10-year minus 2-year Treasury spread over two years, with the curve regime underneath" style={{ display: "block", height: H }}
+        onMouseMove={e => { const r = e.currentTarget.getBoundingClientRect(); setHover(Math.max(0, Math.min(series.length - 1, Math.round(((e.clientX - r.left) / r.width) * (series.length - 1))))); }} onMouseLeave={() => setHover(null)}>
+        <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="var(--text-muted)" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+        <polyline points={series.map((p, i) => (finite(p[1]) ? `${x(i)},${y(p[1])}` : null)).filter(Boolean).join(" ")} fill="none" stroke="var(--text-primary)" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {series.map((p, i) => p[2] && <rect key={p[0]} x={2 + i * bw} y={H - band} width={bw + 0.3} height={band} fill={CURVE_COLOR[p[2]]} />)}
+        {h && <line x1={x(hover)} x2={x(hover)} y1={0} y2={H} stroke="var(--text-muted)" vectorEffect="non-scaling-stroke" />}
+      </svg>
+      <div style={{ fontSize: 11, fontFamily: "var(--font-number)", color: "var(--text-secondary)", minHeight: 16 }}>{h ? <>{day(h[0])}: 2s10s <b style={{ color: "var(--text-primary)" }}>{finite(h[1]) ? `${h[1].toFixed(2)} pp` : "—"}</b>{h[2] ? ` · ${regimes[h[2]].label}` : ""}</> : <>10-year minus 2-year over two years; the dashed line is zero (inverted below it). Hover for a week.</>}</div>
+    </div>
+  );
+}
+
+// what each market did over the next 26 weeks after every past week with each label
+function BookTable({ book, order, names, colors, current, first }) {
+  return (
+    <div className="otable-wrap">
+      <table className="otable">
+        <thead><tr><th style={left}>{first}</th><th style={right}>Share of weeks</th><th style={right}>Episodes</th>{MARKETS.map(k => <th key={k} style={right}>{MARKET_NAME[k]} next 26 wk</th>)}</tr></thead>
+        <tbody>{order.map(k => { const c = book[k]; return c && (
+          <tr key={k} style={{ background: k === current ? "var(--bg-subtle)" : undefined }}>
+            <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-primary)", fontWeight: k === current ? 600 : 400 }}><i aria-hidden="true" style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: colors[k], marginRight: 6 }} />{names[k].label}{k === current ? " (now)" : ""}</td>
+            <td style={right}>{finite(c.share) ? `${Math.round(c.share * 100)}%` : "—"}</td><td style={right}>{c.runs}</td>
+            {MARKETS.map(m => <td key={m} style={right} title={`${c.markets[m].n} weeks`}>{pct(c.markets[m].median, 1)}<div style={{ fontSize: 10.5, color: "var(--text-muted)" }}>up {finite(c.markets[m].up) ? Math.round(c.markets[m].up * 100) : "—"}%</div></td>)}
+          </tr>); })}</tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function FourMarkets({ erp }) {
   const [d, setD] = useState(null), [err, setErr] = useState(null);
   const [open, setOpen] = useState(loadOpen), [leadFilter, setLeadFilter] = useState("");
@@ -223,6 +283,7 @@ export default function FourMarkets({ erp }) {
   const highClar = d.playbook.clarity.at(-1), lowClar = d.playbook.clarity[0];
   const inst = m => d.instruments.filter(x => x.market === m);
   const leaders = d.instruments.filter(x => x.rank && (!leadFilter || x.market === leadFilter)).sort((a, b) => a.rank - b.rank);
+  const cv = d.curve, tn = d.turn;
   const breakouts = d.instruments.filter(x => x.breakout?.newHigh).length, breakdowns = d.instruments.filter(x => x.breakout?.newLow).length;
 
   const marketSummary = m => {
@@ -249,6 +310,8 @@ export default function FourMarkets({ erp }) {
           <Kpi label="Clarity" value={`${n.clarity}/100`} sub={`liquidity signals agree ${Math.round((n.liqAgree || 0) * 100)}%, growth ${Math.round((n.growthAgree || 0) * 100)}%${n.flips ? `; ${n.flips} regime change${n.flips === 1 ? "" : "s"} in 8 weeks` : ""}`} />
           {finite(erpPct) && <Kpi label="Paid to own stocks?" value={`${erpPct}th pct`} sub={`equity risk premium ${erp.currentErp > 0 ? "+" : ""}${erp.currentErp?.toFixed(2)}pp: valuation, not timing`} />}
           {here && <Kpi label="Stocks after this regime" value={pct(here.markets.stocks.median, 1)} sub={`median next 26 weeks, up ${Math.round((here.markets.stocks.up || 0) * 100)}% of the time (${here.runs} episodes)`} />}
+          {d.turn?.now && <Kpi label="Fed turn" value={d.turn.states[d.turn.now.state].label} sub={`S&P ${pct(d.turn.now.drawdown, 1)} from its 52-week high; ${d.turn.now.n} of 3 tells`} tone={d.turn.now.state === "calm" ? undefined : TURN_COLOR[d.turn.now.state]} />}
+          {d.curve?.now?.r13 && <Kpi label="Yield curve, 13 wk" value={d.curve.regimes[d.curve.now.r13].label} sub={`2-yr ${bp(d.curve.now.m13.y2)}, 10-yr ${bp(d.curve.now.m13.y10)}`} tone={d.curve.now.r13 === "none" ? undefined : CURVE_COLOR[d.curve.now.r13]} />}
           <Kpi label="Breakouts / breakdowns" value={`${breakouts} / ${breakdowns}`} sub={`new 52-week highs and lows among ${d.instruments.filter(x => x.kind !== "yield").length} instruments`} />
         </div>
 
@@ -281,6 +344,70 @@ export default function FourMarkets({ erp }) {
             {m === "stocks" && <p className="onote" style={{ marginTop: 4 }}>vs S&amp;P: the 13-week move against the S&amp;P 500; ▲ marks a ratio at a 52-week high, the classic relative-strength breakout.</p>}
           </Section>
         ))}
+
+        {cv && <Section id="curve" title="Yield curve" open={!!open.curve} onToggle={toggle}
+          summary={<>
+            <Chip label={cv.regimes[cv.now.r13 || "none"].label} color={CURVE_COLOR[cv.now.r13 || "none"]} />
+            <span>13 wk: 2-yr <b style={{ color: "var(--text-primary)" }}>{bp(cv.now.m13.y2)}</b>, 10-yr <b style={{ color: "var(--text-primary)" }}>{bp(cv.now.m13.y10)}</b></span>
+            <span>2s10s {finite(cv.now.slope) ? `${cv.now.slope.toFixed(2)} pp` : "—"} ({bp(cv.now.slope13)} in 13 wk)</span>
+            <span>4 wk: {cv.regimes[cv.now.r4 || "none"].label.toLowerCase()}</span>
+          </>}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 14, marginBottom: 10 }}>
+            <CurveChart series={cv.series} regimes={cv.regimes} />
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "var(--text-secondary)" }}>
+              <p style={{ margin: "0 0 6px" }}>To {day(cv.asOf)}: <b style={{ color: "var(--text-primary)" }}>{cv.regimes[cv.now.r13 || "none"].label}</b> over 13 weeks{cv.now.weeks > 1 ? `, ${cv.now.weeks} weeks running` : ", as of this week"}: the 2-year moved {bp(cv.now.m13.y2)} and the 10-year {bp(cv.now.m13.y10)}. {cv.regimes[cv.now.r13 || "none"].says}</p>
+              <p style={{ margin: "0 0 6px", color: "var(--text-primary)" }}><span style={{ color: "var(--text-muted)" }}>For an equity book: </span>{cv.regimes[cv.now.r13 || "none"].equity}</p>
+              <p style={{ margin: 0 }}>Over the last 4 weeks: {cv.regimes[cv.now.r4 || "none"].label.toLowerCase()} (2-year {bp(cv.now.m4.y2)}, 10-year {bp(cv.now.m4.y10)}). The 4-week read catches a turn first; the 13-week read is the regime.</p>
+            </div>
+          </div>
+          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The 13-week curve regime, every week since 1999</div>
+          <LabelStrip rows={cv.history} colors={CURVE_COLOR} names={cv.regimes} title="The yield-curve regime by week since 1999" />
+          <Legend items={cv.order.map(k => [cv.regimes[k].label, CURVE_COLOR[k]])} />
+          <div style={{ marginTop: 8 }}><BookTable book={cv.book} order={cv.order} names={cv.regimes} colors={CURVE_COLOR} current={cv.now.r13} first="Curve regime" /></div>
+          <p className="onote">Median return over the 26 weeks after every past week in each regime, and how often it was positive; episodes are the separate runs. Bull steepening has been the worst for stocks because it usually arrives with a recession under way: the front end falls because the Fed is cutting into trouble. It becomes the turn worth waiting for only after the selloff has happened (see Fed turn).</p>
+        </Section>}
+
+        {tn?.now && <Section id="turn" title="Fed turn" open={!!open.turn} onToggle={toggle}
+          summary={<>
+            <Chip label={tn.states[tn.now.state].label} color={TURN_COLOR[tn.now.state]} />
+            <span>S&amp;P <b style={{ color: "var(--text-primary)" }}>{pct(tn.now.drawdown, 1)}</b> from its 52-week high</span>
+            <span>tells {tn.now.n} of 3</span>
+            {tn.lastBlink && <span>last blink {day(tn.lastBlink)}</span>}
+          </>}>
+          <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.55, color: "var(--text-secondary)" }}>As of {day(tn.asOf)} (the latest close, not just last Friday): <b style={{ color: "var(--text-primary)" }}>{tn.states[tn.now.state].label}</b>{tn.now.weeks > 1 ? ` for ${tn.now.weeks} weeks (since ${day(tn.now.since)})` : ""}. {tn.states[tn.now.state].says} Druckenmiller's question in a selloff is not whether stocks are weak but what the weakness does to the Fed; the turn has historically come when the Fed stops tightening into it.</p>
+          <div className="otable-wrap" style={{ marginBottom: 8 }}>
+            <table className="otable">
+              <thead><tr><th style={left}>Condition</th><th style={left}>Reading</th><th style={left}>Rule</th><th style={left}>Met</th></tr></thead>
+              <tbody>
+                <tr><td style={{ ...left, fontFamily: "var(--font-body)" }}>Stocks under pressure</td><td style={left}>S&amp;P 500 {pct(tn.now.drawdown, 1)} from its 52-week high</td><td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>{Math.round(-tn.rules.stress * 100)}% or more below</td><td style={left}>{tn.now.stress ? "yes" : "no"}</td></tr>
+                {TELLS.map(([k, label]) => (
+                  <tr key={k}><td style={{ ...left, fontFamily: "var(--font-body)" }}>Tell: {label}</td>
+                    <td style={left}>{k === "twoYear" ? `2-year ${bp(tn.now.y2chg)} over ${tn.rules.twoYearWeeks} weeks` : k === "dollar" ? `${pct(tn.now.dollarVsMa, 1)} vs 40-wk avg, ${pct(tn.now.dollar13, 1)} over 13 wk` : `13 wk: ${cv.regimes[cv.now.r13 || "none"].label.toLowerCase()}; 4 wk: ${cv.regimes[cv.now.r4 || "none"].label.toLowerCase()}`}</td>
+                    <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>{k === "twoYear" ? `down ${Math.round(-tn.rules.twoYear * 100)} bp or more` : k === "dollar" ? "below the average and falling" : "bull steepening over either span"}</td>
+                    <td style={left}>{tn.now.tells[k] == null ? "—" : tn.now.tells[k] ? "yes" : "no"}</td></tr>
+                ))}
+                <tr><td style={{ ...left, fontFamily: "var(--font-body)" }}>No cuts priced</td><td style={left}>2-year {finite(tn.now.y2) ? `${tn.now.y2.toFixed(2)}%` : "—"} vs fed funds {finite(tn.now.ff) ? `${tn.now.ff.toFixed(2)}%` : "—"} ({bp(tn.now.gap)})</td><td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>2-year at or above fed funds less {Math.round(-tn.rules.firmGap * 100)} bp; not at the zero bound</td><td style={left}>{tn.now.firm ? "yes" : "no"}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The state, every week since 1999</div>
+          <LabelStrip rows={tn.history} colors={TURN_COLOR} names={tn.states} title="The Fed-turn state by week since 1999" />
+          <Legend items={tn.order.map(k => [tn.states[k].label, TURN_COLOR[k]])} />
+          <div className="otable-wrap" style={{ marginTop: 8 }}>
+            <table className="otable">
+              <thead><tr><th style={left}>Episode began</th><th style={left}>State</th><th style={right}>S&amp;P from high</th><th style={right}>Tells</th><th style={right}>S&amp;P next 13 wk</th><th style={right}>26 wk</th><th style={right}>52 wk</th><th style={right}>Worst within 26 wk</th></tr></thead>
+              <tbody>{["blink", "firm"].flatMap(k => tn.episodes[k].map(e => ({ ...e, k }))).sort((a, b) => a.d.localeCompare(b.d)).map(e => (
+                <tr key={e.k + e.d}>
+                  <td style={left}>{day(e.d)}</td>
+                  <td style={left}><Chip label={tn.states[e.k].label} color={TURN_COLOR[e.k]} /></td>
+                  <td style={right}>{pct(e.drawdown, 1)}</td><td style={right}>{e.tells}</td>
+                  <td style={{ ...right, color: tone(e.f13) }}>{pct(e.f13, 1)}</td><td style={{ ...right, color: tone(e.f26) }}>{pct(e.f26, 1)}</td><td style={{ ...right, color: tone(e.f52) }}>{pct(e.f52, 1)}</td>
+                  <td style={{ ...right, color: tone(e.worst26) }}>{pct(e.worst26, 1)}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+          <p className="onote">After the Fed blinked ({tn.record.blink.n} episodes) the S&amp;P's median 26-week return was {pct(tn.record.blink.median26, 1)}, up {Math.round((tn.record.blink.up26 || 0) * 100)}% of the time; after it held firm ({tn.record.firm.n}), {pct(tn.record.firm.median26, 1)}, up {Math.round((tn.record.firm.up26 || 0) * 100)}% of the time. Too few episodes for a rule, and the exceptions teach the most: a blink with the economy already breaking (late 2000, early 2008) came too late to stop the fall. The turn is necessary, not sufficient.</p>
+        </Section>}
 
         <Section id="leaders" title="Momentum leaderboard" open={!!open.leaders} onToggle={toggle}
           summary={<>

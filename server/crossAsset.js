@@ -23,6 +23,8 @@
 // The playbook: what stocks, bonds, the dollar and commodities did over the
 // next 26 weeks from every past week in each cell, and how clarity sorted the
 // outcomes. Only data available at each week is used for that week's reading.
+// Also: the yield-curve regime and the Fed turn (server/curveTurn.js), run to
+// the latest close rather than last Friday, since a selloff does not wait.
 //
 // Sources: FRED (rates, spreads, Fed balance sheet, the dollar, the yen,
 // copper, oil) via the shared cache; Financial Modeling Prep daily closes for
@@ -31,6 +33,7 @@
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
+import { curveAndTurn } from './curveTurn.js'
 
 const DAY = 864e5, H = 3600e3
 const ETFS = ['SPY', 'XLY', 'XLP', 'IWM', 'IYT', 'KRE', 'TLT', 'GLD', 'DBC', 'CPER']
@@ -390,13 +393,21 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     let since = i
     while (since > 0 && rows[since - 1].cell === last.cell) since--
     const book = playbook(rows, px)
+    // the yield-curve regime and the Fed-turn read (server/curveTurn.js)
+    // A selloff does not wait for Friday: these two run on the same grid with the latest close added as a last,
+    // partial week, so the state is as of the latest day both prices and yields are in
+    const live = end > weeks.at(-1) ? [...weeks, end] : weeks
+    const lw = live === weeks ? w : { SPY: onWeeks(etf.SPY || [], live), TLT: onWeeks(etf.TLT || [], live), DBC: onWeeks(etf.DBC || [], live),
+      DGS2: onWeeks(F.DGS2, live, 7), DGS10: onWeeks(F.DGS10, live, 7), DFF: onWeeks(F.DFF, live, 7), dollar: splice(onWeeks(F.DTWEXBGS, live, 12), onWeeks(F.DTWEXM, live, 12)) }
+    const { curve, turn } = curveAndTurn(lw, live, { stocks: lw.SPY, bonds: lw.TLT, currencies: lw.dollar, commodities: lw.DBC })
+    curve.asOf = turn.asOf = live.at(-1)
     return {
       built: new Date(now()).toISOString(), asOf: last.d, errors,
       now: { cell: last.cell, cellLabel: CELLS[last.cell]?.label || null, liquidity: last.liq, growth: last.growth, liqAgree: last.liqAgree, growthAgree: last.growthAgree, clarity: last.clarity, flips: last.flips,
         stance: stance ? { label: stance[1], note: stance[2] } : null, since: rows[since].d, weeksInCell: i - since + 1 },
       signals, markets, instruments, cash26: rnd(cash26, 4), ranked: ranked.length, context: { oil: { level: rnd(oil[i], 2), change13: rnd(oil13, 4), note: 'WTI crude, shown for context and not graded: oil moves on supply as much as on demand' } },
       history: rows.map(r => [r.d, r.liq, r.growth, r.clarity, r.cell ? Object.keys(CELLS).indexOf(r.cell) : null]),
-      cells: CELLS, playbook: book, stances: STANCES.map(([min, label, note]) => ({ min: Math.max(0, min), label, note })),
+      cells: CELLS, playbook: book, curve, turn, stances: STANCES.map(([min, label, note]) => ({ min: Math.max(0, min), label, note })),
       method: [
         'Each signal is the market\'s 13-week move divided by its typical 13-week move over the prior three years (at least one year needed), clipped to ±2, and signed so that + means easier money or a stronger economy ahead. Cuts priced is a level: 50 basis points of cuts priced scores +1.',
         'Each axis is the average of its signals, with at least two on file. The signs of the two axes place the week in a cell.',
@@ -406,7 +417,9 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
         'Relative strength: blended momentum, the average of the 13, 26 and 52-week returns, ranked across every instrument; for stocks also the move against the S&P 500 over 13 weeks and whether that ratio is at a 52-week high. "Beats cash" compares the 26-week return with what a 3-month bill paid over the same time.',
         'Currencies are shown as each currency\'s value in dollars, so up means the currency strengthened; yields are read as levels, in percentage points.',
         'Playbook: every past week in a cell, and what each market did over the next 26 weeks. Overlapping windows and few separate episodes: a cell seen in three runs is three data points, not hundreds.',
-        'Inputs start at different dates (real yields 2003, gold 2004, regional banks 2006, the broad dollar 2006 with the major-currency index spliced before it, the copper ETF late 2011 with the IMF\'s monthly copper price before it), so early readings rest on fewer signals.',
+        'Yield-curve regime: over 13 weeks (4 for the latest turn), the 10-year minus 2-year spread moving 15 bp or more (8 bp over 4 weeks) is steepening or flattening, less is no clear move; bull if yields fell on average, bear if they rose.',
+      'Fed turn: stocks are under pressure when the S&P 500 closes 8% or more below its 52-week high. The tells that the Fed is giving way: the 2-year down 35 bp or more over 8 weeks, the broad dollar below its 40-week average and down over 13 weeks, and the curve bull-steepening. Two or more tells under pressure is the Fed blinking; none, with the 2-year at or above fed funds less 10 bp, is the Fed holding firm, except at the zero bound (fed funds under 0.5%), where the Fed answers with its balance sheet and those weeks read undecided. An episode is the first such week with none in the 26 weeks before.',
+      'Inputs start at different dates (real yields 2003, gold 2004, regional banks 2006, the broad dollar 2006 with the major-currency index spliced before it, the copper ETF late 2011 with the IMF\'s monthly copper price before it), so early readings rest on fewer signals.',
       ],
       source: 'FRED (Federal Reserve, Treasury, ICE, Moody\'s, IMF copper) and Financial Modeling Prep daily closes; the reading rules are this dashboard\'s',
     }
