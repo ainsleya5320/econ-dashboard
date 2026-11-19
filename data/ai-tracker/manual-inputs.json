@@ -84,7 +84,6 @@
       { "date": "2026-06-30", "company": "Alphabet", "value": "Anthropic committed at least about $114.5B to Google for April 2026 to July 2033 (agreement of March 2026), plus an estimated $125-150B of further TPU capacity for 2028-31 that is not in its commitments table", "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" },
       { "date": "2026-06-30", "company": "Microsoft", "value": "Anthropic committed at least $44.9B to Microsoft for November 2026 to May 2033 (agreement of November 2025, amended February and October 2026)", "source_url": "https://www.sec.gov/Archives/edgar/data/2130357/000162828026067168/anthropicpbc-sx1.htm", "added": "2026-10-26" }
     ] },
-    "rampAiIndex": { "label": "Ramp AI Index (share of U.S. businesses paying for AI tools)", "unit": "% of businesses", "frequency": "monthly", "values": [] },
     "adRevenue": { "label": "Meta and Google advertising revenue", "unit": "$bn", "frequency": "quarterly", "values": [] }
   },
   "_valueSchema": { "date": "YYYY-MM-DD (period end)", "company": "optional", "value": "number or text", "source_url": "https://…", "added": "YYYY-MM-DD" }

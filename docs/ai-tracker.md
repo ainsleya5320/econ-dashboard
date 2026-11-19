@@ -44,7 +44,6 @@ Both can be true at once: value is created but captured by users rather than by 
 | 12 | Software output vs headcount | Real software investment `B985RX1Q020SBEA` (Dark Output raw, FRED or BEA) vs BLS CES software publishers (5132) + computer systems design (5415) | Yes | y/y growth gap in points. |
 
 **Not built:**
-- **Ramp AI Index:** no API, so it's a manual series.
 - **Meta and Google ad revenue:** XBRL segment data is messy, so manual as the spec allowed.
 - **Leases not yet commenced:** no XBRL tag in use at these filers, so manual from the lease footnote.
 
@@ -92,3 +91,5 @@ Delete the example row or leave it; rows marked `"example": true` are ignored.
 ## Scheduled refresh (proposed, not enabled)
 
 The local dashboard refreshes itself: each source is cached 12 hours and refetched on demand. This repo has no deploy workflow (`.github/workflows` holds only the special-situations digest), so there is nothing to schedule here. The static Netlify fork bakes `/api` responses at build time. Adding `/api/ai-buildout` to its bake list, with a weekly scheduled build there, would keep the public copy current.
+
+**Ramp AI Index** (Nov 2026): no longer a manual series here. It has its own panel on AI Economy → Tokens (server/rampAi.js), read from Ramp's AI Index page, with Ramp's adoption series on FRED (RAMPAI*) as the fallback.

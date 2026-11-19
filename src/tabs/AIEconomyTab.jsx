@@ -20,6 +20,7 @@ import AiCredit from "./ai/AiCredit.jsx";
 import LabEconomics from "./ai/LabEconomics.jsx";
 import ComputeFlows from "./ai/ComputeFlows.jsx";
 import ComputeBalance from "./ai/ComputeBalance.jsx";
+import RampAiIndex from "./ai/RampAiIndex.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -2047,6 +2048,8 @@ function TokenDemandTab() {
     <SH>Intelligence, Price and Speed — Artificial Analysis</SH>
     <AaModelsPanel />
     <BtosAdoptionPanel />
+    <SH>What Businesses Pay for AI — the Ramp AI Index</SH>
+    <RampAiIndex />
     <Collapse title="Corroborating Signals — Stack Overflow / GitHub / Cloudflare" sub="early-warning breadth, not headline signals">
       <UsageSignalsPanel />
     </Collapse>

@@ -55,6 +55,7 @@ import { createInflationDecomp } from './server/inflationDecomp.js'
 import { createComputeBalance } from './server/computeBalance.js'
 import { createCrossAsset } from './server/crossAsset.js'
 import { createLiquidity } from './server/liquidity.js'
+import { createRampAi } from './server/rampAi.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
 import { createAccountingFlags } from './server/accountingFlags.js'
 import { createSinMonitor } from './server/sinMonitor.js'
@@ -3832,6 +3833,8 @@ const inflationDecomp = createInflationDecomp({ fred: fetchFredSeries })
 const crossAsset = createCrossAsset({ dir: __dirname, fred: fetchFredSeries, FMP_KEY, UA })
 // U.S. Economy → Rates & Fed → Liquidity (server/liquidity.js): six layers of liquidity and a composite, FRED via the shared cache
 const liquidity = createLiquidity({ dir: __dirname, fred: fetchFredSeries })
+// AI Economy → Tokens (server/rampAi.js): the Ramp AI Index, adoption, spend and token shares from Ramp's page (FRED fallback)
+const rampAi = createRampAi({ dir: __dirname, fred: fetchFredSeries, UA: 'econ-dashboard (personal research)' })
 // One-pagers (server/onePager.js): Claude Opus 5.5 with web search writes a memo per recommended idea (why it's cheap,
 // what the market is focused on, whether it's wrong); its own daily cap, IDEAS_DAILY_BUDGET_USD (default $5)
 // Treasury bonds (server/treasuryBonds.js): Income → Bonds — every marketable Treasury priced daily from TreasuryDirect FedInvest,
@@ -4096,6 +4099,7 @@ export default defineConfig({
         reRoute('/api/compute-balance', () => computeBalance.get())
         reRoute('/api/cross-asset', () => crossAsset.get())
         reRoute('/api/liquidity', () => liquidity.get())
+        reRoute('/api/ramp-ai', () => rampAi.get())
         reRoute('/api/ai-flows', () => aiFlows.get())
         reRoute('/api/ai-credit', () => aiCredit.get())
         reRoute('/api/treasury-bonds', () => treasuryBonds.get())

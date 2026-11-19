@@ -145,3 +145,5 @@ long-run.json
 /compute-balance.json
 # Cockpit → Four markets: FMP daily closes behind the cross-asset read (licensed data, not committed)
 /cross-asset-prices.json
+# AI Economy → Tokens: the Ramp AI Index page cache and the weekly token archive built from it
+/ramp-ai.json
