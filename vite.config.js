@@ -39,6 +39,8 @@ import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
 import { createTokenSpot } from './server/tokenSpot.js'
+import { createTokenMarket } from './server/tokenMarket.js'
+import { createGatewayShares } from './server/gatewayShares.js'
 import { createTightening } from './server/tightening.js'
 import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
@@ -4002,6 +4004,12 @@ export default defineConfig({
         // rather than re-fetching its own copies over HTTP.
         const tokenSpot = createTokenSpot({ dir: __dirname, UA, semiH100: getSemiH100, aiPrices: getAiPrices })
         reRoute('/api/token-spot', () => tokenSpot.get())
+        // AI Economy → Tokens (server/tokenMarket.js): the price ladder from derived cost to list and realized prices, and who serves the open models
+        const tokenMarket = createTokenMarket({ dir: __dirname, UA, feeds: { tokenSpot: () => tokenSpot.get(), pulse: () => aiPulse.get(), ramp: () => rampAi.get() } })
+        reRoute('/api/token-market', () => tokenMarket.get())
+        // AI Economy → Tokens (server/gatewayShares.js): Vercel AI Gateway shares by lab and model, beside OpenRouter
+        const gatewayShares = createGatewayShares({ dir: __dirname, UA, pulse: () => aiPulse.get() })
+        reRoute('/api/gateway-shares', () => gatewayShares.get())
         // Tightening monitor (server/tightening.js): duration supply, auction
         // absorption, the dollar's stock and flow, and the three derived views
         // (the tell, divergence, sequence). FRED via the shared cache plus two

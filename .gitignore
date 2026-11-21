@@ -147,3 +147,5 @@ long-run.json
 /cross-asset-prices.json
 # AI Economy → Tokens: the Ramp AI Index page cache and the weekly token archive built from it
 /ramp-ai.json
+/token-market-archive.json
+/vercel-gateway.json

@@ -21,6 +21,8 @@ import LabEconomics from "./ai/LabEconomics.jsx";
 import ComputeFlows from "./ai/ComputeFlows.jsx";
 import ComputeBalance from "./ai/ComputeBalance.jsx";
 import RampAiIndex from "./ai/RampAiIndex.jsx";
+import TokenLadder from "./ai/TokenLadder.jsx";
+import GatewayShares from "./ai/GatewayShares.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -2050,6 +2052,12 @@ function TokenDemandTab() {
     <BtosAdoptionPanel />
     <SH>What Businesses Pay for AI — the Ramp AI Index</SH>
     <RampAiIndex />
+
+    <SH>The Token Ladder — Cost to Make, Price to Buy</SH>
+    <TokenLadder />
+
+    <SH>Managed Inference — the Vercel AI Gateway beside OpenRouter</SH>
+    <GatewayShares />
     <Collapse title="Corroborating Signals — Stack Overflow / GitHub / Cloudflare" sub="early-warning breadth, not headline signals">
       <UsageSignalsPanel />
     </Collapse>
@@ -2320,7 +2328,8 @@ function ChainTab({ go }) {
 }
 
 function AIEconomyTab() {
-  const [subTab, setSubTab] = useState("pulse");
+  // ?view=ai&sub=tokens (or compute, silicon, models, buildout, dark, tensions) lands on that sub-tab
+  const [subTab, setSubTab] = useState(() => { const p = new URLSearchParams(window.location.search), v = p.get("sub"); return p.get("view") === "ai" && ["pulse", "tokens", "compute", "silicon", "models", "buildout", "dark", "tensions"].includes(v) ? v : "pulse"; });
 
   // 2026-09 revamp: Pulse landing (token tracker + Artificial Analysis + GPU
   // rentals), then the three deep-dives along the chain; Tensions (2026-10)
