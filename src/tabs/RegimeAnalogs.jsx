@@ -6,7 +6,7 @@ import { REG_COLOR } from "./regime/shared.jsx";
 // ============================================================================
 // REGIME ANALOGS — Regime Map → Analogs: when has the market looked like
 // this before? Each node is 13 weeks of sixteen cross-asset readings; today is
-// compared with every earlier node since 1999 (server/regimeAnalogs.js).
+// compared with every earlier node since 1990 (server/regimeAnalogs.js).
 //   map        every node, coloured by regime and sized by how violent the 13
 //              weeks were; today, its ten closest analogs and the benchmark
 //              episodes are marked. Near means alike; distances are not to scale
@@ -36,20 +36,23 @@ const READ = { agree: ["✓", "same direction"], differ: ["✗", "opposite"], "b
 function Dot({ color }) { return <i aria-hidden="true" style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: color, marginRight: 5 }} />; }
 
 // place labels beside their nodes without overlap: try right, left, above, below; drop optional ones that will not fit
-function placeLabels(items, W, H) {
-  const placed = [];
+function placeLabels(items, W, H, blockers = []) {
+  const placed = [], drawn = [];
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
   for (const it of items) {
-    const w = it.text.length * (it.big ? 6.4 : 5.4) + 4, h = it.big ? 13 : 11, g = it.r + 4;
-    const tries = [[it.cx + g, it.cy - h / 2, "start"], [it.cx - g - w, it.cy - h / 2, "end"], [it.cx - w / 2, it.cy - g - h, "middle"], [it.cx - w / 2, it.cy + g, "middle"], [it.cx + g, it.cy - h - 2, "start"], [it.cx + g, it.cy + 2, "start"]];
+    const w = it.text.length * (it.big ? 6.4 : 5.4) + 4, h = it.big ? 13 : 11;
+    // close in first; today's and the analogs' labels may step further out before giving up, the episodes' may not
+    const tries = (it.kind === "episode" ? [4] : [4, 14, 26, 40]).flatMap(o => { const g = it.r + o; return [[it.cx + g, it.cy - h / 2, "start"], [it.cx - g - w, it.cy - h / 2, "end"], [it.cx - w / 2, it.cy - g - h, "middle"], [it.cx - w / 2, it.cy + g, "middle"],
+      [it.cx + g, it.cy - h - 2, "start"], [it.cx + g, it.cy + 2, "start"], [it.cx - g - w, it.cy - h - 2, "end"], [it.cx - g - w, it.cy + 2, "end"]]; });
     for (const [x, y, anchor] of tries) {
       const box = { x, y, w, h };
-      if (x < 2 || y < 2 || x + w > W - 2 || y + h > H - 2 || placed.some(p => hit(p, box))) continue;
-      placed.push({ ...box, ...it, anchor, tx: anchor === "start" ? x : anchor === "end" ? x + w : x + w / 2, ty: y + h - 2.5 });
+      if (x < 2 || y < 2 || x + w > W - 2 || y + h > H - 2 || placed.some(p => hit(p, box)) || blockers.some(p => p.node !== it.node && hit(p, box))) continue;
+      placed.push(box);
+      drawn.push({ ...box, ...it, anchor, tx: anchor === "start" ? x : anchor === "end" ? x + w : x + w / 2, ty: y + h - 2.5 });
       break;
     }
   }
-  return placed;
+  return drawn;
 }
 
 function RegimeMap({ d, selected, onSelect }) {
@@ -58,10 +61,12 @@ function RegimeMap({ d, selected, onSelect }) {
   const X = n => pad + n.x * (W - 2 * pad), Y = n => pad + n.y * (H - 2 * pad), R = n => 2.4 + 4.6 * (n.size ?? 0.3);
   const now = d.nodes.length - 1, analogAt = Object.fromEntries(d.analogs.map(a => [a.node, a]));
   const labels = useMemo(() => {
-    const items = [{ cx: X(d.nodes[now]), cy: Y(d.nodes[now]), r: 10, text: `Now · ${mon(d.asOf)}`, big: true, kind: "now" }];
-    for (const a of d.analogs.slice(0, 5)) items.push({ cx: X(d.nodes[a.node]), cy: Y(d.nodes[a.node]), r: 7, text: `${a.rank}. ${mon(a.d)} · ${Math.round(a.sim * 100)}%`, kind: "analog" });
-    for (const e of d.episodes) if (!analogAt[e.peak]) items.push({ cx: X(d.nodes[e.peak]), cy: Y(d.nodes[e.peak]), r: R(d.nodes[e.peak]), text: e.label.replace(/ \(.*\)/, ""), kind: "episode" });
-    return placeLabels(items, W, H);
+    const items = [{ cx: X(d.nodes[now]), cy: Y(d.nodes[now]), r: 10, text: `Now · ${mon(d.asOf)}`, big: true, kind: "now", node: now }];
+    for (const a of d.analogs.slice(0, 5)) items.push({ cx: X(d.nodes[a.node]), cy: Y(d.nodes[a.node]), r: 7, text: `${a.rank}. ${mon(a.d)} · ${Math.round(a.sim * 100)}%`, kind: "analog", node: a.node });
+    for (const e of d.episodes) if (!analogAt[e.peak]) items.push({ cx: X(d.nodes[e.peak]), cy: Y(d.nodes[e.peak]), r: R(d.nodes[e.peak]), text: e.label.replace(/ \(.*\)/, ""), kind: "episode", node: e.peak });
+    // today and every analog are obstacles too, so a label never sits on top of another marked node
+    const ring = (j, r) => ({ node: j, x: X(d.nodes[j]) - r, y: Y(d.nodes[j]) - r, w: 2 * r, h: 2 * r });
+    return placeLabels(items, W, H, [ring(now, 13), ...d.analogs.map(a => ring(a.node, 9))]);
   }, [d]);
   const move = e => {
     const b = e.currentTarget.getBoundingClientRect(), mx = ((e.clientX - b.left) / b.width) * W, my = ((e.clientY - b.top) / b.height) * H;
@@ -72,7 +77,7 @@ function RegimeMap({ d, selected, onSelect }) {
   const h = hover != null ? d.nodes[hover] : null;
   return (
     <div style={{ position: "relative", maxWidth: 1000, margin: "0 auto" }}>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Every 13-week window since 1999 as a node, similar windows near each other; today and its closest analogs are marked" style={{ display: "block" }}
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Every 13-week window on record as a node, similar windows near each other; today and its closest analogs are marked" style={{ display: "block" }}
         onMouseMove={move} onMouseLeave={() => setHover(null)} onClick={() => { if (hover != null && analogAt[hover]) onSelect(analogAt[hover].rank); }}>
         {d.edges.map(([a, b]) => <line key={`${a}-${b}`} x1={X(d.nodes[a])} y1={Y(d.nodes[a])} x2={X(d.nodes[b])} y2={Y(d.nodes[b])} stroke="var(--text-muted)" strokeWidth="0.6" opacity="0.16" />)}
         {d.analogs.map(a => <line key={a.rank} x1={X(d.nodes[now])} y1={Y(d.nodes[now])} x2={X(d.nodes[a.node])} y2={Y(d.nodes[a.node])} stroke="var(--text-primary)" strokeWidth={a.rank === selected ? 1.6 : 0.9} opacity={a.rank === selected ? 0.8 : a.rank <= 5 ? 0.38 : 0.2} />)}
@@ -145,7 +150,7 @@ export default function RegimeAnalogs() {
   const [d, setD] = useState(null), [err, setErr] = useState(null), [sel, setSel] = useState(1);
   useEffect(() => { let live = true; fetch("/api/regime-analogs").then(r => r.json()).then(j => { if (live) { if (j.error) setErr(j.error); else setD(j); } }).catch(e => live && setErr(e.message)); return () => { live = false; }; }, []);
   if (err) return <div className="options-research"><section className="ocard"><h3 className="ocard-title">Regime analogs</h3><p className="ocard-finding">The analog read could not be built: {err}</p></section></div>;
-  if (!d) return <div className="options-research"><section className="ocard"><h3 className="ocard-title">Regime analogs</h3><p className="onote">Comparing today with every 13-week window since 1999…</p></section></div>;
+  if (!d) return <div className="options-research"><section className="ocard"><h3 className="ocard-title">Regime analogs</h3><p className="onote">Comparing today with every 13-week window on record…</p></section></div>;
 
   const n = d.now, st = n.stats, top = d.analogs[0], a = d.analogs[sel - 1] || top, o6 = d.outcomes.find(o => o.h === 26), bt = d.backtest;
   const agree = a.why.filter(w => w.read === "agree"), differ = a.why.filter(w => w.read === "differ");
@@ -153,13 +158,13 @@ export default function RegimeAnalogs() {
   return (
     <div className="options-research">
       <VizCard eyebrow={`Cross-asset similarity · equities, rates, credit, currencies, commodities, volatility · 13 weeks to ${day(d.asOf)}`} title="When has the market looked like this before?"
-        finding={`${n.stressAnalogs} of the ${n.analogs} closest analogs were stress regimes; the closest is ${mon(top.d)} at ${Math.round(top.sim * 100)}% similarity. Today reads ${n.label.toLowerCase()}, ${n.led}-led, more violent than ${share(n.intensityPct)} of 13-week windows since 1999. After the ten analogs the S&P 500's median next six months was ${pct(o6.median)} (up ${share(o6.positive)} of the time), against ${pct(o6.base.median)} (up ${share(o6.base.positive)}) from any week. Read it as a description of where we are: the check at the bottom shows analogs have not called direction.`}
+        finding={`${n.stressAnalogs} of the ${n.analogs} closest analogs were stress regimes; the closest is ${mon(top.d)} at ${Math.round(top.sim * 100)}% similarity. Today reads ${n.label.toLowerCase()}, ${n.led}-led, more violent than ${share(n.intensityPct)} of 13-week windows since ${d.since.slice(0, 4)}. After the ten analogs the S&P 500's median next six months was ${pct(o6.median)} (up ${share(o6.positive)} of the time), against ${pct(o6.base.median)} (up ${share(o6.base.positive)}) from any week. Read it as a description of where we are: the check at the bottom shows analogs have not called direction.`}
         style={{ marginBottom: 0 }}>
         <div className="okpis" style={{ marginBottom: 10 }}>
           <Kpi label="Current regime" value={n.label} sub={`${n.led}-led; stress ${n.stress > 0 ? "+" : ""}${n.stress} (0.6 or more is risk-off)`} tone={REG_COLOR[n.regime]} />
           <Kpi label="Closest match" value={`${mon(top.d)} · ${Math.round(top.sim * 100)}%`} sub={`${d.regimes[top.regime].label}; then S&P ${pct(top.f26)} in 6 months`} />
           <Kpi label="Stress analogs" value={`${n.stressAnalogs} of ${n.analogs}`} sub="closest analogs that were risk-off regimes" />
-          <Kpi label="Intensity" value={`${Math.round(n.intensityPct * 100)}th pct`} sub="how violent the past 13 weeks were, against every window since 1999" />
+          <Kpi label="Intensity" value={`${Math.round(n.intensityPct * 100)}th pct`} sub={`how violent the past 13 weeks were, against every window since ${d.since.slice(0, 4)}`} />
           <Kpi label="After the analogs, 6 mo" value={pct(o6.median)} sub={`median S&P; middle half ${pct(o6.p25)} to ${pct(o6.p75)}; ${o6.n} analogs`} />
         </div>
 
@@ -215,7 +220,7 @@ export default function RegimeAnalogs() {
             <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Analog outcomes · S&amp;P 500</div>
             <div className="otable-wrap">
               <table className="otable">
-                <thead><tr><th style={left}>After</th><th style={right}>Median</th><th style={right}>Up</th><th style={right}>25th</th><th style={right}>75th</th><th style={right} title="What the S&P did from any week since 1999">Any week</th></tr></thead>
+                <thead><tr><th style={left}>After</th><th style={right}>Median</th><th style={right}>Up</th><th style={right}>25th</th><th style={right}>75th</th><th style={right} title="What the S&P did from any week on record">Any week</th></tr></thead>
                 <tbody>{d.outcomes.map(o => (
                   <tr key={o.h}>
                     <td style={{ ...left, fontFamily: "var(--font-body)" }}>{o.label}<span style={{ color: "var(--text-muted)" }}> · {o.n} analogs</span></td>

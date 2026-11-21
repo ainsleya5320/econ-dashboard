@@ -23,14 +23,16 @@
 // The playbook: what stocks, bonds, the dollar and commodities did over the
 // next 26 weeks from every past week in each cell, and how clarity sorted the
 // outcomes. Only data available at each week is used for that week's reading.
-// Also: the yield-curve regime and the Fed turn (server/curveTurn.js).
+// Also: the yield-curve regime and the Fed turn (server/curveTurn.js), which
+// need only the S&P, yields, fed funds and the dollar and so run from 1990.
 // The grid is every Friday plus the latest close as a last, partial week, so
 // nothing here waits for the week to end.
 //
 // Sources: FRED (rates, spreads, Fed balance sheet, the dollar, the yen,
 // copper, oil) via the shared cache; Financial Modeling Prep daily closes for
 // SPY, XLY, XLP, IWM, IYT, KRE, TLT, GLD, DBC and CPER (key server-side), kept in the
-// gitignored cross-asset-prices.json and topped up daily.
+// gitignored cross-asset-prices.json and topped up daily, with the S&P 500 and
+// Russell 2000 indexes and gold back to 1988 for the reads that reach 1990.
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
@@ -39,6 +41,13 @@ import { curveAndTurn } from './curveTurn.js'
 const DAY = 864e5, H = 3600e3
 const ETFS = ['SPY', 'XLY', 'XLP', 'IWM', 'IYT', 'KRE', 'TLT', 'GLD', 'DBC', 'CPER']
 const CHUNKS = [['1999-01-01', '2008-12-31'], ['2009-01-01', '2018-12-31'], ['2019-01-01', null]]   // FMP returns at most 5,000 rows a call
+// Index and gold closes back to 1988, for what can be read before the sector funds exist: the regime analogs
+// (server/regimeAnalogs.js) and the yield-curve and Fed-turn reads, which run from 1990
+const LONG = ['^GSPC', '^RUT', 'GCUSD']
+const LONG_CHUNKS = [['1988-01-01', '1997-12-31'], ['1998-01-01', '2007-12-31'], ['2008-01-01', '2017-12-31'], ['2018-01-01', null]]
+export const LONG_START = '1990-01-01'
+// how many daily observations to ask FRED for: fed funds is quoted seven days a week, so it needs more to reach 1989
+const FRED_LIMIT = { DFF: 14000, DGS2: 10500, DGS10: 10500, BAA10Y: 10500, DCOILWTICO: 10500, DEXJPUS: 10500, DTWEXM: 10500 }
 const FRED_IDS = ['DFF', 'DGS2', 'DGS10', 'DFII10', 'WALCL', 'WTREGEN', 'RRPONTSYD', 'DTWEXBGS', 'DTWEXM', 'DEXJPUS', 'BAA10Y', 'PCOPPUSDM', 'DCOILWTICO']
 export const START = '1999-01-01'
 const W13 = 13, W26 = 26, ZWIN = 156, ZMIN = 52
@@ -324,7 +333,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
   async function prices() {
     if (!FMP_KEY) throw new Error('No FMP key configured')
     const fmpInstruments = INSTRUMENTS.filter(x => x.src === 'fmp' && !ETFS.includes(x.id)).map(x => x.id)
-    if (now() - (store.checked || 0) < 12 * H && ETFS.every(s => store.symbols[s]?.length) && fmpInstruments.every(s => store.recent?.[s]?.length)) return { symbols: { ...store.recent, ...store.symbols }, errors: [] }
+    if (now() - (store.checked || 0) < 12 * H && ETFS.every(s => store.symbols[s]?.length) && fmpInstruments.every(s => store.recent?.[s]?.length) && LONG.every(s => store.long?.[s]?.length)) return { symbols: { ...store.recent, ...store.symbols }, errors: [] }
     const errors = []
     for (const s of ETFS) {
       const have = store.symbols[s] || []
@@ -344,6 +353,15 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
       try { for (const x of await fmp(inst.id, from, null)) got.set(x.d, x.v); await sleep(450) } catch (e) { errors.push(String(e?.message || e).slice(0, 80)); continue }
       store.recent[inst.id] = [...got].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({ d, v }))
     }
+    // the long histories: paged by decade once, then topped up
+    store.long ||= {}
+    for (const s of LONG) {
+      const have = store.long[s] || []
+      const chunks = have.length ? [[iso(Date.parse(have.at(-1).d) - 14 * DAY), null]] : LONG_CHUNKS
+      const got = new Map(have.map(x => [x.d, x.v]))
+      try { for (const [from, to] of chunks) { for (const x of await fmp(s, from, to)) got.set(x.d, x.v); await sleep(450) } } catch (e) { errors.push(String(e?.message || e).slice(0, 80)); continue }
+      store.long[s] = [...got].sort((a, b) => a[0].localeCompare(b[0])).map(([d, v]) => ({ d, v }))
+    }
     if (!errors.length) store.checked = now()
     try { fs.writeFileSync(FILE, JSON.stringify(store)) } catch (e) { console.error('cross-asset-prices.json save:', e.message) }
     if (!store.symbols.SPY?.length) throw new Error(errors[0] || 'No price history')
@@ -352,13 +370,16 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
 
   async function build() {
     const extraFred = [...new Set(INSTRUMENTS.filter(x => x.src === 'fred' && !FRED_IDS.includes(x.id)).map(x => x.id))]
-    const [{ symbols: etf, errors }, ...fredSeries] = await Promise.all([prices(), ...FRED_IDS.map(id => fred(id, 9000)), ...extraFred.map(id => fred(id, 900).catch(() => []))])
+    const [{ symbols: etf, errors }, ...fredSeries] = await Promise.all([prices(), ...FRED_IDS.map(id => fred(id, FRED_LIMIT[id] || 9000)), ...extraFred.map(id => fred(id, 900).catch(() => []))])
     const F = Object.fromEntries([...FRED_IDS, ...extraFred].map((id, i) => [id, fredSeries[i] || []]))
     const end = [etf.SPY?.at(-1)?.d, F.DGS10.at(-1)?.d].filter(Boolean).sort()[0]
     // Fridays, plus the latest close as a last, partial week when it is past the last Friday: a selloff does not
     // wait for the week to end, so every reading is as of the latest day both prices and yields are in
     const fr = fridays(START, end), weeks = end > fr.at(-1) ? [...fr, end] : fr
-    raw = { etf, F, end }   // the daily inputs, for server/regimeAnalogs.js
+    raw = { etf, F, end, long: store.long || {} }   // the daily inputs, for server/regimeAnalogs.js
+    // fed funds as its average over the past week: the daily effective rate jumped about at quarter-ends before 2008
+    const ff = F.DFF.filter(r => fin(r.v))
+    F.DFF = ff.map((r, k) => ({ d: r.d, v: mean(ff.slice(Math.max(0, k - 6), k + 1).map(x => x.v)) }))
     const w = {}
     for (const s of ETFS) w[s] = onWeeks(etf[s] || [], weeks)
     for (const id of FRED_IDS) w[id] = onWeeks(F[id], weeks, id === 'PCOPPUSDM' ? 45 : ['WALCL', 'WTREGEN', 'DTWEXBGS', 'DTWEXM', 'DEXJPUS'].includes(id) ? 10 : 7)
@@ -398,8 +419,19 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     while (since > 0 && rows[since - 1].cell === last.cell) since--
     const book = playbook(rows, px)
     // the yield-curve regime and the Fed-turn read (server/curveTurn.js)
-    const { curve, turn } = curveAndTurn(w, weeks, { stocks: w.SPY, bonds: w.TLT, currencies: w.dollar, commodities: w.DBC })
-    curve.asOf = turn.asOf = weeks.at(-1)
+    // These two need only the S&P, the 2-year, the 10-year, fed funds and the dollar, so they run on a longer grid,
+    // from 1990, with the S&P 500 index standing in for SPY. Bond and commodity funds start later: their columns in
+    // the record are simply shorter. Without the index history they fall back to the 1999 grid
+    const spx = store.long?.['^GSPC'] || []
+    let lw = w, lweeks = weeks
+    if (spx.length && spx[0].d <= '1990-01-31') {
+      const lf = fridays(LONG_START, end)
+      lweeks = end > lf.at(-1) ? [...lf, end] : lf
+      const on = (id, age = 7) => onWeeks(F[id], lweeks, age)
+      lw = { SPY: onWeeks(spx, lweeks), TLT: onWeeks(etf.TLT || [], lweeks), DBC: onWeeks(etf.DBC || [], lweeks), DGS2: on('DGS2'), DGS10: on('DGS10'), DFF: on('DFF'), dollar: splice(on('DTWEXBGS', 10), on('DTWEXM', 10)) }
+    }
+    const { curve, turn } = curveAndTurn(lw, lweeks, { stocks: lw.SPY, bonds: lw.TLT, currencies: lw.dollar, commodities: lw.DBC })
+    curve.asOf = turn.asOf = lweeks.at(-1)
     return {
       built: new Date(now()).toISOString(), asOf: last.d, errors,
       now: { cell: last.cell, cellLabel: CELLS[last.cell]?.label || null, liquidity: last.liq, growth: last.growth, liqAgree: last.liqAgree, growthAgree: last.growthAgree, clarity: last.clarity, flips: last.flips,
@@ -409,6 +441,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
       cells: CELLS, playbook: book, curve, turn, stances: STANCES.map(([min, label, note]) => ({ min: Math.max(0, min), label, note })),
       method: [
         'Weekly, on Fridays, with the latest close added as a last, partial week: every reading is as of the latest day both prices and yields are in.',
+      'The yield-curve and Fed-turn reads start in 1990, on the S&P 500 index; the twelve signals, the regime and the playbook start in 1999, when the sector funds do. Fed funds is its average over the past week.',
       'Each signal is the market\'s 13-week move divided by its typical 13-week move over the prior three years (at least one year needed), clipped to ±2, and signed so that + means easier money or a stronger economy ahead. Cuts priced is a level: 50 basis points of cuts priced scores +1.',
         'Each axis is the average of its signals, with at least two on file. The signs of the two axes place the week in a cell.',
         'Clarity, 0 to 100: for each axis, agreement (half the signals agreeing counts 0, all of them 1) times strength (an average score of 0.75 or more counts in full); the two axes averaged; then each change of cell in the past eight weeks takes off a fifth, to a floor of 0.4.',
@@ -418,7 +451,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
         'Currencies are shown as each currency\'s value in dollars, so up means the currency strengthened; yields are read as levels, in percentage points.',
         'Playbook: every past week in a cell, and what each market did over the next 26 weeks. Overlapping windows and few separate episodes: a cell seen in three runs is three data points, not hundreds.',
         'Yield-curve regime: over 13 weeks (4 for the latest turn), the 10-year minus 2-year spread moving 15 bp or more (8 bp over 4 weeks) is steepening or flattening, less is no clear move; bull if yields fell on average, bear if they rose.',
-      'Fed turn: stocks are under pressure when the S&P 500 closes 8% or more below its 52-week high. The tells that the Fed is giving way: the 2-year down 35 bp or more over 8 weeks, the broad dollar below its 40-week average and down over 13 weeks, and the curve bull-steepening. Two or more tells under pressure is the Fed blinking; none, with the 2-year at or above fed funds less 10 bp, is the Fed holding firm, except at the zero bound (fed funds under 0.5%), where the Fed answers with its balance sheet and those weeks read undecided. An episode is the first such week with none in the 26 weeks before.',
+      'Fed turn: stocks are under pressure when the S&P 500 closes 8% or more below its 52-week high. The tells that the Fed is giving way: the 2-year down 35 bp or more over 8 weeks, the broad dollar below its 40-week average and down over 13 weeks, and the curve bull-steepening. Two or more tells under pressure is the Fed blinking; none, with the 2-year at or above fed funds less 10 bp, and fed funds not cut by 20 bp or more in 13 weeks, is the Fed holding firm, except at the zero bound (fed funds under 0.5%), where the Fed answers with its balance sheet and those weeks read undecided. An episode is the first such week with none in the 26 weeks before.',
       'Inputs start at different dates (real yields 2003, gold 2004, regional banks 2006, the broad dollar 2006 with the major-currency index spliced before it, the copper ETF late 2011 with the IMF\'s monthly copper price before it), so early readings rest on fewer signals.',
       ],
       source: 'FRED (Federal Reserve, Treasury, ICE, Moody\'s, IMF copper) and Financial Modeling Prep daily closes; the reading rules are this dashboard\'s',

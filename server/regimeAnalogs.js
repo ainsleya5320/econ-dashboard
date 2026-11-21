@@ -1,6 +1,6 @@
 // ============================================================================
 // REGIME ANALOGS — Regime Map: when has the market looked like this before?
-// Every four weeks since 1999 the past 13 weeks (63 trading days) are reduced
+// Every four weeks since 1990 the past 13 weeks (63 trading days) are reduced
 // to one vector of sixteen cross-asset readings, and today's vector is compared
 // with every earlier one.
 //
@@ -33,9 +33,13 @@
 //              known then: did the analogs' median call the next 26 weeks?
 //
 // No data of its own beyond the VIX (FRED VIXCLS): everything else is the daily
-// inputs server/crossAsset.js already keeps. Descriptive, not a forecast.
+// inputs server/crossAsset.js already keeps, including the S&P 500 and Russell
+// 2000 indexes and gold back to 1988, which is what lets this start in 1990
+// (cyclicals against defensives needs the sector funds and starts in 1999).
+// Without that long history it falls back to the funds, from 1999.
+// Descriptive, not a forecast.
 // ============================================================================
-import { fridays, onWeeks, splice, START } from './crossAsset.js'
+import { fridays, onWeeks, splice, START, LONG_START } from './crossAsset.js'
 
 const H = 3600e3, W = 13, STEP = 4, GAP = 6 /* nodes: 24 weeks */, TOP = 10, PATH = 26
 const fin = v => v != null && Number.isFinite(v)
@@ -50,10 +54,10 @@ const drawdown = x => x.map((v, i) => { const w = x.slice(Math.max(0, i - 51), i
 
 // kind: 'log' and 'diff' are 13-week changes (scaled by their standard deviation, sign kept); 'level' is measured from its average
 export const FEATURES = [
-  { id: 'spx', group: 'equities', label: 'S&P 500', kind: 'log', x: s => s.SPY },
-  { id: 'small', group: 'equities', label: 'Small caps against the S&P', kind: 'log', x: s => ratio(s.IWM, s.SPY) },
+  { id: 'spx', group: 'equities', label: 'S&P 500', kind: 'log', x: s => s.SPX },
+  { id: 'small', group: 'equities', label: 'Small caps against the S&P', kind: 'log', x: s => ratio(s.RUT, s.SPX) },
   { id: 'cyc', group: 'equities', label: 'Cyclicals against defensives', kind: 'log', x: s => ratio(s.XLY, s.XLP) },
-  { id: 'dd', group: 'equities', label: 'S&P below its 52-week high', kind: 'level', x: s => drawdown(s.SPY) },
+  { id: 'dd', group: 'equities', label: 'S&P below its 52-week high', kind: 'level', x: s => drawdown(s.SPX) },
   { id: 'y2', group: 'rates', label: '2-year yield', kind: 'diff', x: s => s.DGS2 },
   { id: 'y10', group: 'rates', label: '10-year yield', kind: 'diff', x: s => s.DGS10 },
   { id: 'baa', group: 'credit', label: 'Baa credit spread', kind: 'diff', x: s => s.BAA10Y },
@@ -61,7 +65,7 @@ export const FEATURES = [
   { id: 'usd', group: 'currencies', label: 'Broad dollar', kind: 'log', x: s => s.dollar },
   { id: 'jpy', group: 'currencies', label: 'Yen against the dollar', kind: 'log', x: s => s.DEXJPUS.map(v => (fin(v) && v > 0 ? 1 / v : null)) },
   { id: 'oil', group: 'commodities', label: 'Oil (WTI)', kind: 'log', x: s => s.oil },
-  { id: 'gold', group: 'commodities', label: 'Gold', kind: 'log', x: s => s.GLD },
+  { id: 'gold', group: 'commodities', label: 'Gold', kind: 'log', x: s => s.GOLD },
   { id: 'copper', group: 'commodities', label: 'Copper', kind: 'log', x: s => s.copper },
   { id: 'vix', group: 'volatility', label: 'VIX', kind: 'diff', x: s => s.VIX },
   { id: 'vixLvl', group: 'volatility', label: 'VIX, level', kind: 'level', x: s => s.VIX.map(v => (fin(v) && v > 0 ? Math.log(v) : null)) },
@@ -84,6 +88,7 @@ export const REGIME_ORDER = ['credit', 'scare', 'tightening', 'reflation', 'easi
 
 // Fixed benchmark episodes: shown whether today resembles them or not
 export const EPISODES = [
+  ['Gulf War recession (1990)', '1990-08-01', '1991-01-31'], ['Bond rout (1994)', '1994-02-01', '1994-12-15'], ['Asian crisis (1997)', '1997-10-01', '1997-12-31'], ['Russia and LTCM (1998)', '1998-08-01', '1998-10-31'],
   ['Dot-com bust', '2000-04-01', '2001-04-30'], ['September 2001', '2001-09-14', '2001-11-30'], ['2002 credit and accounting', '2002-06-01', '2002-10-31'],
   ['Financial crisis', '2008-09-01', '2009-03-31'], ['Euro crisis', '2011-08-01', '2011-11-30'], ['Taper tantrum', '2013-05-15', '2013-09-30'],
   ['China shock', '2015-08-01', '2016-02-29'], ['Vol shock (Feb 2018)', '2018-02-01', '2018-04-30'], ['Q4 2018', '2018-10-01', '2019-01-15'],
@@ -223,11 +228,11 @@ export function buildAnalogs(weeks, s) {
   const analogs = picked.map((a, k) => {
     const i = at[a.j], why = FEATURES.map((f, q) => { const now = vecs[t][q], then = vecs[a.j][q]; return { id: f.id, label: f.label, group: f.group, kind: f.kind, now: rnd(now, 2), then: rnd(then, 2), read: !fin(now) || !fin(then) ? 'missing' : Math.abs(now) < 0.5 && Math.abs(then) < 0.5 ? 'both quiet' : Math.sign(now) === Math.sign(then) && Math.min(Math.abs(now), Math.abs(then)) >= 0.5 ? 'agree' : Math.sign(now) !== Math.sign(then) && Math.min(Math.abs(now), Math.abs(then)) >= 0.5 ? 'differ' : 'one quiet' } })
     return { rank: k + 1, node: a.j, d: weeks[i], sim: rnd(a.sim, 3), cos: rnd(a.cos, 3), mag: rnd(a.mag, 3), regime: reg[a.j].regime, led: reg[a.j].led, riskOff: reg[a.j].riskOff,
-      ...Object.fromEntries(HZ.map(([h]) => [`f${h}`, rnd(fwd(s.SPY, i, h), 4)])), credit13: i + 13 <= last && fin(s.BAA10Y[i]) && fin(s.BAA10Y[i + 13]) ? rnd(s.BAA10Y[i + 13] - s.BAA10Y[i], 2) : null,
-      path: Array.from({ length: PATH + 1 }, (_, h) => rnd(h === 0 ? 0 : fwd(s.SPY, i, h), 4)), why }
+      ...Object.fromEntries(HZ.map(([h]) => [`f${h}`, rnd(fwd(s.SPX, i, h), 4)])), credit13: i + 13 <= last && fin(s.BAA10Y[i]) && fin(s.BAA10Y[i + 13]) ? rnd(s.BAA10Y[i + 13] - s.BAA10Y[i], 2) : null,
+      path: Array.from({ length: PATH + 1 }, (_, h) => rnd(h === 0 ? 0 : fwd(s.SPX, i, h), 4)), why }
   })
   const bands = Array.from({ length: PATH + 1 }, (_, h) => { const v = analogs.map(a => a.path[h]); return { h, n: v.filter(fin).length, median: rnd(quantile(v, 0.5), 4), p10: rnd(quantile(v, 0.1), 4), p25: rnd(quantile(v, 0.25), 4), p75: rnd(quantile(v, 0.75), 4), p90: rnd(quantile(v, 0.9), 4) } })
-  const outcomes = HZ.map(([h, label]) => ({ h, label, ...summary(analogs.map(a => a[`f${h}`])), base: summary(weeks.map((_, i) => fwd(s.SPY, i, h))) }))
+  const outcomes = HZ.map(([h, label]) => ({ h, label, ...summary(analogs.map(a => a[`f${h}`])), base: summary(weeks.map((_, i) => fwd(s.SPX, i, h))) }))
 
   const episodes = EPISODES.map(([label, from, to]) => {
     const inside = at.map((i, j) => ({ j, d: weeks[i] })).filter(x => x.d >= from && x.d <= to && x.j !== t)
@@ -241,11 +246,11 @@ export function buildAnalogs(weeks, s) {
   const hB = 26, test = []
   for (let q = 0; q < vecs.length - 1; q++) {
     if (at[q] - at[0] < 260) continue
-    const actual = fwd(s.SPY, at[q], hB)
+    const actual = fwd(s.SPX, at[q], hB)
     if (!fin(actual)) continue
     const an = pickAnalogs(vecs, q, { usable: j => at[j] + hB <= at[q] })
     if (an.length < 5) continue
-    const med = quantile(an.map(a => fwd(s.SPY, at[a.j], hB)), 0.5)
+    const med = quantile(an.map(a => fwd(s.SPX, at[a.j], hB)), 0.5)
     if (fin(med)) test.push({ d: weeks[at[q]], predicted: med, actual, riskOff: reg[q].riskOff })
   }
   const share = (rows, f) => (rows.length ? rnd(rows.filter(f).length / rows.length, 3) : null)
@@ -260,9 +265,9 @@ export function buildAnalogs(weeks, s) {
   return {
     asOf: weeks[i], since: weeks[at[0]],
     now: { ...reg[t], label: REGIMES[reg[t].regime].label, intensity: rnd(inten[t], 2), intensityPct: rankOf(inten[t]), stressAnalogs: analogs.filter(a => a.riskOff).length, analogs: analogs.length,
-      stats: { spx13: rnd(d13(s.SPY, 'log') != null ? Math.exp(d13(s.SPY, 'log')) - 1 : null, 4), small13: rnd(d13(s.IWM, 'log') != null ? Math.exp(d13(s.IWM, 'log')) - 1 : null, 4), drawdown: rnd(drawdown(s.SPY)[i], 4),
+      stats: { spx13: rnd(d13(s.SPX, 'log') != null ? Math.exp(d13(s.SPX, 'log')) - 1 : null, 4), small13: rnd(d13(s.RUT, 'log') != null ? Math.exp(d13(s.RUT, 'log')) - 1 : null, 4), drawdown: rnd(drawdown(s.SPX)[i], 4),
         y10: rnd(s.DGS10[i], 2), y10chg: rnd(d13(s.DGS10), 2), y2: rnd(s.DGS2[i], 2), y2chg: rnd(d13(s.DGS2), 2), curveChg: fin(d13(s.DGS10)) && fin(d13(s.DGS2)) ? rnd(d13(s.DGS10) - d13(s.DGS2), 2) : null,
-        baa: rnd(s.BAA10Y[i], 2), baaChg: rnd(d13(s.BAA10Y), 2), vix: rnd(s.VIX[i], 1), vixChg: rnd(d13(s.VIX), 1), rateVol: rnd(s.rateVol[i], 0), dollar13: rnd(d13(s.dollar, 'log'), 4), oil13: rnd(d13(s.oil, 'log'), 4), gold13: rnd(d13(s.GLD, 'log'), 4) } },
+        baa: rnd(s.BAA10Y[i], 2), baaChg: rnd(d13(s.BAA10Y), 2), vix: rnd(s.VIX[i], 1), vixChg: rnd(d13(s.VIX), 1), rateVol: rnd(s.rateVol[i], 0), dollar13: rnd(d13(s.dollar, 'log'), 4), oil13: rnd(d13(s.oil, 'log'), 4), gold13: rnd(d13(s.GOLD, 'log'), 4) } },
     nodes: at.map((w, j) => ({ d: weeks[w], x: xy[j][0], y: xy[j][1], regime: reg[j].regime, led: reg[j].led, riskOff: reg[j].riskOff, size: rankOf(inten[j]), sim: rnd(toNow[j]?.sim, 3) })),
     edges, analogs, bands, outcomes, episodes, backtest,
     features: FEATURES.map((f, k) => ({ id: f.id, label: f.label, group: f.group, kind: f.kind, weight: rnd(WEIGHTS[k], 3) })), regimes: REGIMES, regimeOrder: REGIME_ORDER,
@@ -273,26 +278,29 @@ export function createRegimeAnalogs({ cross, fred, now = () => Date.now() }) {
   let cache = null, inflight = null
 
   async function build() {
-    const [{ etf, F, end }, vixDaily] = await Promise.all([cross.inputs(), fred('VIXCLS', 9000)])
-    const fr = fridays(START, end), weeks = end > fr.at(-1) ? [...fr, end] : fr
+    const [{ etf, F, end, long }, vixDaily] = await Promise.all([cross.inputs(), fred('VIXCLS', 9600)])
+    // the indexes and gold reach back before the funds do; with them the record starts in 1990
+    const deep = ['^GSPC', '^RUT', 'GCUSD'].every(k => long?.[k]?.length && long[k][0].d <= '1990-01-31')
+    const fr = fridays(deep ? LONG_START : START, end), weeks = end > fr.at(-1) ? [...fr, end] : fr
     // realised volatility of the 10-year yield: the standard deviation of its daily changes over 63 days, in basis points a year
     const y = F.DGS10.filter(r => fin(r.v)), rv = []
     for (let k = 63; k < y.length; k++) { const c = []; for (let q = k - 62; q <= k; q++) c.push(y[q].v - y[q - 1].v); rv.push({ d: y[k].d, v: std(c) * Math.sqrt(252) * 100 }) }
     const E = id => onWeeks(etf[id] || [], weeks), R = (id, age = 12) => onWeeks(F[id] || [], weeks, age)
-    const s = { SPY: E('SPY'), IWM: E('IWM'), XLY: E('XLY'), XLP: E('XLP'), GLD: E('GLD'), copper: splice(E('CPER'), R('PCOPPUSDM', 45)), oil: R('DCOILWTICO'),
+    const P = (sym, fund) => (deep ? onWeeks(long[sym], weeks) : E(fund))
+    const s = { SPX: P('^GSPC', 'SPY'), RUT: P('^RUT', 'IWM'), XLY: E('XLY'), XLP: E('XLP'), GOLD: P('GCUSD', 'GLD'), copper: splice(E('CPER'), R('PCOPPUSDM', 45)), oil: R('DCOILWTICO'),
       DGS2: R('DGS2', 7), DGS10: R('DGS10', 7), BAA10Y: R('BAA10Y'), dollar: splice(R('DTWEXBGS'), R('DTWEXM')), DEXJPUS: R('DEXJPUS'), VIX: onWeeks(vixDaily, weeks, 7), rateVol: onWeeks(rv, weeks, 7) }
     return { built: new Date(now()).toISOString(), ...buildAnalogs(weeks, s),
       method: [
         'Each node is the 13 weeks (63 trading days) ending that week; nodes are four weeks apart, counted back from the latest close.',
         'Sixteen readings in six groups (equities, rates, credit, currencies, commodities, volatility). Changes are over the 13 weeks and are divided by that reading\'s standard deviation over the whole history; levels (the S&P\'s distance below its high, the Baa spread, the VIX) are measured from their average. Each is clipped to ±3 and weighted so the six groups count equally.',
-        'Similarity is 75% direction (the cosine of the two vectors, floored at zero) and 25% magnitude (the shorter vector\'s length over the longer\'s). At least 12 of the 16 readings must exist on both dates; gold starts in late 2004.',
+        'Similarity is 75% direction (the cosine of the two vectors, floored at zero) and 25% magnitude (the shorter vector\'s length over the longer\'s). At least 12 of the 16 readings must exist on both dates; cyclicals against defensives starts in 1999, when the sector funds do.',
         'Analogs are the ten most similar nodes at least 24 weeks before today and at least 24 weeks from each other, so one episode cannot fill the list.',
         'Regime, by rule. Stress is the average of stocks down, the VIX up and the Baa spread wider, in standard deviations. Stress of 0.6 or more: credit stress if both the spread and the VIX rose by one standard deviation or more, tightening if yields rose 0.6 or more, otherwise a growth scare. Stress of −0.4 or less: reflation if yields or commodities rose, otherwise easing. In between: tightening or easing if yields moved a full standard deviation, otherwise quiet. "Led" names the group that moved most.',
         'The map is a force layout over each node\'s three most similar non-overlapping neighbours, started from the first two principal components. Near means alike; distances and axes are not to scale.',
-        'Forward paths are the S&P 500 (SPY, price only, no dividends) from each analog\'s date. Ten analogs is a small sample and several share the same bear markets.',
-        'Differences from the Bloomberg-based original this follows: the Baa spread stands in for high-yield spreads (the free series covers three years), realised 10-year-yield volatility for the MOVE index, and history starts in 1999, so 1998 is not in the sample.',
+        'Forward paths are the S&P 500 index (price only, no dividends) from each analog\'s date. Ten analogs is a small sample and several share the same bear markets.',
+        'Differences from the Bloomberg-based original this follows: the Baa spread stands in for high-yield spreads (the free series covers three years), realised 10-year-yield volatility for the MOVE index, and history starts in 1990 because the VIX does.',
       ],
-      source: 'FRED (Treasury yields, Moody\'s Baa spread, the dollar, the yen, WTI, IMF copper, Cboe VIX) and Financial Modeling Prep daily closes; the readings, weights and regime rules are this dashboard\'s' }
+      source: 'FRED (Treasury yields, Moody\'s Baa spread, the dollar, the yen, WTI, IMF copper, Cboe VIX) and Financial Modeling Prep daily closes (S&P 500 and Russell 2000 indexes, gold, sector funds); the readings, weights and regime rules are this dashboard\'s' }
   }
 
   async function get() {

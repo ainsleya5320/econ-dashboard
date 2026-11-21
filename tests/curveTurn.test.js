@@ -33,6 +33,9 @@ test('Fed turn: blinking needs a selloff and two tells; holding firm needs no te
   // at the zero bound the Fed cannot hold firm: the same selloff reads undecided
   const zero = fedTurn(base({ DGS2: new Array(60).fill(0.2), DFF: new Array(60).fill(0.1) }), none, none)
   assert.equal(zero[59].state, 'testing')
+  // a Fed that cut 50 bp in the past 13 weeks is not holding firm, even with the 2-year above fed funds
+  const cut = fedTurn(base({ DFF: base().DFF.map((v, i) => (i >= 50 ? 3.5 : v)) }), none, none)
+  assert.deepEqual([cut[59].cutting, cut[59].firm, cut[59].state], [true, false, 'testing'])
 })
 
 test('episodes start after 26 quiet weeks and carry what the S&P did next', () => {

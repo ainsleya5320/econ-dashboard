@@ -26,9 +26,11 @@
 //      Fed blinking                 under pressure, two or more tells
 //      Fed holding firm             under pressure, no tells, and the 2-year
 //                                   at or above fed funds less 10 bp (no cuts
-//                                   priced) — tightening into weakness; not
-//                                   at the zero bound (fed funds under 0.5%),
-//                                   where the Fed's answer is its balance sheet
+//                                   priced) and fed funds not cut by 20 bp or
+//                                   more in 13 weeks — tightening into
+//                                   weakness; not at the zero bound (fed funds
+//                                   under 0.5%), where the Fed's answer is its
+//                                   balance sheet
 //      Selloff, Fed undecided       under pressure, otherwise
 //      Easing without a selloff     not under pressure, two or more tells
 //      No test                      neither
@@ -58,7 +60,7 @@ export const TURN = {
   calm: { label: 'No test', says: 'Stocks are not under pressure, so there is no Fed reaction to read.' },
 }
 export const TURN_ORDER = ['blink', 'firm', 'testing', 'easing', 'calm']
-export const RULES = { curve13: 0.15, curve4: 0.08, stress: -0.08, twoYear: -0.35, twoYearWeeks: 8, firmGap: -0.1, zeroBound: 0.5, gap: 26 }
+export const RULES = { curve13: 0.15, curve4: 0.08, stress: -0.08, twoYear: -0.35, twoYearWeeks: 8, firmGap: -0.1, cut: -0.2, cutWeeks: 13, zeroBound: 0.5, gap: 26 }
 
 // the regime each week from weekly 2-year and 10-year yields (percent), over n weeks with a threshold in percentage points
 export function curveRegimes(y2, y10, n, thr) {
@@ -88,9 +90,11 @@ export function fedTurn(w, c13, c4, R = RULES) {
     const n = Object.values(tells).filter(v => v === true).length, stress = dd <= R.stress
     // at the zero bound the Fed cannot cut, and its answer is the balance sheet, which these tells do not see
     const zero = fin(w.DFF[i]) && w.DFF[i] < R.zeroBound
-    const firm = fin(gap) && gap >= R.firmGap && !zero
+    // a Fed that has been cutting is not holding firm, whatever the 2-year prices next
+    const ffChg = fin(w.DFF[i]) && fin(w.DFF[i - R.cutWeeks]) ? w.DFF[i] - w.DFF[i - R.cutWeeks] : null, cutting = fin(ffChg) && ffChg <= R.cut
+    const firm = fin(gap) && gap >= R.firmGap && !zero && !cutting
     const state = stress ? (n >= 2 ? 'blink' : n === 0 && firm ? 'firm' : 'testing') : n >= 2 ? 'easing' : 'calm'
-    return { state, drawdown: rnd(dd, 4), stress, tells, n, zero, y2chg: rnd(y2chg, 3), dollarVsMa: rnd(dollarVsMa, 4), dollar13: rnd(d13, 4), gap: rnd(gap, 3), firm }
+    return { state, drawdown: rnd(dd, 4), stress, tells, n, zero, y2chg: rnd(y2chg, 3), dollarVsMa: rnd(dollarVsMa, 4), dollar13: rnd(d13, 4), gap: rnd(gap, 3), ffChg: rnd(ffChg, 3), cutting, firm }
   })
 }
 
@@ -125,7 +129,7 @@ export function bookBy(labels, keys, prices, h = 26) {
 
 const summarize = eps => {
   const v26 = eps.map(e => e.f26).filter(fin), v52 = eps.map(e => e.f52).filter(fin)
-  return { n: eps.length, median26: rnd(median(v26), 4), up26: v26.length ? rnd(v26.filter(x => x > 0).length / v26.length, 3) : null, median52: rnd(median(v52), 4), up52: v52.length ? rnd(v52.filter(x => x > 0).length / v52.length, 3) : null }
+  return { n: v26.length, median26: rnd(median(v26), 4), up26: v26.length ? rnd(v26.filter(x => x > 0).length / v26.length, 3) : null, median52: rnd(median(v52), 4), up52: v52.length ? rnd(v52.filter(x => x > 0).length / v52.length, 3) : null }
 }
 
 // both reads for the latest week, plus their histories and records. w: weekly inputs; px: {stocks, bonds, currencies, commodities}

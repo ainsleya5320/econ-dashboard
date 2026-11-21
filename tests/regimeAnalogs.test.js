@@ -61,7 +61,7 @@ test('buildAnalogs runs end to end on synthetic weekly series', () => {
   const n = 420, weeks = Array.from({ length: n }, (_, i) => new Date(Date.UTC(2015, 0, 2) + i * 7 * 864e5).toISOString().slice(0, 10))
   const wave = (p, a, b = 0) => Array.from({ length: n }, (_, i) => b + a * Math.sin(i / p))
   const px = (p, a) => wave(p, a).map((v, i) => 100 * Math.exp(v + i * 0.001))
-  const s = { SPY: px(17, 0.15), IWM: px(13, 0.2), XLY: px(11, 0.1), XLP: px(19, 0.05), GLD: px(23, 0.1), copper: px(29, 0.2), oil: px(9, 0.3),
+  const s = { SPX: px(17, 0.15), RUT: px(13, 0.2), XLY: px(11, 0.1), XLP: px(19, 0.05), GOLD: px(23, 0.1), copper: px(29, 0.2), oil: px(9, 0.3),
     DGS2: wave(31, 1.5, 3), DGS10: wave(37, 1, 4), BAA10Y: wave(17, 0.8, 2), dollar: px(41, 0.08), DEXJPUS: px(27, 0.1), VIX: wave(17, 8, 20), rateVol: wave(21, 20, 90) }
   const out = buildAnalogs(weeks, s)
   assert.equal(out.asOf, weeks.at(-1))

@@ -20,7 +20,7 @@ import { CELL_ORDER, CELL_COLOR, STATE, CURVE_COLOR, TURN_COLOR, Chip, ScoreBar 
 //                  strength and a year's sparkline
 //     curve        the yield-curve regime (bull or bear, steepening or
 //                  flattening) over 13 and 4 weeks, two years of the 2s10s
-//                  spread, every week since 1999, and what followed each
+//                  spread, every week since 1990, and what followed each
 //     turn         the Fed turn: in a selloff, is the Fed blinking or holding
 //                  firm? Three tells, the state, and every past episode
 //     leaderboard  every instrument ranked by blended momentum
@@ -193,7 +193,7 @@ function HistoryStrip({ history, cells }) {
   );
 }
 
-// one label per week since 1999 as a thin coloured band
+// one label per week, as far back as the record goes, as a thin coloured band
 function LabelStrip({ rows, colors, names, title }) {
   const W = 640, H = 22, bw = W / Math.max(1, rows.length);
   const years = rows.map((r, i) => [r[0].slice(0, 4), i]).filter(([y], i, a) => i === 0 || y !== a[i - 1][0]).filter(([y]) => +y % 4 === 0);
@@ -340,8 +340,8 @@ export default function FourMarkets({ erp }) {
               <p style={{ margin: 0 }}>Over the last 4 weeks: {cv.regimes[cv.now.r4 || "none"].label.toLowerCase()} (2-year {bp(cv.now.m4.y2)}, 10-year {bp(cv.now.m4.y10)}). The 4-week read catches a turn first; the 13-week read is the regime.</p>
             </div>
           </div>
-          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The 13-week curve regime, every week since 1999</div>
-          <LabelStrip rows={cv.history} colors={CURVE_COLOR} names={cv.regimes} title="The yield-curve regime by week since 1999" />
+          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The 13-week curve regime, every week since {cv.history[0]?.[0].slice(0, 4)}</div>
+          <LabelStrip rows={cv.history} colors={CURVE_COLOR} names={cv.regimes} title="The yield-curve regime by week" />
           <Legend items={cv.order.map(k => [cv.regimes[k].label, CURVE_COLOR[k]])} />
           <div style={{ marginTop: 8 }}><BookTable book={cv.book} order={cv.order} names={cv.regimes} colors={CURVE_COLOR} current={cv.now.r13} first="Curve regime" /></div>
           <p className="onote">Median return over the 26 weeks after every past week in each regime, and how often it was positive; episodes are the separate runs. Bull steepening has been the worst for stocks because it usually arrives with a recession under way: the front end falls because the Fed is cutting into trouble. It becomes the turn worth waiting for only after the selloff has happened (see Fed turn).</p>
@@ -366,12 +366,12 @@ export default function FourMarkets({ erp }) {
                     <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>{k === "twoYear" ? `down ${Math.round(-tn.rules.twoYear * 100)} bp or more` : k === "dollar" ? "below the average and falling" : "bull steepening over either span"}</td>
                     <td style={left}>{tn.now.tells[k] == null ? "—" : tn.now.tells[k] ? "yes" : "no"}</td></tr>
                 ))}
-                <tr><td style={{ ...left, fontFamily: "var(--font-body)" }}>No cuts priced</td><td style={left}>2-year {finite(tn.now.y2) ? `${tn.now.y2.toFixed(2)}%` : "—"} vs fed funds {finite(tn.now.ff) ? `${tn.now.ff.toFixed(2)}%` : "—"} ({bp(tn.now.gap)})</td><td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>2-year at or above fed funds less {Math.round(-tn.rules.firmGap * 100)} bp; not at the zero bound</td><td style={left}>{tn.now.firm ? "yes" : "no"}</td></tr>
+                <tr><td style={{ ...left, fontFamily: "var(--font-body)" }}>No cuts priced or made</td><td style={left}>2-year {finite(tn.now.y2) ? `${tn.now.y2.toFixed(2)}%` : "—"} vs fed funds {finite(tn.now.ff) ? `${tn.now.ff.toFixed(2)}%` : "—"} ({bp(tn.now.gap)})</td><td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>2-year at or above fed funds less {Math.round(-tn.rules.firmGap * 100)} bp; fed funds not cut {Math.round(-tn.rules.cut * 100)} bp in {tn.rules.cutWeeks} weeks{tn.now.cutting ? " (it has been)" : ""}; not at the zero bound</td><td style={left}>{tn.now.firm ? "yes" : "no"}</td></tr>
               </tbody>
             </table>
           </div>
-          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The state, every week since 1999</div>
-          <LabelStrip rows={tn.history} colors={TURN_COLOR} names={tn.states} title="The Fed-turn state by week since 1999" />
+          <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The state, every week since {tn.history[0]?.[0].slice(0, 4)}</div>
+          <LabelStrip rows={tn.history} colors={TURN_COLOR} names={tn.states} title="The Fed-turn state by week" />
           <Legend items={tn.order.map(k => [tn.states[k].label, TURN_COLOR[k]])} />
           <div className="otable-wrap" style={{ marginTop: 8 }}>
             <table className="otable">
