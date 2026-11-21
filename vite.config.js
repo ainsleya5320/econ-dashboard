@@ -54,6 +54,7 @@ import { createAiFlows } from './server/aiFlows.js'
 import { createInflationDecomp } from './server/inflationDecomp.js'
 import { createComputeBalance } from './server/computeBalance.js'
 import { createCrossAsset } from './server/crossAsset.js'
+import { createRegimeAnalogs } from './server/regimeAnalogs.js'
 import { createLiquidity } from './server/liquidity.js'
 import { createRampAi } from './server/rampAi.js'
 import { createIntelligencePerMw } from './server/intelligencePerMw.js'
@@ -3831,6 +3832,8 @@ const computeBalance = createComputeBalance({ dir: __dirname, research: research
 const inflationDecomp = createInflationDecomp({ fred: fetchFredSeries })
 // Cockpit → Four markets (server/crossAsset.js): stocks, bonds, currencies and commodities read together, weekly since 1999
 const crossAsset = createCrossAsset({ dir: __dirname, fred: fetchFredSeries, FMP_KEY, UA })
+// Cockpit (server/regimeAnalogs.js): when has the market looked like this before? Cross-asset similarity on the same inputs
+const regimeAnalogs = createRegimeAnalogs({ cross: crossAsset, fred: fetchFredSeries })
 // U.S. Economy → Rates & Fed → Liquidity (server/liquidity.js): six layers of liquidity and a composite, FRED via the shared cache
 const liquidity = createLiquidity({ dir: __dirname, fred: fetchFredSeries })
 // AI Economy → Tokens (server/rampAi.js): the Ramp AI Index, adoption, spend and token shares from Ramp's page (FRED fallback)
@@ -4098,6 +4101,7 @@ export default defineConfig({
         reRoute('/api/ai-supply-chain', () => taiwanRevenue.get())
         reRoute('/api/compute-balance', () => computeBalance.get())
         reRoute('/api/cross-asset', () => crossAsset.get())
+        reRoute('/api/regime-analogs', () => regimeAnalogs.get())
         reRoute('/api/liquidity', () => liquidity.get())
         reRoute('/api/ramp-ai', () => rampAi.get())
         reRoute('/api/ai-flows', () => aiFlows.get())

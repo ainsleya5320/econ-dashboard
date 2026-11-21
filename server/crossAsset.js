@@ -302,7 +302,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
   const FILE = path.join(dir, 'cross-asset-prices.json')
   let store = { version: 1, symbols: {}, checked: 0 }
   try { if (fs.existsSync(FILE)) { const d = JSON.parse(fs.readFileSync(FILE, 'utf8')); if (d?.version === 1) store = d } } catch (e) { console.warn('cross-asset-prices.json:', e.message) }
-  let cache = null, inflight = null
+  let cache = null, inflight = null, raw = null
 
   // FMP is shared with the rest of the dashboard and answers 429 when it is busy: back off and try again
   async function fmp(symbol, from, to) {
@@ -355,6 +355,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     const F = Object.fromEntries([...FRED_IDS, ...extraFred].map((id, i) => [id, fredSeries[i] || []]))
     const end = [etf.SPY?.at(-1)?.d, F.DGS10.at(-1)?.d].filter(Boolean).sort()[0]
     const weeks = fridays(START, end)
+    raw = { etf, F, end }   // the daily inputs, for server/regimeAnalogs.js
     const w = {}
     for (const s of ETFS) w[s] = onWeeks(etf[s] || [], weeks)
     for (const id of FRED_IDS) w[id] = onWeeks(F[id], weeks, id === 'PCOPPUSDM' ? 45 : ['WALCL', 'WTREGEN'].includes(id) ? 10 : 7)
@@ -430,5 +431,7 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     if (!inflight) inflight = build().then(out => { cache = { ts: now(), out }; return out }).finally(() => { inflight = null })
     return inflight
   }
-  return { get }
+  // the daily inputs behind the latest build (ETF closes, FRED series, the last day both are in)
+  async function inputs() { await get(); return raw }
+  return { get, inputs }
 }

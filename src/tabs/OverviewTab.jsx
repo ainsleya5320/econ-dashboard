@@ -9,6 +9,7 @@ import { EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import { chainModel, chainHeadline } from "./AIEconomyTab.jsx";
 import { ValuationLensesCard, useDamodaranMonthly, damPct, damColor } from "../components/MarketFairValue.jsx";
 import FourMarkets from "./FourMarkets.jsx";
+import RegimeAnalogs from "./RegimeAnalogs.jsx";
 
 // ============================================================================
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
@@ -17,6 +18,8 @@ import FourMarkets from "./FourMarkets.jsx";
 //          band (ERP · Damodaran · earnings yield by index · yield curve ·
 //          real yield) → Four markets (stocks, bonds, currencies and commodities read
 //          together: regime, clarity and stance; FourMarkets.jsx) →
+//          regime analogs (when has the market looked like this before, and
+//          what followed; RegimeAnalogs.jsx) →
 //          rates strip → Fear & Greed meter → implied move → commodities,
 //          with the full charts folded away at the bottom.
 //   RIGHT  a sticky rail: the watchlist (shared with Stocks & Options), its
@@ -739,6 +742,9 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
 
         {/* Four markets: the wind (liquidity, growth ahead) and how sure to be, beside the valuation band above */}
         <FourMarkets erp={erp} />
+
+        {/* Regime analogs: when has the cross-asset picture looked like this before, and what followed */}
+        <RegimeAnalogs />
 
         {/* Rates strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 8 }}>
