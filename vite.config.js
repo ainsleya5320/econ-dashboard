@@ -42,6 +42,8 @@ import { createTokenSpot } from './server/tokenSpot.js'
 import { createTokenMarket } from './server/tokenMarket.js'
 import { createGatewayShares } from './server/gatewayShares.js'
 import { createTokenLedger } from './server/tokenLedger.js'
+import { createAiLabor } from './server/aiLabor.js'
+import { createAiDollars } from './server/aiDollars.js'
 import { createTightening } from './server/tightening.js'
 import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
@@ -4014,6 +4016,12 @@ export default defineConfig({
         // AI Economy → Tokens (server/tokenLedger.js): disclosed token volumes by company, from the Research Database
         const tokenLedger = createTokenLedger({ research: researchDb, pulse: () => aiPulse.get() })
         reRoute('/api/token-ledger', () => tokenLedger.get())
+        // AI Economy → Dark Output (server/aiLabor.js): job cuts employers tie to AI, restructuring 8-Ks, and payroll freed against new AI revenue
+        const aiLabor = createAiLabor({ dir: __dirname, fred: fetchFredSeries })
+        reRoute('/api/ai-labor', () => aiLabor.get())
+        // AI Economy → Models & Labs (server/aiDollars.js): who is paying and who is investing, from the Research Database
+        const aiDollars = createAiDollars({ dir: __dirname, research: researchDb })
+        reRoute('/api/ai-dollars', () => aiDollars.get())
         // Tightening monitor (server/tightening.js): duration supply, auction
         // absorption, the dollar's stock and flow, and the three derived views
         // (the tell, divergence, sequence). FRED via the shared cache plus two

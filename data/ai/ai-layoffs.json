@@ -1,0 +1,269 @@
+{
+ "_about": "Announced U.S. job cuts by month and the part employers attributed to artificial intelligence, from Challenger, Gray & Christmas's monthly reports (Table 4, job cuts by reason, and the month-by-month table). Hand-kept for the AI labor panel (AI Economy → Dark Output; server/aiLabor.js). Add a month when a report is published: totalCuts, aiCuts, the year-to-date AI figure the report states, and its link. Nothing here names a company.",
+ "reviewed": "2026-11-21",
+ "notes": "All monthly figures are from Challenger, Gray & Christmas's own releases: Table 4 ('Job Cuts by Reason') and the month-by-month table of each monthly PDF, cross-checked against the blog post text; no month relies on press coverage. For January-March 2025 the PDFs were not located, so totals come from the blog posts and the later month-by-month table, and the AI zero is derived from later tables (see row notes). Monthly AI figures reconcile exactly with each stated YTD. Definition: 'Artificial Intelligence' is the reason an employer gives in its layoff announcement; Challenger has tracked it as a distinct reason since May 2023 and counts announced plans, not realized separations. 'Technological Update (possibly AI)' is used 'when a company states new technology was the main reason for layoffs and AI is alluded to but not directly tied to the cuts' (July 2026 report); in 2026 a separate 'Technological Update (automation)' row also appears (1,353, all in February 2026). techUpdateCuts here is the 'possibly AI' row only; a blank table cell is recorded as 0. Revisions seen: (1) the 20,000 'Technological Update (possibly AI)' cuts first appear in the May 2025 report's YTD column with no monthly entry, having been moved out of Restructuring; they are not assigned to a month. (2) Through the June 2025 report AI was described as a subset of Technological Update ('Of these, 75 were explicitly attributed to Artificial Intelligence'); from July 2025 the two are reported side by side. (3) The November 2025 report was reissued to correct a year-to-date comparison (not the AI figures). (4) Challenger notes that some reductions are announced as ranges or over several years and that attribution is ambiguous (July 2026 report). Since-2023 cumulative AI totals stated by Challenger: 71,825 (end 2025), 193,226 (October 2026).",
+ "assumptions": {
+  "loadedCostPerJob": {
+   "value": 150000,
+   "low": 100000,
+   "high": 250000,
+   "why": "An assumption, not a measurement. The average U.S. private-sector job costs an employer on the order of $100,000 a year in pay and benefits; the cuts employers tie to AI are concentrated in technology and professional roles, which cost more. $150,000 is the middle used here, with $100,000 and $250,000 as the range. Change it here."
+  },
+  "labs": [
+   "OpenAI",
+   "Anthropic"
+  ]
+ },
+ "months": [
+  {
+   "month": "2025-01",
+   "totalCuts": 49795,
+   "aiCuts": 0,
+   "techUpdateCuts": null,
+   "aiYtd": 0,
+   "url": "https://www.challengergray.com/blog/january-2025-job-cuts-announced-by-us-based-companies-rise-28-to-49795-down-40-from-january-2024/",
+   "sourceType": "challenger",
+   "note": "Total from Challenger's month-by-month table. No 'Artificial Intelligence' row exists in Table 4 of the April 2025 report (YTD column), and the June 2025 report shows AI YTD = 75, all in June, so AI-attributed cuts were zero this month as Challenger tabulated them. techUpdateCuts is null: 20,000 cuts from January-April were later reclassified to 'Technological Update (possibly AI)' without a month being given. This month's PDF was not found; AI zero is derived from the later tables."
+  },
+  {
+   "month": "2025-02",
+   "totalCuts": 172017,
+   "aiCuts": 0,
+   "techUpdateCuts": null,
+   "aiYtd": 0,
+   "url": "https://www.challengergray.com/blog/job-cuts-surge-on-doge-actions-retail-woes-highest-monthly-total-since-july-2020/",
+   "sourceType": "challenger",
+   "note": "Total from Challenger's month-by-month table. No 'Artificial Intelligence' row exists in Table 4 of the April 2025 report (YTD column), and the June 2025 report shows AI YTD = 75, all in June, so AI-attributed cuts were zero this month as Challenger tabulated them. techUpdateCuts is null: 20,000 cuts from January-April were later reclassified to 'Technological Update (possibly AI)' without a month being given. This month's PDF was not found; AI zero is derived from the later tables."
+  },
+  {
+   "month": "2025-03",
+   "totalCuts": 275240,
+   "aiCuts": 0,
+   "techUpdateCuts": null,
+   "aiYtd": 0,
+   "url": "https://www.challengergray.com/blog/federal-cuts-dominate-march-2025-total-275240-announced-job-cuts-216670-from-doge-actions/",
+   "sourceType": "challenger",
+   "note": "Total from Challenger's month-by-month table. No 'Artificial Intelligence' row exists in Table 4 of the April 2025 report (YTD column), and the June 2025 report shows AI YTD = 75, all in June, so AI-attributed cuts were zero this month as Challenger tabulated them. techUpdateCuts is null: 20,000 cuts from January-April were later reclassified to 'Technological Update (possibly AI)' without a month being given. This month's PDF was not found; AI zero is derived from the later tables."
+  },
+  {
+   "month": "2025-04",
+   "totalCuts": 105441,
+   "aiCuts": 0,
+   "techUpdateCuts": null,
+   "aiYtd": 0,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/06/The-Challenger-Report-April-2025.pdf",
+   "sourceType": "challenger",
+   "note": "Table 4 has no 'Artificial Intelligence' row and no 'Technological Update' row (monthly or YTD). techUpdateCuts null because the later reclassification (see May) is not dated."
+  },
+  {
+   "month": "2025-05",
+   "totalCuts": 93816,
+   "aiCuts": 0,
+   "techUpdateCuts": 0,
+   "aiYtd": 0,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/06/Challenger-Report-May-2025.pdf",
+   "sourceType": "challenger",
+   "note": "No AI row. 'Technological Update (possibly AI)' first appears: YTD 20,000 with a blank May cell (recorded as 0 for the month). REVISION: the row was absent in April; Restructuring YTD fell from 67,627 (April) to 62,015 (May) despite 14,388 May cuts, i.e. 20,000 were moved out of Restructuring."
+  },
+  {
+   "month": "2025-06",
+   "totalCuts": 47999,
+   "aiCuts": 75,
+   "techUpdateCuts": 0,
+   "aiYtd": 75,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/07/Challenger-Report-June-2025-Final.pdf",
+   "sourceType": "challenger",
+   "note": "First AI row of 2025: 75 in June, 75 YTD. Technological Update (possibly AI): blank June cell, YTD 20,000."
+  },
+  {
+   "month": "2025-07",
+   "totalCuts": 62075,
+   "aiCuts": 10300,
+   "techUpdateCuts": 219,
+   "aiYtd": 10375,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/07/Challenger-Report-July-2025.pdf",
+   "sourceType": "challenger",
+   "note": "Technological Update (possibly AI) YTD 20,219. Release text: 'AI was cited for over 10,000 cuts last month'."
+  },
+  {
+   "month": "2025-08",
+   "totalCuts": 85979,
+   "aiCuts": 0,
+   "techUpdateCuts": 0,
+   "aiYtd": 10375,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/09/Challenger-Report-August-2025.pdf",
+   "sourceType": "challenger",
+   "note": "AI and Technological Update rows show blank August cells (YTD 10,375 and 20,219); the release says no cuts were recorded for these reasons in August."
+  },
+  {
+   "month": "2025-09",
+   "totalCuts": 54064,
+   "aiCuts": 7000,
+   "techUpdateCuts": 0,
+   "aiYtd": 17375,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/10/Challenger-Report-September-2025.pdf",
+   "sourceType": "challenger",
+   "note": "Technological Update (possibly AI): blank September cell, YTD 20,219."
+  },
+  {
+   "month": "2025-10",
+   "totalCuts": 153074,
+   "aiCuts": 31039,
+   "techUpdateCuts": 0,
+   "aiYtd": 48414,
+   "url": "https://www.challengergray.com/wp-content/uploads/2025/11/Challenger-Report-October-2025.pdf",
+   "sourceType": "challenger",
+   "note": "AI was the second-most cited reason. Technological Update (possibly AI): blank October cell, YTD 20,219."
+  },
+  {
+   "month": "2025-11",
+   "totalCuts": 71321,
+   "aiCuts": 6280,
+   "techUpdateCuts": 0,
+   "aiYtd": 54694,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/01/Challenger-Report-November-2025.pdf",
+   "sourceType": "challenger",
+   "note": "Since-2023 AI total stated as 71,683. Technological Update: blank cell, YTD 20,219. The PDF is the corrected copy (the original release misstated the 2024 YTD comparison; job-cut and AI figures unchanged)."
+  },
+  {
+   "month": "2025-12",
+   "totalCuts": 35553,
+   "aiCuts": 142,
+   "techUpdateCuts": 0,
+   "aiYtd": 54836,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/01/Challenger-Report-December-2025.pdf",
+   "sourceType": "challenger",
+   "note": "Full-year AI 54,836; since-2023 AI total 71,825. Technological Update (possibly AI): blank December cell, full year 20,219."
+  },
+  {
+   "month": "2026-01",
+   "totalCuts": 108435,
+   "aiCuts": 7624,
+   "techUpdateCuts": 0,
+   "aiYtd": 7624,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/02/CR126007123.pdf",
+   "sourceType": "challenger",
+   "note": "AI was 7% of the month. aiYtd equals the month (first month of the year; the report prints no separate YTD). Technological Update (possibly AI) shown as 0. Since-2023 AI total 79,449."
+  },
+  {
+   "month": "2026-02",
+   "totalCuts": 48307,
+   "aiCuts": 4680,
+   "techUpdateCuts": 0,
+   "aiYtd": 12304,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/04/Challenger-Report-February-2026.pdf",
+   "sourceType": "challenger",
+   "note": "techUpdateCuts is the 'Technological Update (possible AI)' row (0). A separate new row, 'Technological Update (automation)', shows 1,353 in February (YTD 1,353). Since-2023 AI total 91,753."
+  },
+  {
+   "month": "2026-03",
+   "totalCuts": 60620,
+   "aiCuts": 15341,
+   "techUpdateCuts": 0,
+   "aiYtd": 27645,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/04/Challenger-Report-March-2026-1.pdf",
+   "sourceType": "challenger",
+   "note": "AI led all reasons for the month (25%). No 'possibly AI' row; 'Technological Update (automation)' YTD 1,353. Since-2023 AI total 99,470."
+  },
+  {
+   "month": "2026-04",
+   "totalCuts": 83387,
+   "aiCuts": 21490,
+   "techUpdateCuts": 0,
+   "aiYtd": 49135,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/05/Challenger-Report-Apr2026001249.pdf",
+   "sourceType": "challenger",
+   "note": "AI led all reasons (26%). No 'possibly AI' row; automation row YTD 1,353."
+  },
+  {
+   "month": "2026-05",
+   "totalCuts": 97006,
+   "aiCuts": 38579,
+   "techUpdateCuts": 0,
+   "aiYtd": 87714,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/06/Challenger-Report-May-2026.pdf",
+   "sourceType": "challenger",
+   "note": "Record monthly AI total (about 40% of the month); AI 22% of 2026 cuts to date. No 'possibly AI' row; automation row YTD 1,353."
+  },
+  {
+   "month": "2026-06",
+   "totalCuts": 45849,
+   "aiCuts": 14029,
+   "techUpdateCuts": 0,
+   "aiYtd": 101743,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/08/Challenger-Report-June-2026.pdf",
+   "sourceType": "challenger",
+   "note": "AI led all reasons (31%). Since-2023 AI total 173,568. No 'possibly AI' row; automation row 0 in June, YTD 1,353. The PDF sits under a 2026/08 upload path (re-uploaded after the 2026-07-01 release)."
+  },
+  {
+   "month": "2026-07",
+   "totalCuts": 33429,
+   "aiCuts": 10970,
+   "techUpdateCuts": 12,
+   "aiYtd": 112713,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/08/Challenger-Report-July-2026.pdf",
+   "sourceType": "challenger",
+   "note": "AI led all reasons for a fifth month (33%). 'Technological Update (possibly AI)' 12 in July (Montefiore utilization-review nurses), YTD 12. Since-2023 AI total 184,538."
+  },
+  {
+   "month": "2026-08",
+   "totalCuts": 52881,
+   "aiCuts": 3462,
+   "techUpdateCuts": 0,
+   "aiYtd": 116175,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/09/Challenger-Report-August-2026.pdf",
+   "sourceType": "challenger",
+   "note": "AI fell to fourth-most cited reason. 'Technological Update (possibly AI)': blank August cell, YTD 12; automation YTD 1,353."
+  },
+  {
+   "month": "2026-09",
+   "totalCuts": 43281,
+   "aiCuts": 3961,
+   "techUpdateCuts": 0,
+   "aiYtd": 120136,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/10/Challenger-Report-September-2026-1.pdf",
+   "sourceType": "challenger",
+   "note": "AI fifth-most cited reason (about 9%). 'Technological Update (possibly AI)': blank cell, YTD 12."
+  },
+  {
+   "month": "2026-10",
+   "totalCuts": 43994,
+   "aiCuts": 1265,
+   "techUpdateCuts": 0,
+   "aiYtd": 121401,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/11/Challenger-Report-October-2026.pdf",
+   "sourceType": "challenger",
+   "note": "Lowest monthly AI total of 2026. YTD total cuts 617,189; Market/Economic Conditions overtook AI as the top YTD reason. Since-2023 AI total 193,226. Latest report available (November report not yet released)."
+  }
+ ],
+ "years": [
+  {
+   "year": 2023,
+   "totalCuts": 721677,
+   "aiCuts": 4247,
+   "url": "https://www.challengergray.com/?p=20395",
+   "note": "December 2023 report: 'Companies cited Artificial Intelligence for 4,247 cuts in 2023, 150 of which occurred in December.' AI was tracked only from May 2023."
+  },
+  {
+   "year": 2024,
+   "totalCuts": 761358,
+   "aiCuts": 12742,
+   "url": "https://www.challengergray.com/blog/job-cuts-flat-in-september-2024-from-august-ytd-surpasses-2023/",
+   "note": "Total from the December 2025 report's month-by-month table. AI figure is the YTD total stated in the September 2024 report (12,742; 16,989 since May 2023). No later 2024 report with an AI figure was found, but the December 2025 report's since-2023 total (71,825) minus 2025 (54,836) minus 2023 (4,247) also equals 12,742, so no AI cuts were added in Q4 2024."
+  },
+  {
+   "year": 2025,
+   "totalCuts": 1206374,
+   "aiCuts": 54836,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/01/Challenger-Report-December-2025.pdf",
+   "note": "'Technological Update (possibly AI)' was a further 20,219 in 2025."
+  },
+  {
+   "year": 2026,
+   "totalCuts": 617189,
+   "aiCuts": 121401,
+   "url": "https://www.challengergray.com/wp-content/uploads/2026/11/Challenger-Report-October-2026.pdf",
+   "note": "PARTIAL YEAR: January-October 2026 only. AI about 20% of all cuts year to date."
+  }
+ ]
+}

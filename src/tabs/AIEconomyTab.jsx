@@ -24,6 +24,8 @@ import RampAiIndex from "./ai/RampAiIndex.jsx";
 import TokenLadder from "./ai/TokenLadder.jsx";
 import GatewayShares from "./ai/GatewayShares.jsx";
 import TokenLedger from "./ai/TokenLedger.jsx";
+import AiLabor from "./ai/AiLabor.jsx";
+import AiDollars from "./ai/AiDollars.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -2077,6 +2079,8 @@ function ModelsLabsTab() {
       who that compute bill is owed to; the Ornn token price index is what a token actually sells for.
     </div>
     <LabRevenueTracker />
+    <SH>The AI Dollar Ledger — Who Is Paying, Who Is Investing</SH>
+    <AiDollars />
     <SH>Lab Economics — the Filed Income Statement</SH>
     <LabEconomics />
     <SH>Who Pays Whom — Compute Commitments, Lab to Supplier</SH>
@@ -2364,6 +2368,7 @@ function AIEconomyTab() {
     {subTab === "silicon" && <SupplyChainTab />}
     {subTab === "buildout" && <><BuildOut /><SH>AI Credit Basket — What the Bond Market Charges the Build-Out</SH><AiCredit /></>}
     {subTab === "dark"    && <DarkOutput />}
+    {subTab === "dark"    && <><SH>Are Payrolls Paying for AI? — Job Cuts Employers Tie to AI</SH><AiLabor /></>}
     {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);
 }
