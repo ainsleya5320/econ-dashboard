@@ -23,6 +23,7 @@ import ComputeBalance from "./ai/ComputeBalance.jsx";
 import RampAiIndex from "./ai/RampAiIndex.jsx";
 import TokenLadder from "./ai/TokenLadder.jsx";
 import GatewayShares from "./ai/GatewayShares.jsx";
+import TokenLedger from "./ai/TokenLedger.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -2052,6 +2053,9 @@ function TokenDemandTab() {
     <BtosAdoptionPanel />
     <SH>What Businesses Pay for AI — the Ramp AI Index</SH>
     <RampAiIndex />
+
+    <SH>The Token Ledger — What Each Company Says It Processes</SH>
+    <TokenLedger />
 
     <SH>The Token Ladder — Cost to Make, Price to Buy</SH>
     <TokenLadder />

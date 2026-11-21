@@ -41,6 +41,7 @@ import { createHouseholdWealth } from './server/householdWealth.js'
 import { createTokenSpot } from './server/tokenSpot.js'
 import { createTokenMarket } from './server/tokenMarket.js'
 import { createGatewayShares } from './server/gatewayShares.js'
+import { createTokenLedger } from './server/tokenLedger.js'
 import { createTightening } from './server/tightening.js'
 import { createTradeFlows } from './server/tradeFlows.js'
 import { createMarketMap } from './server/marketMap.js'
@@ -4010,6 +4011,9 @@ export default defineConfig({
         // AI Economy → Tokens (server/gatewayShares.js): Vercel AI Gateway shares by lab and model, beside OpenRouter
         const gatewayShares = createGatewayShares({ dir: __dirname, UA, pulse: () => aiPulse.get() })
         reRoute('/api/gateway-shares', () => gatewayShares.get())
+        // AI Economy → Tokens (server/tokenLedger.js): disclosed token volumes by company, from the Research Database
+        const tokenLedger = createTokenLedger({ research: researchDb, pulse: () => aiPulse.get() })
+        reRoute('/api/token-ledger', () => tokenLedger.get())
         // Tightening monitor (server/tightening.js): duration supply, auction
         // absorption, the dollar's stock and flow, and the three derived views
         // (the tell, divergence, sequence). FRED via the shared cache plus two
