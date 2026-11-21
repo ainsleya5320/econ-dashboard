@@ -25,6 +25,9 @@
 // traded price: it leads contract by about a quarter and overshoots both ways.
 // ============================================================================
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 const H = 3600e3, DAY = 864e5
 const FILE = ['data', 'curated', 'ai-memory-prices.json']
 export const PAGES = ['https://www.trendforce.com/price/dram/dram_spot', 'https://www.trendforce.com/price/flash/flash_spot']
@@ -123,9 +126,56 @@ export function legacyRatio(days) {
   return days.map(d => { const a = pick(d, 'DDR4 16Gb (2Gx8)'), b = pick(d, 'DDR5 16Gb (2Gx8)'); return fin(a) && b > 0 ? { d: d.date, ratio: rnd(a / b, 3), ddr4: a, ddr5: b } : null }).filter(Boolean)
 }
 
-// The dollars-per-GB ladder: the headline spot parts, the server module, and the hand-kept HBM figure if there is one
-export function ladder(rows, hbm) {
+// one cell of the contract table: for a segment and quarter, the figure reported after the quarter if there is one,
+// otherwise the latest forecast
+export function contractCell(contract, segment, quarter) {
+  const c = (contract || []).filter(x => x.segment === segment && x.quarter === quarter && fin(x.changeLow))
+  if (!c.length) return null
+  const best = c.sort((a, b) => (a.kind === 'actual' ? 1 : 0) - (b.kind === 'actual' ? 1 : 0) || String(a.issued).localeCompare(String(b.issued))).at(-1)
+  const hi = fin(best.changeHigh) ? best.changeHigh : best.changeLow
+  return { low: best.changeLow, high: hi, mid: (best.changeLow + hi) / 2, kind: best.kind, issued: best.issued || null, note: best.note || null, url: best.url || null }
+}
+
+// Quarterly contract changes compounded into an index (100 before the first quarter), using the middle of each range
+export function contractIndex(contract, segments, from = '2024-Q3') {
+  const quarters = [...new Set((contract || []).map(c => c.quarter))].filter(q => q >= from).sort()
+  const level = Object.fromEntries(segments.map(s => [s, 100])), alive = Object.fromEntries(segments.map(s => [s, true]))
+  return quarters.map(q => {
+    const row = { q, forecast: false }
+    for (const s of segments) {
+      const c = alive[s] ? contractCell(contract, s, q) : null
+      if (!c) { alive[s] = false; continue }                                // a gap ends the line: nothing is interpolated
+      level[s] *= 1 + c.mid / 100; row[s] = rnd(level[s], 1); if (c.kind !== 'actual') row.forecast = true
+    }
+    return row
+  }).filter(r => segments.some(s => fin(r[s])))
+}
+
+// monthly fixed-transaction price levels quoted in the press → one row a month for the three parts that have a run
+export function levelSeries(levels) {
+  const key = item => (/^DDR4 8Gb/.test(item) ? 'ddr4' : /^NAND 128Gb/.test(item) ? 'nand' : /^DDR5 16Gb/.test(item) && !/DIMM|module/i.test(item) ? 'ddr5' : null)
+  const by = {}
+  for (const l of levels || []) { const k = key(l.item); if (k && fin(l.value) && /^\d{4}-\d{2}$/.test(l.month || '')) (by[l.month] ||= { m: l.month })[k] = l.value }
+  return Object.values(by).sort((a, b) => a.m.localeCompare(b.m))
+}
+
+// a CSV with quoted fields → rows keyed by the header
+const parseCsv = text => { const lines = String(text || '').trim().split(/\r?\n/).map(line => { const c = []; let cur = '', q = false; for (const ch of line) { if (ch === '"') q = !q; else if (ch === ',' && !q) { c.push(cur); cur = '' } else cur += ch } c.push(cur); return c }); const h = lines[0] || []; return lines.slice(1).map(r => Object.fromEntries(h.map((k, i) => [k, r[i]]))) }
+
+// Stanford's compilation → retail dollars per GB by month since `from`: DDR5, DDR4 and the cheapest NAND (Keepa), and
+// the long DRAM record (McCallum) for the years before
+export function retailSeries(rows, from = '2016-01') {
+  const want = { 'DDR5 (Keepa)': 'ddr5', 'DDR4 (Keepa)': 'ddr4', 'NAND cheapest (Keepa)': 'nand', 'McCallum DRAM (historical)': 'dram' }
+  const by = {}
+  for (const r of rows || []) { const k = want[r.series], v = Number(r.value), m = String(r.date || '').slice(0, 7); if (k && r.metric === 'usd_per_gb' && fin(v) && v > 0 && m >= from) (by[m] ||= { m })[k] = rnd(v, 4) }
+  return Object.values(by).sort((a, b) => a.m.localeCompare(b.m))
+}
+
+// The dollars-per-GB ladder: the headline spot parts, the server module, and the hand-kept HBM ranges if there are any
+export function ladder(rows, hbm, hbmLadder) {
   const out = []
+  for (const h of hbmLadder || []) if (fin(h.low) && fin(h.high)) out.push({ id: `hbm-${h.label}`, label: h.label, family: 'HBM', perGb: rnd((h.low + h.high) / 2, 2), low: h.low, high: h.high, kind: 'estimate', note: `${h.members?.length || 0} sourced figures, latest ${h.asOf}; ${h.note}`, confidence: null })
+  if (hbmLadder?.length) hbm = []
   const latestHbm = (hbm || []).filter(r => /per GB/i.test(r.metric) && fin(r.value)).sort((a, b) => String(b.asOf).localeCompare(String(a.asOf)))
   const seen = new Set()
   for (const r of latestHbm) { if (seen.has(r.product)) continue; seen.add(r.product); out.push({ id: `hbm-${r.product}`, label: r.product, family: 'HBM', perGb: r.valueHigh ? (r.value + r.valueHigh) / 2 : r.value, low: r.value, high: r.valueHigh || null, kind: 'estimate', note: `${r.statedBy || 'estimate'}, ${r.asOf}${r.appliesTo ? `; ${r.appliesTo}` : ''}`, url: r.url || null, confidence: r.confidence || null }) }
@@ -133,8 +183,48 @@ export function ladder(rows, hbm) {
   return out.sort((a, b) => b.perGb - a.perGb)
 }
 
-export function createMemoryPrices({ feed, research, now = () => Date.now() }) {
+export const CONTRACT_SEGMENTS = ['conventional DRAM', 'HBM-blended DRAM', 'server DRAM', 'PC DRAM', 'mobile DRAM', 'overall NAND Flash', 'enterprise SSD', 'client SSD', 'NAND wafers']
+const URL_STANFORD = 'https://dam.stanford.edu/assets/memory-prices/memory-prices.csv'
+const BOK = { dram: '30911201AA', flash: '30911202AA' }
+
+export function createMemoryPrices({ dir, feed, research, env = {}, UA = 'econ-dashboard', now = () => Date.now() }) {
+  const FILE_LONG = dir ? path.join(dir, 'memory-long-run.json') : null
+  let store = { version: 1, stanford: { fetched: 0, rows: [] }, bok: { fetched: 0, months: {} } }
+  try { if (FILE_LONG && fs.existsSync(FILE_LONG)) { const d = JSON.parse(fs.readFileSync(FILE_LONG, 'utf8')); if (d?.version === 1) store = d } } catch { /* fetch afresh */ }
+  const save = () => { try { if (FILE_LONG) fs.writeFileSync(FILE_LONG, JSON.stringify(store)) } catch (e) { console.error('memory-long-run.json save:', e.message) } }
+  const ym = t => { const d = new Date(t); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}` }
   let cache = null
+
+  // Retail dollars per GB (Stanford's compilation of Keepa and McCallum): read at most once a week
+  async function stanford(errors) {
+    if (store.stanford.rows.length && now() - store.stanford.fetched < 7 * 24 * H) return
+    try {
+      const r = await fetch(URL_STANFORD, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(40000) })
+      if (!r.ok) throw new Error(`Stanford answered ${r.status}`)
+      const rows = retailSeries(parseCsv(await r.text()), '2010-01')
+      if (rows.length < 20) throw new Error('the retail price file came back short')
+      store.stanford = { fetched: now(), rows }; save()
+    } catch (e) { errors.push(`retail prices: ${String(e?.message || e).slice(0, 80)}`) }
+  }
+
+  // Bank of Korea export price indexes for DRAM and flash memory, dollar basis, 2020 = 100. With a free ECOS key
+  // (BOK_ECOS_KEY in .env) the record from 2015; without one, the bank's open sample key, which answers ten rows a
+  // call, so only the latest ten months are asked for. Read at most once a week
+  async function bok(errors) {
+    if (Object.keys(store.bok.months).length && now() - store.bok.fetched < 7 * 24 * H) return
+    const key = env.BOK_ECOS_KEY || process.env.BOK_ECOS_KEY || 'sample', n = key === 'sample' ? 10 : 400
+    const end = ym(now()), start = key === 'sample' ? ym(now() - 330 * DAY) : '201501'
+    try {
+      for (const [name, item] of Object.entries(BOK)) {
+        const r = await fetch(`https://ecos.bok.or.kr/api/StatisticSearch/${key}/json/en/1/${n}/402Y016/M/${start}/${end}/${item}/D`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(30000) })
+        if (!r.ok) throw new Error(`Bank of Korea answered ${r.status}`)
+        const rows = (await r.json())?.StatisticSearch?.row || []
+        for (const x of rows) { const v = Number(x.DATA_VALUE), m = `${x.TIME.slice(0, 4)}-${x.TIME.slice(4, 6)}`; if (fin(v)) (store.bok.months[m] ||= { m })[name] = v }
+      }
+      store.bok.fetched = now(); store.bok.keyed = key !== 'sample'; save()
+    } catch (e) { errors.push(`Bank of Korea: ${String(e?.message || e).slice(0, 80)}`) }
+  }
+
   async function get() {
     if (cache && now() - cache.ts < H) return cache.out
     const mem = await feed()
@@ -142,6 +232,11 @@ export function createMemoryPrices({ feed, research, now = () => Date.now() }) {
     const days = mem.days || [], rows = board(days), last = days.at(-1)
     const f = research ? await research.read(FILE).catch(() => null) : null
     const kept = f?.data || null
+    const errors = []
+    await Promise.all([stanford(errors), bok(errors)])
+    const qNow = (() => { const d = new Date(now()); return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}` })()
+    const quarters = kept ? [...new Set(kept.contract.map(c => c.quarter))].sort().filter(q => q <= `${+qNow.slice(0, 4) + 1}-Q${qNow.slice(6)}`).slice(-9) : []
+    const segs = kept ? CONTRACT_SEGMENTS.filter(s => quarters.some(q => contractCell(kept.contract, s, q))) : []
     const moved = rows.filter(r => fin(r.session)), up30 = rows.filter(r => r.chg30 > 0.005).length, down30 = rows.filter(r => r.chg30 < -0.005).length
     const ratio = legacyRatio(days)
     // headline parts indexed to 100 at the first day each has a price
@@ -152,10 +247,18 @@ export function createMemoryPrices({ feed, research, now = () => Date.now() }) {
       built: new Date(now()).toISOString(), asOf: mem.asOf, daysStale: mem.daysStale, liveOk: mem.liveOk, archiveDays: days.length, archiveFrom: days[0]?.date || null,
       rows, heads: heads.map(h => ({ id: h.id, label: h.label, family: h.family, note: h.note })),
       indexed: hist.map(r => { const o = { d: r.d }; for (const h of heads) if (fin(r[h.id]) && base[h.id] > 0) o[h.id] = rnd((r[h.id] / base[h.id]) * 100, 1); return o }),
-      ladder: ladder(rows, kept?.hbm), ratio,
+      ladder: ladder(rows, kept?.hbm, kept?.hbmLadder), ratio, errors, now: qNow,
+      contractTable: kept ? { quarters, rows: segs.map(s => ({ segment: s, cells: quarters.map(q => contractCell(kept.contract, s, q)) })) } : null,
+      contractIndex: kept ? contractIndex(kept.contract, ['conventional DRAM', 'HBM-blended DRAM', 'overall NAND Flash']) : [],
+      levels: kept ? levelSeries(kept.levels) : [],
+      retail: store.stanford.rows.filter(r => r.m >= '2016-01'), retailFetched: store.stanford.fetched ? new Date(store.stanford.fetched).toISOString() : null,
+      exportIndex: { months: Object.values(store.bok.months).sort((a, b) => a.m.localeCompare(b.m)), keyed: !!store.bok.keyed },
       breadth: { session: { up: moved.filter(r => r.session > 0).length, down: moved.filter(r => r.session < 0).length, n: moved.length }, month: { up: up30, down: down30, n: rows.filter(r => fin(r.chg30)).length } },
       contracts: (last?.contracts || []).map(c => ({ ...c, gb: rnd(gbOf(c.n), 3), perGb: gbOf(c.n) ? rnd(c.avg / gbOf(c.n), 3) : null })),
-      kept: kept ? { available: true, reviewed: kept.reviewed || null, hbm: kept.hbm || [], contract: kept.contract || [], levels: kept.levels || [], makers: kept.makers || [], series: kept.series || [], caveat: kept.caveat || null }
+      kept: kept ? { available: true, reviewed: kept.reviewed || null, caveat: kept.caveat || null, counts: { hbm: (kept.hbm || []).length, contract: (kept.contract || []).length, makers: (kept.makers || []).length },
+        // the HBM rows that are a price, a premium, a multiple or a supply statement (shares and market sizes stay in the file)
+        hbm: (kept.hbm || []).filter(r => /price per|premium|multiple|relative|sold out|contract price change/i.test(r.metric)),
+        makers: (kept.makers || []).filter(r => r.show) }
         : { available: false, reason: research ? (research.missing('memory price file', FILE).reason) : 'No Research Database reader configured.' },
       notes: [
         'Spot prices are TrendForce session averages for the marginal traded lot. Spot leads contract by about a quarter and overshoots both ways: read direction and breadth before level.',

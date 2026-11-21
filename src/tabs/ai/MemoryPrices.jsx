@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import { finite, C, VizCard, Kpi, Legend, Spark, axisTick, gridProps, tipStyle, tipLabel } from "../options/ui.jsx";
 import "../options/OptionsResearch.css";
@@ -14,8 +14,11 @@ import "../options/OptionsResearch.css";
 //               against DDR5 (above 1 the old part costs more than the new)
 //   board       every part TrendForce quotes: price, per GB, the session, the
 //               week, the month, since the archive began, and its line
-//   contract    the contract tables TrendForce shows in arrears, and its
-//               quarterly contract forecasts (hand-kept)
+//   contract    TrendForce's quarterly contract changes compounded into an
+//               index, the monthly fixed prices the press quotes, the table of
+//               changes by segment, and the contract tables shown in arrears
+//   long view   retail dollars per GB since 2016 (Stanford's compilation) and
+//               the Bank of Korea's export price indexes for DRAM and flash
 //   HBM         prices, premiums and sold-out statements, with who said them
 //   makers      what the memory makers reported on price and bits
 // Families keep one colour everywhere: HBM pink, DDR5 blue, DDR4 orange, NAND
@@ -67,24 +70,25 @@ function GbLadder({ rows }) {
 export default function MemoryPrices() {
   const [d, setD] = useState(null), [err, setErr] = useState(null);
   useEffect(() => { let live = true; fetch("/api/memory-prices").then(r => r.json()).then(j => { if (live) { if (j.error) setErr(j.error); else setD(j); } }).catch(e => live && setErr(e.message)); return () => { live = false; }; }, []);
-  const quarters = useMemo(() => (d?.kept?.contract ? [...new Set(d.kept.contract.map(c => c.quarter))].sort().slice(-8) : []), [d]);
   if (err) return <div className="options-research"><p className="onote">Memory prices could not be loaded: {err}</p></div>;
   if (!d) return <div className="options-research"><p className="onote">Reading memory prices…</p></div>;
 
   const row = id => d.rows.find(r => r.head === id), ddr5 = row("ddr5"), ddr4 = row("ddr4"), rdimm = row("ddr5rdimm"), tlc = row("tlc512"), ratio = d.ratio.at(-1), ratio0 = d.ratio[0];
-  const hbm = d.ladder.filter(l => l.family === "HBM"), topHbm = hbm[0], mult = topHbm && ddr5?.perGb ? topHbm.perGb / ddr5.perGb : null, k = d.kept;
+  const hbm = d.ladder.filter(l => l.family === "HBM"), topHbm = hbm.find(l => /HBM4, 2026/.test(l.label)) || hbm.at(-1), hbm3 = hbm.find(l => /HBM3E/.test(l.label)), hbm27 = hbm.find(l => /2027/.test(l.label)), mult = topHbm && ddr5?.perGb ? topHbm.perGb / ddr5.perGb : null, k = d.kept;
+  const ct = d.contractTable, ci = d.contractIndex || [], ciNow = [...ci].reverse().find(r => r.q < d.now && finite(r["conventional DRAM"])), ciNand = [...ci].reverse().find(r => r.q < d.now && finite(r["overall NAND Flash"]));
+  const xi = d.exportIndex?.months || [], q2 = q => q.replace("-", " ").slice(2);
   const fams = ["DDR5", "DDR4", "DDR3", "Graphics", "NAND", "Cards"].filter(f => d.rows.some(r => r.family === f));
   const drawn = d.heads.filter(h => HEAD_COLOR[h.id]);
-  const segs = k.available ? [...new Set(k.contract.map(c => c.segment))] : [];
-  const cell = (seg, q) => { const c = k.contract.filter(x => x.segment === seg && x.quarter === q).sort((a, b) => (a.kind === "actual" ? 1 : 0) - (b.kind === "actual" ? 1 : 0) || String(a.issued).localeCompare(String(b.issued))).at(-1); return c || null; };
-  const rng = c => (c.changeLow === c.changeHigh || !finite(c.changeHigh) ? `${c.changeLow > 0 ? "+" : ""}${c.changeLow}%` : `${c.changeLow > 0 ? "+" : ""}${c.changeLow} to ${c.changeHigh > 0 ? "+" : ""}${c.changeHigh}%`);
+  const rng = c => (c.low === c.high ? `${c.low > 0 ? "+" : ""}${c.low}%` : `${c.low > 0 ? "+" : ""}${c.low} to ${c.high > 0 ? "+" : ""}${c.high}%`);
+  const perGbText = h => (finite(h.perGb) ? `${usd(h.perGb)}${finite(h.perGbHigh) ? ` to ${usd(h.perGbHigh)}` : ""} /GB` : null);
   return (
     <div className="options-research" style={{ marginBottom: 12 }}>
       <VizCard eyebrow={`Memory · spot ${day(d.asOf)}${d.daysStale > 3 ? ` (${d.daysStale} days old: the last read failed)` : ""} · this dashboard's archive since ${day(d.archiveFrom)}`} title="What memory costs, from HBM to NAND"
-        finding={`${ddr5 ? `A gigabyte of DDR5 costs ${usd(ddr5.perGb)} on the spot market and a gigabyte of DDR4 ${usd(ddr4?.perGb)}: the legacy part is ${ratio ? `${ratio.ratio.toFixed(2)}×` : "—"} the current one${ratio0 && ratio ? `, ${ratio.ratio < ratio0.ratio ? "down" : "up"} from ${ratio0.ratio.toFixed(2)}× in ${md(ratio0.d)}` : ""}, because makers moved capacity away faster than demand left. ` : ""}${rdimm ? `The server module (32GB DDR5 RDIMM) is ${usd(rdimm.avg)}, ${pct(rdimm.chgAll, 0)} since the archive began and ${pct(rdimm.chg30, 0)} in the past month. ` : ""}${tlc ? `NAND is two orders of magnitude cheaper per gigabyte: a 512Gb TLC wafer die is ${usd(tlc.avg)}, ${usd(tlc.perGb)} a GB. ` : ""}${topHbm ? `${topHbm.label} is estimated at about ${usd(topHbm.perGb)} a GB${finite(mult) ? `, ${mult.toFixed(1)}× spot DDR5` : ""}. ` : ""}Over the past month ${d.breadth.month.down} of ${d.breadth.month.n} parts with a history fell and ${d.breadth.month.up} rose.`}
+        finding={`${ddr5 ? `A gigabyte of DDR5 costs ${usd(ddr5.perGb)} on the spot market and a gigabyte of DDR4 ${usd(ddr4?.perGb)}: the legacy part is ${ratio ? `${ratio.ratio.toFixed(2)}×` : "—"} the current one${ratio0 && ratio ? `, ${ratio.ratio < ratio0.ratio ? "down" : "up"} from ${ratio0.ratio.toFixed(2)}× in ${md(ratio0.d)}` : ""}, because makers moved capacity away faster than demand left. ` : ""}${rdimm ? `The server module (32GB DDR5 RDIMM) is ${usd(rdimm.avg)}, ${pct(rdimm.chgAll, 0)} since the archive began and ${pct(rdimm.chg30, 0)} in the past month. ` : ""}${tlc ? `NAND is two orders of magnitude cheaper per gigabyte: a 512Gb TLC wafer die is ${usd(tlc.avg)}, ${usd(tlc.perGb)} a GB. ` : ""}${topHbm ? `HBM has no spot market; the estimates on file put HBM4 at about ${usd(topHbm.low)} to ${usd(topHbm.high)} a GB on this year's contracts${hbm3 ? ` and HBM3E at ${usd(hbm3.low)} to ${usd(hbm3.high)}` : ""}, which is now below spot DDR5 per gigabyte${hbm27 ? `, with forecasts of ${usd(hbm27.low)} to ${usd(hbm27.high)} for 2027` : ""}. ` : ""}${ciNow ? `Contract prices are the bigger story: compounding TrendForce's quarterly changes, conventional DRAM is about ${(ciNow["conventional DRAM"] / 100).toFixed(1)}× its mid-2024 level${ciNand ? ` and NAND ${(ciNand["overall NAND Flash"] / 100).toFixed(1)}×` : ""}. ` : ""}Over the past month ${d.breadth.month.down} of ${d.breadth.month.n} parts with a history fell and ${d.breadth.month.up} rose.`}
         style={{ marginBottom: 12 }}>
         <div className="okpis" style={{ marginBottom: 10 }}>
-          {topHbm && <Kpi label={`${topHbm.label}, per GB`} value={usd(topHbm.perGb)} sub={`estimate${finite(mult) ? `; ${mult.toFixed(1)}× spot DDR5` : ""}; ${topHbm.note}`} tone={FAM.HBM} />}
+          {topHbm && <Kpi label="HBM4, this year's contracts" value={`${usd(topHbm.low)}–${usd(topHbm.high)} /GB`} sub={`estimates, not quotes${finite(mult) ? `; ${mult.toFixed(1)}× spot DDR5` : ""}${hbm27 ? `; 2027 forecasts ${usd(hbm27.low)} to ${usd(hbm27.high)}` : ""}`} tone={FAM.HBM} />}
+          {ciNow && <Kpi label="DRAM contract, since mid-2024" value={`${(ciNow["conventional DRAM"] / 100).toFixed(1)}×`} sub={`conventional DRAM, TrendForce quarterly changes compounded to ${q2(ciNow.q)}${ciNand ? `; NAND ${(ciNand["overall NAND Flash"] / 100).toFixed(1)}×` : ""}`} />}
           {ddr5 && <Kpi label="DDR5 16Gb chip" value={usd(ddr5.avg)} sub={`${usd(ddr5.perGb)} a GB; ${pct(ddr5.chg30)} in 30 days, ${pct(ddr5.chgAll, 0)} since ${md(ddr5.since)}`} tone={FAM.DDR5} />}
           {rdimm && <Kpi label="DDR5 RDIMM 32GB (server)" value={usd(rdimm.avg)} sub={`${usd(rdimm.perGb)} a GB; ${pct(rdimm.chg30)} in 30 days, ${pct(rdimm.chgAll, 0)} since ${md(rdimm.since)}`} tone={FAM.DDR5} />}
           {ddr4 && <Kpi label="DDR4 16Gb chip" value={usd(ddr4.avg)} sub={`${usd(ddr4.perGb)} a GB; ${pct(ddr4.chg30)} in 30 days, ${pct(ddr4.chgAll, 0)} since ${md(ddr4.since)}`} tone={FAM.DDR4} />}
@@ -150,34 +154,114 @@ export default function MemoryPrices() {
           </table>
         </div>
 
+        {(ci.length > 2 || d.levels?.length > 2) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 14, marginTop: 12 }}>
+          {ci.length > 2 && <div>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Contract prices · TrendForce's quarterly changes compounded · mid-2024 = 100 · log</div>
+            <div style={{ height: 230 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={ci} margin={{ top: 6, right: 22, bottom: 0, left: -10 }}>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="q" tick={axisTick} tickFormatter={q2} minTickGap={20} />
+                  <YAxis scale="log" domain={["auto", "auto"]} tick={axisTick} allowDataOverflow />
+                  <ReferenceLine x={d.now} stroke="var(--text-muted)" strokeDasharray="3 3" label={{ value: "now; forecasts after", position: "insideTopRight", fontSize: 10, fill: "var(--text-muted)" }} />
+                  <Tooltip contentStyle={tipStyle} labelStyle={tipLabel} labelFormatter={(q, e) => `${q2(q)}${e?.[0]?.payload?.forecast ? " (includes a forecast)" : ""}`} formatter={(v, name) => [v, name]} />
+                  <Line name="Conventional DRAM" dataKey="conventional DRAM" stroke={FAM.DDR5} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: FAM.DDR5 }} isAnimationActive={false} />
+                  <Line name="DRAM including HBM" dataKey="HBM-blended DRAM" stroke={FAM.HBM} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: FAM.HBM }} isAnimationActive={false} />
+                  <Line name="NAND flash" dataKey="overall NAND Flash" stroke={FAM.NAND} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: FAM.NAND }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <Legend items={[["Conventional DRAM", FAM.DDR5], ["DRAM including HBM", FAM.HBM], ["NAND flash", FAM.NAND]]} />
+            <p className="onote" style={{ marginTop: 2 }}>The middle of each quarter's range, the reported figure where there is one and the latest forecast where not. A derived index, not a price.</p>
+          </div>}
+          {d.levels?.length > 2 && <div>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Fixed contract prices quoted in the press · dollars a part · log</div>
+            <div style={{ height: 230 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={d.levels.filter(l => l.m >= "2023-01")} margin={{ top: 6, right: 22, bottom: 0, left: -10 }}>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="m" tick={axisTick} tickFormatter={when} minTickGap={36} />
+                  <YAxis scale="log" domain={["auto", "auto"]} tick={axisTick} tickFormatter={v => `$${v}`} allowDataOverflow />
+                  <Tooltip contentStyle={tipStyle} labelStyle={tipLabel} labelFormatter={when} formatter={(v, name) => [usd(v), name]} />
+                  <Line name="DDR4 8Gb" dataKey="ddr4" stroke={FAM.DDR4} strokeWidth={2} connectNulls dot={{ r: 2.5, strokeWidth: 0, fill: FAM.DDR4 }} isAnimationActive={false} />
+                  <Line name="DDR5 16Gb" dataKey="ddr5" stroke={FAM.DDR5} strokeWidth={2} connectNulls dot={{ r: 2.5, strokeWidth: 0, fill: FAM.DDR5 }} isAnimationActive={false} />
+                  <Line name="NAND 128Gb MLC" dataKey="nand" stroke={FAM.NAND} strokeWidth={2} connectNulls dot={{ r: 2.5, strokeWidth: 0, fill: FAM.NAND }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <Legend items={[["DDR4 8Gb", FAM.DDR4], ["DDR5 16Gb", FAM.DDR5], ["NAND 128Gb MLC", FAM.NAND]]} />
+            <p className="onote" style={{ marginTop: 2 }}>Monthly fixed-transaction prices as the press quoted them from TrendForce; months nobody quoted are joined by a straight line.</p>
+          </div>}
+        </div>}
+
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginTop: 12 }}>
-          {d.contracts.length > 0 && <div style={{ flex: "1 1 360px", minWidth: 0 }}>
-            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Contract prices TrendForce shows in arrears</div>
+          {ct?.rows?.length > 0 && <div style={{ flex: "1.8 1 520px", minWidth: 0 }}>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Quarterly contract price change · TrendForce · percent on the quarter before</div>
             <div className="otable-wrap">
+              <table className="otable">
+                <thead><tr><th style={left}>Segment</th>{ct.quarters.map(q => <th key={q} style={{ ...right, color: q > d.now ? "var(--text-muted)" : undefined }}>{q2(q)}</th>)}</tr></thead>
+                <tbody>{ct.rows.map(r => (
+                  <tr key={r.segment}><td style={{ ...left, fontFamily: "var(--font-body)", textTransform: "capitalize" }}>{r.segment.replace("overall ", "").replace("HBM-blended DRAM", "DRAM incl. HBM")}</td>
+                    {r.cells.map((c, i) => <td key={i} style={{ ...right, whiteSpace: "nowrap", fontWeight: c?.kind === "actual" ? 600 : 400, color: !c ? "var(--text-muted)" : c.kind === "actual" ? "var(--text-primary)" : "var(--text-secondary)" }} title={c ? `${c.kind === "actual" ? "reported" : "forecast"}, issued ${c.issued || "—"}${c.note ? `. ${c.note}` : ""}` : undefined}>{c ? rng(c) : "—"}</td>)}
+                  </tr>))}</tbody>
+              </table>
+            </div>
+            <p className="onote" style={{ marginTop: 2 }}>Bold is a figure reported at or after the quarter's end; lighter is a forecast. Hover a cell for when it was issued. TrendForce stopped publishing most segment splits after 3Q25.</p>
+          </div>}
+          {d.contracts.length > 0 && <div style={{ flex: "1 1 340px", minWidth: 0 }}>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Contract prices TrendForce shows in arrears</div>
+            <div className="otable-wrap" style={{ maxHeight: 300, overflowY: "auto" }}>
               <table className="otable">
                 <thead><tr><th style={left}>Part</th><th style={left}>For</th><th style={right}>Average</th><th style={right}>Per GB</th><th style={right}>Change</th></tr></thead>
                 <tbody>{d.contracts.map(c => <tr key={c.n + c.period}><td style={{ ...left, fontFamily: "var(--font-body)" }}>{c.n}</td><td style={{ ...left, color: "var(--text-secondary)" }}>{c.period || "—"}</td><td style={{ ...right, fontWeight: 600 }}>{usd(c.avg)}</td><td style={right}>{usd(c.perGb)}</td><td style={right}>{sess(c.chg)}</td></tr>)}</tbody>
               </table>
             </div>
           </div>}
-          {k.available && segs.length > 0 && <div style={{ flex: "1.6 1 460px", minWidth: 0 }}>
-            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Quarterly contract price change · TrendForce · forecast unless marked actual</div>
-            <div className="otable-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
-              <table className="otable">
-                <thead><tr><th style={left}>Segment</th>{quarters.map(q => <th key={q} style={right}>{q.replace("-", " ")}</th>)}</tr></thead>
-                <tbody>{segs.map(sg => (
-                  <tr key={sg}><td style={{ ...left, fontFamily: "var(--font-body)" }}>{sg}</td>
-                    {quarters.map(q => { const c = cell(sg, q); return <td key={q} style={{ ...right, whiteSpace: "nowrap", fontWeight: c?.kind === "actual" ? 600 : 400, color: c ? "var(--text-primary)" : "var(--text-muted)" }} title={c ? `${c.kind}, issued ${c.issued || "—"}${c.note ? `. ${c.note}` : ""}` : undefined}>{c ? rng(c) : "—"}{c?.kind === "actual" ? <span style={{ color: "var(--text-muted)", fontWeight: 400 }}> a</span> : null}</td>; })}
-                  </tr>))}</tbody>
-              </table>
-            </div>
-            <p className="onote" style={{ marginTop: 2 }}>Quarter on quarter, percent. "a" marks a figure reported after the quarter; the rest were forecasts. Hover a cell for when it was issued.</p>
-          </div>}
         </div>
+
+        {(d.retail?.length > 12 || xi.length > 2) && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(380px, 100%), 1fr))", gap: 14, marginTop: 12 }}>
+          {d.retail?.length > 12 && <div>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>The long view · retail dollars per GB · monthly · log</div>
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={d.retail} margin={{ top: 6, right: 22, bottom: 0, left: -6 }}>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="m" tick={axisTick} tickFormatter={m => m.slice(0, 4)} minTickGap={40} />
+                  <YAxis scale="log" domain={["auto", "auto"]} tick={axisTick} tickFormatter={v => `$${v}`} allowDataOverflow />
+                  <Tooltip contentStyle={tipStyle} labelStyle={tipLabel} labelFormatter={when} formatter={(v, name) => [`${usd(v)} a GB`, name]} />
+                  <Line name="DRAM (historical record)" dataKey="dram" stroke="var(--text-muted)" strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />
+                  <Line name="DDR5" dataKey="ddr5" stroke={FAM.DDR5} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                  <Line name="DDR4" dataKey="ddr4" stroke={FAM.DDR4} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                  <Line name="NAND (cheapest SSD)" dataKey="nand" stroke={FAM.NAND} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <Legend items={[["DDR5", FAM.DDR5], ["DDR4", FAM.DDR4], ["NAND (cheapest SSD)", FAM.NAND], ["DRAM, historical record to 2024", "var(--text-muted)"]]} />
+            <p className="onote" style={{ marginTop: 2 }}>What a shopper pays, from Stanford's compilation of Amazon price history (Keepa) and John McCallum's record: retail lags and smooths the chip market, but it is the one free series with a decade of NAND.</p>
+          </div>}
+          {xi.length > 2 && <div>
+            <div className="ocard-eyebrow" style={{ marginBottom: 4 }}>Korea's export prices · Bank of Korea · dollar basis · 2020 = 100</div>
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={xi} margin={{ top: 6, right: 22, bottom: 0, left: -14 }}>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="m" tick={axisTick} tickFormatter={when} minTickGap={36} />
+                  <YAxis tick={axisTick} domain={["auto", "auto"]} />
+                  <ReferenceLine y={100} stroke="var(--text-muted)" strokeDasharray="3 3" />
+                  <Tooltip contentStyle={tipStyle} labelStyle={tipLabel} labelFormatter={when} formatter={(v, name) => [v, name]} />
+                  <Line name="DRAM" dataKey="dram" stroke={FAM.DDR5} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: FAM.DDR5 }} isAnimationActive={false} />
+                  <Line name="Flash memory" dataKey="flash" stroke={FAM.NAND} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: FAM.NAND }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <Legend items={[["DRAM", FAM.DDR5], ["Flash memory", FAM.NAND]]} />
+            <p className="onote" style={{ marginTop: 2 }}>The price index of what the two largest memory makers' home country ships: the official series closest to a contract price. {d.exportIndex.keyed ? "" : "Only the latest ten months are read without a key; a free Bank of Korea ECOS key in .env (BOK_ECOS_KEY) brings the record back to 2015."}</p>
+          </div>}
+        </div>}
 
         {k.available ? <>
           {k.hbm.length > 0 && <>
-            <div className="ocard-eyebrow" style={{ margin: "12px 0 4px" }}>HBM · prices, premiums and supply statements · hand-kept, reviewed {k.reviewed}</div>
+            <div className="ocard-eyebrow" style={{ margin: "12px 0 4px" }}>HBM · prices, premiums and supply statements · {k.hbm.length} sourced figures · hand-kept, reviewed {k.reviewed}</div>
             <div className="otable-wrap" style={{ maxHeight: 420, overflowY: "auto" }}>
               <table className="otable">
                 <thead><tr><th style={left}>Product</th><th style={left}>Measure</th><th style={right}>Figure</th><th style={right}>As of</th><th style={left}>Applies to</th><th style={left}>Said by</th><th style={left}>Conf.</th></tr></thead>
@@ -185,7 +269,7 @@ export default function MemoryPrices() {
                   <tr key={i} title={h.note || undefined}>
                     <td style={{ ...left, fontFamily: "var(--font-body)" }}>{h.product}</td>
                     <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)" }}>{h.metric}</td>
-                    <td style={{ ...right, fontWeight: 600, whiteSpace: "nowrap" }}>{/USD/.test(h.unit || "") ? `${usd(h.value)}${finite(h.valueHigh) ? ` to ${usd(h.valueHigh)}` : ""}${/per GB/.test(h.unit) ? " /GB" : ""}` : h.unit === "percent" ? `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}%` : h.unit === "x" ? `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}×` : `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}`}</td>
+                    <td style={{ ...right, fontWeight: 600, whiteSpace: "nowrap" }}>{perGbText(h) ? perGbText(h) : /USD|KRW/.test(h.unit || "") ? `${h.unit === "KRW" ? "₩" : "$"}${Number(h.value).toLocaleString("en-US")}${finite(h.valueHigh) ? ` to ${Number(h.valueHigh).toLocaleString("en-US")}` : ""}` : h.unit === "percent" ? `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}%` : h.unit === "x" ? `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}×` : `${h.value}${finite(h.valueHigh) ? ` to ${h.valueHigh}` : ""}`}</td>
                     <td style={right}>{when(h.asOf)}</td>
                     <td style={{ ...left, fontFamily: "var(--font-body)", color: "var(--text-secondary)", whiteSpace: "normal", minWidth: 150 }}>{h.appliesTo || "—"}</td>
                     <td style={{ ...left, fontFamily: "var(--font-body)", whiteSpace: "normal", minWidth: 150 }}>{(h.statedBy || "—").slice(0, 60)}{h.url ? <> · <a href={h.url} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>{host(h.url)}</a></> : null}</td>
@@ -195,7 +279,7 @@ export default function MemoryPrices() {
             </div>
           </>}
           {k.makers.length > 0 && <>
-            <div className="ocard-eyebrow" style={{ margin: "12px 0 4px" }}>What the makers reported · price and bits, quarter on quarter</div>
+            <div className="ocard-eyebrow" style={{ margin: "12px 0 4px" }}>What the makers reported · average selling price and bit shipments, quarter on quarter</div>
             <div className="otable-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
               <table className="otable">
                 <thead><tr><th style={left}>Maker</th><th style={left}>Quarter</th><th style={left}>Product</th><th style={left}>Measure</th><th style={right}>Figure</th><th style={left}>Source</th></tr></thead>
@@ -214,6 +298,8 @@ export default function MemoryPrices() {
         <ul className="onote" style={{ margin: "8px 0 0", paddingLeft: 18, lineHeight: 1.55 }}>
           {d.notes.map((n, i) => <li key={i}>{n}</li>)}
           {k.available && k.caveat ? <li>{k.caveat}</li> : null}
+          <li>HBM against DDR5 here sets a contract estimate beside a spot price; TrendForce's own comparison is with server DDR5 contracts, where it put HBM3E at four to five times in 2025 and expected one to two times by the end of 2026.</li>
+          {d.errors?.length > 0 && <li>Not read this build: {d.errors.join("; ")}.</li>}
           <li>HBM and packaging capacity are on Supply Chain; the memory signal in the shortage-or-glut board (Compute) reads the DDR5 chip from this archive. Source: {d.source}.</li>
         </ul>
       </VizCard>

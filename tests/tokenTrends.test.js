@@ -90,3 +90,20 @@ test('memory: capacity from a part name, dollars per GB, the legacy ratio, and t
   assert.deepEqual(l.map(r => [r.label, r.perGb]), [['DDR4 16Gb chip', 39], ['DDR5 16Gb chip', 30], ['HBM3E 12-high', 12]])
   assert.equal(l[2].kind, 'estimate')
 })
+
+test('memory: a contract cell prefers the reported figure, the index compounds midpoints and stops at a gap', async () => {
+  const { contractCell, contractIndex, levelSeries, retailSeries, ladder: lad } = await import('../server/memoryPrices.js')
+  const c = (segment, quarter, changeLow, changeHigh, kind, issued) => ({ segment, quarter, changeLow, changeHigh, kind, issued })
+  const rows = [c('conventional DRAM', '2024-Q3', 5, 10, 'forecast', '2024-06'), c('conventional DRAM', '2024-Q3', 8, 12, 'actual', '2024-10'), c('conventional DRAM', '2024-Q3', 20, 30, 'forecast', '2024-11'),
+    c('conventional DRAM', '2024-Q4', 0, 0, 'forecast', '2024-10'), c('overall NAND Flash', '2024-Q3', -10, -10, 'actual', '2024-10'), c('overall NAND Flash', '2025-Q1', 50, 50, 'actual', '2025-03')]
+  assert.deepEqual([contractCell(rows, 'conventional DRAM', '2024-Q3').mid, contractCell(rows, 'conventional DRAM', '2024-Q3').kind], [10, 'actual'])
+  assert.equal(contractCell(rows, 'server DRAM', '2024-Q3'), null)
+  const ix = contractIndex(rows, ['conventional DRAM', 'overall NAND Flash'])
+  assert.deepEqual(ix.map(r => [r.q, r['conventional DRAM'], r['overall NAND Flash'] ?? null, r.forecast]), [['2024-Q3', 110, 90, false], ['2024-Q4', 110, null, true]])   // NAND has no Q4: its line ends, and Q1 2025 is not joined on
+  assert.deepEqual(levelSeries([{ item: 'DDR4 8Gb (1Gx8) PC DRAM average fixed transaction price', value: 1.35, month: '2025-01' }, { item: 'NAND 128Gb (16Gx8) MLC average fixed transaction price', value: 2.18, month: '2025-01' }, { item: 'DDR5 16GB SO-DIMM module fixed transaction price', value: 59, month: '2025-10' }, { item: 'DDR5 16Gb chip contract price', value: 48, month: '2026-09' }]),
+    [{ m: '2025-01', ddr4: 1.35, nand: 2.18 }, { m: '2026-09', ddr5: 48 }])
+  assert.deepEqual(retailSeries([{ date: '2026-10-01', series: 'DDR5 (Keepa)', metric: 'usd_per_gb', value: '14.06' }, { date: '2026-10-01', series: 'NAND cheapest (Keepa)', metric: 'usd_per_gb', value: '0.0926' }, { date: '2009-01-01', series: 'McCallum DRAM (historical)', metric: 'usd_per_gb', value: '10' }, { date: '2026-10-01', series: 'HBM $/GB', metric: 'usd_per_gb', value: '16' }]),
+    [{ m: '2026-10', ddr5: 14.06, nand: 0.0926 }])
+  const l = lad([], [{ product: 'HBM3E', metric: 'price per GB', value: 99, asOf: '2026-01' }], [{ label: 'HBM4, 2026 contracts', low: 16, high: 16.4, asOf: '2026-11', note: 'n', members: [1, 2] }])
+  assert.deepEqual(l.map(r => [r.label, r.perGb, r.low, r.high]), [['HBM4, 2026 contracts', 16.2, 16, 16.4]])   // the curated ranges replace the raw rows
+})

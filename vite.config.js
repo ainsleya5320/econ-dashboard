@@ -3997,7 +3997,7 @@ export default defineConfig({
         const aiDollars = createAiDollars({ dir: __dirname, research: researchDb })
         reRoute('/api/ai-dollars', () => aiDollars.get())
         // AI Economy → Memory (server/memoryPrices.js): the spot archive as a board, dollars per GB, DDR4 against DDR5, with hand-kept HBM and contract figures
-        const memoryPrices = createMemoryPrices({ feed: () => getMemoryPrices(), research: researchDb })
+        const memoryPrices = createMemoryPrices({ dir: __dirname, feed: () => getMemoryPrices(), research: researchDb, env, UA: 'econ-dashboard (personal research)' })
         reRoute('/api/memory-prices', () => memoryPrices.get())
         // Tightening monitor (server/tightening.js): duration supply, auction
         // absorption, the dollar's stock and flow, and the three derived views
