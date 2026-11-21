@@ -4,7 +4,6 @@ import { fonts, cardBg, cardBorder } from "../lib/styles.js";
 import { SH, InfoBox } from "../components/shared.jsx";
 import ForecastPanel from "../components/ForecastPanel.jsx";
 import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker.jsx";
-import MemoryPricesPanel from "../components/MemoryPricesPanel.jsx";
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
@@ -26,6 +25,8 @@ import GatewayShares from "./ai/GatewayShares.jsx";
 import TokenLedger from "./ai/TokenLedger.jsx";
 import AiLabor from "./ai/AiLabor.jsx";
 import AiDollars from "./ai/AiDollars.jsx";
+import MemoryPrices from "./ai/MemoryPrices.jsx";
+import { QualityPrice, TokenElasticity } from "./ai/TokenTrends.jsx";
 import AI_DEBT from "../../data/ai/ai-debt.json";
 import REVENUE from "../../data/ai/revenue-disclosures.json";
 import PJM from "../../data/ai/pjm-capacity.json";
@@ -423,7 +424,11 @@ function PowerBottleneckPanel() {
   </>);
 }
 
-function ComputePowerTab() {
+// The real-economy series behind the build-out (FRED), in three parts so each sits on the tab it belongs to:
+//   power   what the grid charges for scarcity, and electricity generation        → Compute
+//   money   investment, hyperscaler capex, the AI debt stack, construction        → Build-Out
+//   labor   productivity and employment in the sectors closest to AI              → Dark Output
+function RealEconomyPanels({ part }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
@@ -462,38 +467,24 @@ function ComputePowerTab() {
   const loadedCount = Object.keys(f).length;
 
   return (<>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 10 }}>
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#e2e8f0", fontFamily: fonts.heading, letterSpacing: -0.5 }}>Compute &amp; Power — The Buildout</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>{loadedCount} live series</span>
-        <span style={{ fontSize: 10, color: "#64748b", fontFamily: fonts.mono }}>
-          {lastRefresh ? `| Updated ${new Date(lastRefresh).toLocaleTimeString()}` : ""}
-        </span>
-        <button onClick={load} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>Refresh Refresh</button>
-      </div>
-    </div>
-    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 18, maxWidth: 780 }}>
-      Stage 3 of the chain: the data-center buildout and what it costs. Who is spending (hyperscaler capex), who is financing it (the AI debt stack), what the grid charges for scarcity (PJM), and whether the buildout is showing up in the real economy — construction, semis output, jobs, power generation, and ultimately productivity.
-    </div>
-
-    {/* ======== POWER BOTTLENECK ======== */}
+    {part === "power" && <>
+{/* ======== POWER BOTTLENECK ======== */}
     <PowerBottleneckPanel />
 
-    {/* ======== PRODUCTIVITY ======== */}
-    <SH>Productivity - The Ultimate Test</SH>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
-      <StatCard label="Nonfarm Productivity (idx)" val={prod?.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(prod?.yoy, 1)} | 5y ${fmtPct(prod?.fiveYr, 1)}`} color="#10B981" />
-      <StatCard label="Info Sector Productivity (idx)" val={infoProd?.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(infoProd?.yoy, 1)} | ${fmtDate2(infoProd?.lastDate)}`} color="#14B8A6" />
-    </div>
-    <FredChart series={prod} title="Nonfarm Business Labor Productivity (Index, Quarterly)" yoyHighlight yFormat={v => v.toFixed(1)} />
-    <InfoBox color="#10B981">
-      <strong style={{ color: "#cbd5e1" }}>The headline number.</strong> US nonfarm productivity has averaged ~2%/yr over the long run. A sustained break above ~2.5% would be the first direct evidence AI is delivering real economic value - not just speculative capex. Most economists consider 2023-24&apos;s uptick encouraging but not yet confirmation.
-    </InfoBox>
-    {infoProd?.history?.length > 0 && (
-      <FredChart series={infoProd} title="Information Sector Labor Productivity (Index, Quarterly)" yoyHighlight yFormat={v => v.toFixed(1)} />
-    )}
-
-    {/* ======== CAPITAL FORMATION ======== */}
+{/* ======== POWER ======== */}
+    {power?.history?.length > 0 && (<>
+      <SH>Power Demand - AI&apos;s Physical Footprint</SH>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
+        <StatCard label="Electric Power Generation" val={power.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(power.yoy, 1)} | 5y ${fmtPct(power.fiveYr, 1)}`} color="#EAB308" />
+      </div>
+      <FredChart series={power} title="Electric Power Generation (Index, Monthly)" yoyHighlight yFormat={v => v.toFixed(1)} />
+      <InfoBox color="#EAB308">
+        <strong style={{ color: "#cbd5e1" }}>The power problem is real.</strong> US electricity demand was essentially flat for 15 years (2007-2022); utilities now forecast 15-20% growth by 2030, driven largely by AI data centers. Watch this series break from its decade-long flatline - it&apos;s the clearest physical tell that AI compute is expanding at scale.
+      </InfoBox>
+    </>)}
+    </>}
+    {part === "money" && <>
+{/* ======== CAPITAL FORMATION ======== */}
     <SH>Capital Formation - Where The Money Is Flowing</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
       <StatCard label="Real R&D Investment" val={fmtFredVal(softInv)} sub={`YoY ${fmtPct(softInv?.yoy, 1)} | 5y ${fmtPct(softInv?.fiveYr, 0)}`} color="#6366F1" />
@@ -509,13 +500,13 @@ function ComputePowerTab() {
       <strong style={{ color: "#cbd5e1" }}>Following the capex.</strong> R&amp;D (after inflation), IT equipment plus software, and all business equipment (both in current dollars) track business investment in &quot;intangibles + compute.&quot; If AI is driving a real investment cycle, these three should all be accelerating together. Software alone, against its pre-ChatGPT trend, is on AI Economy → Dark Output.
     </InfoBox>
 
-    {/* ======== HYPERSCALER CAPEX ======== */}
+{/* ======== HYPERSCALER CAPEX ======== */}
     <HyperscalerCapexPanel />
 
-    {/* ======== AI DEBT MARKET (who funds the buildout) ======== */}
+{/* ======== AI DEBT MARKET (who funds the buildout) ======== */}
     <AIDebtPanel />
 
-    {/* ======== PHYSICAL BUILDOUT ======== */}
+{/* ======== PHYSICAL BUILDOUT ======== */}
     <SH>Physical Buildout - Chips &amp; Data Centers</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
       <StatCard label="Semi Production (idx)" val={semis?.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(semis?.yoy, 1)} | 5y ${fmtPct(semis?.fiveYr, 0)}`} color="#F59E0B" />
@@ -528,8 +519,23 @@ function ComputePowerTab() {
     <InfoBox color="#EF4444">
       <strong style={{ color: "#cbd5e1" }}>CHIPS Act in motion.</strong> Manufacturing construction spending has roughly tripled since 2021 - an unprecedented, visible-from-space real-economy footprint. Semiconductor production itself has been more cyclical, but the fab-build boom is laying the foundation for the next decade of AI compute capacity.
     </InfoBox>
+    </>}
+    {part === "labor" && <>
+{/* ======== PRODUCTIVITY ======== */}
+    <SH>Productivity - The Ultimate Test</SH>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
+      <StatCard label="Nonfarm Productivity (idx)" val={prod?.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(prod?.yoy, 1)} | 5y ${fmtPct(prod?.fiveYr, 1)}`} color="#10B981" />
+      <StatCard label="Info Sector Productivity (idx)" val={infoProd?.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(infoProd?.yoy, 1)} | ${fmtDate2(infoProd?.lastDate)}`} color="#14B8A6" />
+    </div>
+    <FredChart series={prod} title="Nonfarm Business Labor Productivity (Index, Quarterly)" yoyHighlight yFormat={v => v.toFixed(1)} />
+    <InfoBox color="#10B981">
+      <strong style={{ color: "#cbd5e1" }}>The headline number.</strong> US nonfarm productivity has averaged ~2%/yr over the long run. A sustained break above ~2.5% would be the first direct evidence AI is delivering real economic value - not just speculative capex. Most economists consider 2023-24&apos;s uptick encouraging but not yet confirmation.
+    </InfoBox>
+    {infoProd?.history?.length > 0 && (
+      <FredChart series={infoProd} title="Information Sector Labor Productivity (Index, Quarterly)" yoyHighlight yFormat={v => v.toFixed(1)} />
+    )}
 
-    {/* ======== EMPLOYMENT ======== */}
+{/* ======== EMPLOYMENT ======== */}
     <SH>Employment - Jobs In The AI Supply Chain</SH>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
       <StatCard label="Computer Systems Design" val={csdJobs?.current != null ? `${(csdJobs.current / 1000).toFixed(2)}M jobs` : "-"} sub={`YoY ${fmtPct(csdJobs?.yoy, 1)} | 5y ${fmtPct(csdJobs?.fiveYr, 0)}`} color="#3B82F6" />
@@ -540,24 +546,13 @@ function ComputePowerTab() {
       <FredChart series={infoJobs} title="Information Sector Employment (thousands)" yoyHighlight yFormat={v => `${(v/1000).toFixed(2)}M`} />
     </div>
     <InfoBox color="#F59E0B">
-      <strong style={{ color: "#cbd5e1" }}>The labor paradox.</strong> Hyperscaler AI capex is projected at $300B+ in 2025-26, yet information-sector headcount has stagnated since 2022. That gap - huge compute spend, flat payrolls - is the signature of a productivity-driven investment cycle: output is rising faster than employment. Watch this spread widen or close.
+      <strong style={{ color: "#cbd5e1" }}>The labor paradox.</strong> Hyperscaler capex has multiplied since 2022 (the dollar ledger on Models &amp; Labs has the current figure), yet information-sector headcount has stagnated. That gap - huge compute spend, flat payrolls - is the signature of a productivity-driven investment cycle: output is rising faster than employment. Watch this spread widen or close.
     </InfoBox>
-
-    {/* ======== POWER ======== */}
-    {power?.history?.length > 0 && (<>
-      <SH>Power Demand - AI&apos;s Physical Footprint</SH>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px, 100%),1fr))", gap: 10, marginBottom: 14 }}>
-        <StatCard label="Electric Power Generation" val={power.current?.toFixed(1) ?? "-"} sub={`YoY ${fmtPct(power.yoy, 1)} | 5y ${fmtPct(power.fiveYr, 1)}`} color="#EAB308" />
-      </div>
-      <FredChart series={power} title="Electric Power Generation (Index, Monthly)" yoyHighlight yFormat={v => v.toFixed(1)} />
-      <InfoBox color="#EAB308">
-        <strong style={{ color: "#cbd5e1" }}>The power problem is real.</strong> US electricity demand was essentially flat for 15 years (2007-2022); utilities now forecast 15-20% growth by 2030, driven largely by AI data centers. Watch this series break from its decade-long flatline - it&apos;s the clearest physical tell that AI compute is expanding at scale.
-      </InfoBox>
-    </>)}
-
-    <InfoBox color="#8B5CF6">
-      <strong style={{ color: "#cbd5e1" }}>Data source:</strong> All time series from <a href="https://fred.stlouisfed.org" target="_blank" rel="noopener" style={{ color: "#a5b4fc" }}>FRED</a> (St. Louis Fed), originating from BLS, BEA, and Federal Reserve G.17 reports. Refreshes every 4 hours server-side. No equity or market-cap data included - this tab is intentionally about the real economy only.
-    </InfoBox>
+    </>}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 10, color: "#64748b", fontFamily: fonts.mono, marginBottom: 14 }}>
+      <span>Series from FRED (BLS, BEA, Federal Reserve G.17), refreshed every 4 hours; {loadedCount} loaded{lastRefresh ? `, ${new Date(lastRefresh).toLocaleTimeString()}` : ""}.</span>
+      <button onClick={load} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-secondary)", cursor: "pointer", fontFamily: fonts.mono }}>Refresh</button>
+    </div>
   </>);
 }
 
@@ -2062,6 +2057,12 @@ function TokenDemandTab() {
     <SH>The Token Ladder — Cost to Make, Price to Buy</SH>
     <TokenLadder />
 
+    <SH>The Price of a Fixed Capability — How Fast a Token Gets Cheaper</SH>
+    <QualityPrice />
+
+    <SH>When Tokens Get Cheaper, Does Spending Rise? — the Elasticity Test</SH>
+    <TokenElasticity />
+
     <SH>Managed Inference — the Vercel AI Gateway beside OpenRouter</SH>
     <GatewayShares />
     <Collapse title="Corroborating Signals — Stack Overflow / GitHub / Cloudflare" sub="early-warning breadth, not headline signals">
@@ -2097,26 +2098,87 @@ function ComputeForecast() {
     "or-tokens-sep26": d?.tokens?.total != null ? { value: d.tokens.total / 1e12, label: "latest 7-day window" } : undefined,
   }} />;
 }
+// The Compute tab is long, so it is cut into sections that open and close. Each closed section shows one line of
+// what is inside (live where the compute-balance feed has the reading); a section's panels mount only when it is
+// opened. Which sections are open is remembered in this browser.
+const COMPUTE_STORE = "aiCompute.open.v1";
+const COMPUTE_SECTIONS = [["balance", "Shortage or glut"], ["prices", "GPU prices"], ["economics", "GPU economics"], ["tokens", "Tokens from GPUs"], ["power", "Power"], ["forecasts", "Forecasts"]];
+function ComputeSection({ id, title, sub, open: all, onToggle, children }) {
+  const open = !!all[id];
+  return (
+    <section id={`compute-${id}`} style={{ marginBottom: 12, scrollMarginTop: 70 }}>
+      <button onClick={() => onToggle(id)} aria-expanded={open} style={{
+        width: "100%", textAlign: "left", cursor: "pointer", background: cardBg, border: cardBorder, borderRadius: 14, padding: "11px 16px",
+        display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", color: "#cbd5e1",
+      }}>
+        <span style={{ color: "#818cf8", width: 10 }}>{open ? "▾" : "▸"}</span>
+        <span style={{ fontSize: 13, fontFamily: fonts.heading, fontWeight: 700, minWidth: 130 }}>{title}</span>
+        <span style={{ flex: "1 1 320px", fontSize: 11, color: "#94a3b8", fontFamily: fonts.mono, lineHeight: 1.5 }}>{sub}</span>
+      </button>
+      {open && <div style={{ marginTop: 14 }}>{children}</div>}
+    </section>
+  );
+}
 function ComputeTab() {
+  const [open, setOpen] = useState(() => { try { return JSON.parse(localStorage.getItem(COMPUTE_STORE) || "null") || { balance: true }; } catch { return { balance: true }; } });
+  const [bal, setBal] = useState(null);
+  useEffect(() => { let live = true; fetch("/api/compute-balance").then(r => r.json()).then(j => { if (live && !j.error) setBal(j); }).catch(() => {}); return () => { live = false; }; }, []);
+  const save = n => { try { localStorage.setItem(COMPUTE_STORE, JSON.stringify(n)); } catch { /* private window: not remembered */ } return n; };
+  const toggle = id => setOpen(o => save({ ...o, [id]: !o[id] }));
+  const setAll = v => setOpen(save(Object.fromEntries(COMPUTE_SECTIONS.map(([id]) => [id, v]))));
+  const jump = id => { setOpen(o => save({ ...o, [id]: true })); setTimeout(() => document.getElementById(`compute-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 40); };
+  const sig = id => bal?.signals?.find(x => x.id === id), read = id => (sig(id)?.grade && sig(id).grade !== "none" ? sig(id).reading : null);
+  const VERDICT = { shortage: "Shortage", "leaning short": "Leaning short", balanced: "Balanced", "leaning long": "Leaning long", glut: "Glut" };
+  const chip = { fontSize: 11, padding: "4px 11px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", color: "#cbd5e1", cursor: "pointer", fontFamily: fonts.heading, whiteSpace: "nowrap" };
+  const S = { open, onToggle: toggle };
   return (<>
-    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
-      Stage 3 of the chain: what compute costs to rent today and whether the power and capex build-out keeps
-      pace. The silicon and memory behind it are on the Supply Chain tab.
+    <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 10, maxWidth: 820 }}>
+      Stage 3 of the chain: is compute short or in glut, what a GPU-hour costs every way it is sold, what that makes a token cost, and what power charges for scarcity.
+      Silicon and memory are on Supply Chain; capex, debt and construction on Build-Out; productivity and jobs on Dark Output.
     </div>
-    <ComputeBalance />
-    <GpuRentalsPanel />
-    <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
-    <NebiusSpot />
-    <SH>The GPU-Hour, Every Way It's Sold — Spot, List, Contract, Futures</SH>
-    <GpuMarkets />
-    <GpuEconomicsPanel />
-    <SH>Intelligence per Megawatt</SH>
-    <IntelligencePerMwPanel />
-    <SH>A Spot Price for Tokens — Derived from the Spot Price of a GPU</SH>
-    <TokenSpotPanel />
-    <CapexReturnsPanel />
-    <ComputePowerTab />
-    <ComputeForecast />
+    <nav aria-label="Compute sections" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {COMPUTE_SECTIONS.map(([id, label]) => <button key={id} onClick={() => jump(id)} style={{ ...chip, borderColor: open[id] ? "#818cf8" : "rgba(255,255,255,0.1)" }}>{label}</button>)}
+      <span style={{ flex: 1 }} />
+      <button onClick={() => setAll(true)} style={chip}>Open all</button>
+      <button onClick={() => setAll(false)} style={chip}>Close all</button>
+    </nav>
+
+    <ComputeSection id="balance" title="Shortage or glut" {...S}
+      sub={bal ? `${VERDICT[bal.verdict] || bal.verdict}: ${bal.counts.shortage} of ${bal.graded} signals read shortage, ${bal.counts.balanced} balanced, ${bal.counts.glut} glut · the growth race, demand against supply` : "every signal graded shortage, balanced or glut by a printed rule; the growth race"}>
+      <ComputeBalance />
+    </ComputeSection>
+
+    <ComputeSection id="prices" title="GPU prices" {...S}
+      sub={[read("h100-contract") && `H100 one-year contract ${read("h100-contract")}`, read("spot-contract"), read("launchable") && `launchable ${read("launchable")}`, read("futures-curve") && `futures ${read("futures-curve")}`].filter(Boolean).join(" · ") || "rental rates, a neocloud's spot auction, and the GPU-hour every way it is sold: spot, list, contract, futures"}>
+      <GpuRentalsPanel />
+      <SH>The GPU-Hour, Every Way It's Sold — Spot, List, Contract, Futures</SH>
+      <GpuMarkets />
+      <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
+      <NebiusSpot />
+    </ComputeSection>
+
+    <ComputeSection id="economics" title="GPU economics" {...S}
+      sub={[read("resale") && `used-GPU resale index ${read("resale")}`, read("revenue-per-compute") && `a lab's revenue per compute dollar ${read("revenue-per-compute")}`].filter(Boolean).join(" · ") || "what a GPU earns against what it costs to own, and what the capex has to return"}>
+      <GpuEconomicsPanel />
+      <CapexReturnsPanel />
+    </ComputeSection>
+
+    <ComputeSection id="tokens" title="Tokens from GPUs" {...S}
+      sub="intelligence per megawatt, and the cost floor of a token derived from the rent on a GPU (the prices it sells for are the token ladder, on Tokens)">
+      <SH>Intelligence per Megawatt</SH>
+      <IntelligencePerMwPanel />
+      <SH>A Spot Price for Tokens — Derived from the Spot Price of a GPU</SH>
+      <TokenSpotPanel />
+    </ComputeSection>
+
+    <ComputeSection id="power" title="Power" {...S}
+      sub="what the grid charges for scarcity (PJM capacity auctions) and whether electricity generation has left its fifteen-year flatline">
+      <RealEconomyPanels part="power" />
+    </ComputeSection>
+
+    <ComputeSection id="forecasts" title="Forecasts" {...S} sub="forward views on the H100 contract price and token volume, scored against the live reading">
+      <ComputeForecast />
+    </ComputeSection>
   </>);
 }
 
@@ -2125,12 +2187,11 @@ function SupplyChainTab() {
   return (<>
     <div style={{ fontSize: 11, color: "#64748b", fontFamily: fonts.mono, marginBottom: 16, maxWidth: 780 }}>
       Stage 4 of the chain: the companies that make the hardware. Monthly revenue along the Taiwan supply chain is
-      the fastest hard number on what was built and shipped; packaging capacity and memory prices are the ceilings
-      and the cost behind it.
+      the fastest hard number on what was built and shipped; packaging and HBM capacity are the ceilings. What memory
+      costs, from HBM to NAND, has its own tab: Memory.
     </div>
     <SupplyChainRevenue />
     <SupplyCeilingPanel />
-    <MemoryPricesPanel />
   </>);
 }
 
@@ -2336,8 +2397,8 @@ function ChainTab({ go }) {
 }
 
 function AIEconomyTab() {
-  // ?view=ai&sub=tokens (or compute, silicon, models, buildout, dark, tensions) lands on that sub-tab
-  const [subTab, setSubTab] = useState(() => { const p = new URLSearchParams(window.location.search), v = p.get("sub"); return p.get("view") === "ai" && ["pulse", "tokens", "compute", "silicon", "models", "buildout", "dark", "tensions"].includes(v) ? v : "pulse"; });
+  // ?view=ai&sub=tokens (or compute, silicon, memory, models, buildout, dark, tensions) lands on that sub-tab
+  const [subTab, setSubTab] = useState(() => { const p = new URLSearchParams(window.location.search), v = p.get("sub"); return p.get("view") === "ai" && ["pulse", "tokens", "compute", "silicon", "memory", "models", "buildout", "dark", "tensions"].includes(v) ? v : "pulse"; });
 
   // 2026-09 revamp: Pulse landing (token tracker + Artificial Analysis + GPU
   // rentals), then the three deep-dives along the chain; Tensions (2026-10)
@@ -2347,6 +2408,7 @@ function AIEconomyTab() {
     { id: "tokens",   label: "Tokens"         },
     { id: "compute",  label: "Compute"        },
     { id: "silicon",  label: "Supply Chain"   },
+    { id: "memory",   label: "Memory"         },
     { id: "models",   label: "Models & Labs"  },
     { id: "buildout", label: "Build-Out"      },
     { id: "dark",     label: "Dark Output"    },
@@ -2366,9 +2428,12 @@ function AIEconomyTab() {
     {subTab === "compute" && <ComputeTab />}
     {subTab === "models"  && <ModelsLabsTab />}
     {subTab === "silicon" && <SupplyChainTab />}
-    {subTab === "buildout" && <><BuildOut /><SH>AI Credit Basket — What the Bond Market Charges the Build-Out</SH><AiCredit /></>}
+    {subTab === "memory"  && <MemoryPrices />}
+    {subTab === "buildout" && <><BuildOut /><SH>AI Credit Basket — What the Bond Market Charges the Build-Out</SH><AiCredit />
+      <Collapse title="The build-out in the national accounts" sub="business investment, hyperscaler capex by company, the AI debt stack, chip output and factory construction"><RealEconomyPanels part="money" /></Collapse></>}
     {subTab === "dark"    && <DarkOutput />}
-    {subTab === "dark"    && <><SH>Are Payrolls Paying for AI? — Job Cuts Employers Tie to AI</SH><AiLabor /></>}
+    {subTab === "dark"    && <><SH>Are Payrolls Paying for AI? — Job Cuts Employers Tie to AI</SH><AiLabor />
+      <Collapse title="Productivity and employment — the headline series" sub="nonfarm and information-sector productivity; computer systems design and information-sector jobs"><RealEconomyPanels part="labor" /></Collapse></>}
     {subTab === "tensions" && <TensionBoard domain="ai" />}
   </>);
 }

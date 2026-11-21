@@ -153,7 +153,7 @@ export function buildBalance(x) {
     add('memory', 'orders', 'DRAM spot price (DDR5 16Gb)', !fin(chg) ? { reading: '—', detail: 'No memory prices on file.' } : {
       grade: band(chg, -0.1, 0.1), value: rnd(chg, 4), reading: `$${a.avg.toFixed(1)}, ${pctS(chg)} since ${d[0].date}`, asOf: d.at(-1).date, series: d.map(r => [r.date, pick(r)?.avg ?? null]),
       detail: `Memory is the input the accelerator makers cannot get enough of in a build-out; its spot price moves before contract prices do. Only ${d.length} days on file, so this is a short window.`,
-      rule: 'Up more than 10% over the window: shortage. Down more than 10%: glut.', home: 'Supply Chain → memory prices',
+      rule: 'Up more than 10% over the window: shortage. Down more than 10%: glut.', home: 'Memory',
     })
   }
 

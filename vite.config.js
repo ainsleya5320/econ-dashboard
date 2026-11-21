@@ -39,9 +39,12 @@ import { createTokenEstimates } from './server/tokenEstimates.js'
 import { createOwnerWealth } from './server/ownerWealth.js'
 import { createHouseholdWealth } from './server/householdWealth.js'
 import { createTokenSpot } from './server/tokenSpot.js'
+import { createMemoryPrices, parseTables as parseMemoryTables, itemsOf as memoryItemsOf, PAGES as MEMORY_PAGES } from './server/memoryPrices.js'
 import { createTokenMarket } from './server/tokenMarket.js'
 import { createGatewayShares } from './server/gatewayShares.js'
 import { createTokenLedger } from './server/tokenLedger.js'
+import { createTokenElasticity } from './server/tokenElasticity.js'
+import { createQualityPrice } from './server/qualityPrice.js'
 import { createAiLabor } from './server/aiLabor.js'
 import { createAiDollars } from './server/aiDollars.js'
 import { createTightening } from './server/tightening.js'
@@ -3127,6 +3130,7 @@ async function getSemiH100() {
 }
 
 /* ── TrendForce memory spot prices (DRAM / modules / GDDR / NAND) ─────────
+   (Parsing lives in server/memoryPrices.js; the fuller board is /api/memory-prices.)
    trendforce.com/price serves its spot-price tables fully server-rendered,
    free, no login: DRAM chips (DDR3/4/5 + eTT), modules (UDIMM/RDIMM/SO-DIMM),
    graphics DRAM (GDDR), NAND — each with session high/low/average and a
@@ -3147,59 +3151,21 @@ function saveMemoryArchive(store) {
   try { fs.writeFileSync(MEMORY_FILE, JSON.stringify(store)) } catch (e) { console.error('Memory archive save:', e.message) }
 }
 
-// Classify a spot-table row by its item name; null = row we don't track.
-function memoryGroup(name) {
-  if (/^GDDR/i.test(name)) return 'gddr'
-  if (/DIMM/i.test(name)) return 'module'
-  if (/NAND|TLC|MLC|SLC|Flash/i.test(name)) return 'nand'
-  if (/^LPDDR/i.test(name)) return 'mobile'
-  if (/^DDR\d/i.test(name)) return 'chip'
-  return null
-}
-
-// Parse the server-rendered <table> rows into { n, g, avg, chg } items.
-// Column layouts differ per table (daily vs session vs weekly hi/lo), but in
-// every layout the LAST pure-numeric cell is the session average, and the
-// change cell is the first cell containing '%' (▲/▼ entity carries the sign).
-function parseTrendForce(html) {
-  const items = []
-  const rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || []
-  for (const row of rows) {
-    const cells = (row.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || [])
-      .map(c => c.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim())
-    if (cells.length < 3) continue
-    const name = cells[0]
-    if (!name || /^Item$/i.test(name)) continue
-    const g = memoryGroup(name)
-    if (!g) continue
-    // pure-numeric cells only (change cells contain % / arrows and are excluded)
-    const nums = cells.filter(c => /^[\d,]+(\.\d+)?$/.test(c)).map(c => parseFloat(c.replace(/,/g, '')))
-    if (nums.length < 2) continue // guards against odd layouts (e.g. LPDDR nav rows)
-    const avg = nums[nums.length - 1]
-    let chg = null
-    const chgCell = cells.find(c => c.includes('%'))
-    if (chgCell) {
-      if (/&mdash;|—/.test(row)) chg = 0
-      const m = chgCell.match(/(-?\d+(\.\d+)?)\s*%/)
-      if (m) {
-        chg = parseFloat(m[1])
-        if (/&#9660;|▼/.test(row) && chg > 0) chg = -chg // down-arrow rows are negative
-      }
-    }
-    if (avg != null && isFinite(avg)) items.push({ n: name, g, avg, chg })
-  }
-  return items
-}
-
+// Both price pages (DRAM, NAND flash), read table by table with each table's title (server/memoryPrices.js), so a
+// contract table is never taken for a spot one. Returns { items: spot rows, contracts: contract rows } or null.
+// The DRAM page alone must answer for the day to count; the flash page failing only leaves NAND out that day.
 async function fetchTrendForceLive() {
+  const page = async url => {
+    const resp = await fetch(url, { headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9' }, signal: AbortSignal.timeout(30000) })
+    if (!resp.ok) throw new Error('TrendForce answered ' + resp.status)
+    return memoryItemsOf(parseMemoryTables(await resp.text()))
+  }
   try {
-    const resp = await fetch('https://www.trendforce.com/price/', {
-      headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9' },
-    })
-    if (!resp.ok) return null
-    const items = parseTrendForce(await resp.text())
-    // complete-batch guard: a blocked/empty page must never poison the archive
-    return items.length >= 8 ? items : null
+    const [dram, flash] = await Promise.all([page(MEMORY_PAGES[0]), page(MEMORY_PAGES[1]).catch(() => [])])
+    const all = [...dram, ...flash]
+    const items = all.filter(i => i.k === 'spot'), contracts = all.filter(i => i.k === 'contract')
+    // complete-batch guard: a blocked or empty page must never poison the archive
+    return dram.filter(i => i.k === 'spot').length >= 6 ? { items, contracts } : null
   } catch { return null }
 }
 
@@ -3207,13 +3173,15 @@ async function getMemoryPrices() {
   if (memoryCache.data && Date.now() - memoryCache.ts < MEMORY_TTL) return memoryCache.data
   const store = loadMemoryArchive()
   const today = new Date().toISOString().slice(0, 10)
-  const items = await fetchTrendForceLive()
+  const live = await fetchTrendForceLive()
+  const items = live?.items
   let liveOk = false
-  if (items) {
+  if (live) {
     liveOk = true
+    const day = { date: today, items, contracts: live.contracts }
     const i = store.days.findIndex(d => d.date === today)
-    if (i >= 0) store.days[i] = { date: today, items } // same-day refresh replaces
-    else store.days.push({ date: today, items })
+    if (i >= 0) store.days[i] = day // same-day refresh replaces
+    else store.days.push(day)
     store.days.sort((a, b) => a.date.localeCompare(b.date))
     if (store.days.length > 400) store.days = store.days.slice(-400)
     store.updated = Date.now()
@@ -4016,12 +3984,21 @@ export default defineConfig({
         // AI Economy → Tokens (server/tokenLedger.js): disclosed token volumes by company, from the Research Database
         const tokenLedger = createTokenLedger({ research: researchDb, pulse: () => aiPulse.get() })
         reRoute('/api/token-ledger', () => tokenLedger.get())
+        // AI Economy → Tokens (server/tokenElasticity.js): does spending rise when tokens get cheaper? Three reads
+        const tokenElasticity = createTokenElasticity({ UA, feeds: { rankings: () => getRankingsWithHistory(), gateway: () => gatewayShares.get(), ramp: () => rampAi.get() } })
+        reRoute('/api/token-elasticity', () => tokenElasticity.get())
+        // AI Economy → Tokens (server/qualityPrice.js): the price of a fixed capability, Epoch 2021–2025 and this year's catalogue
+        const qualityPrice = createQualityPrice({ dir: __dirname, UA })
+        reRoute('/api/quality-price', () => qualityPrice.get())
         // AI Economy → Dark Output (server/aiLabor.js): job cuts employers tie to AI, restructuring 8-Ks, and payroll freed against new AI revenue
         const aiLabor = createAiLabor({ dir: __dirname, fred: fetchFredSeries })
         reRoute('/api/ai-labor', () => aiLabor.get())
         // AI Economy → Models & Labs (server/aiDollars.js): who is paying and who is investing, from the Research Database
         const aiDollars = createAiDollars({ dir: __dirname, research: researchDb })
         reRoute('/api/ai-dollars', () => aiDollars.get())
+        // AI Economy → Memory (server/memoryPrices.js): the spot archive as a board, dollars per GB, DDR4 against DDR5, with hand-kept HBM and contract figures
+        const memoryPrices = createMemoryPrices({ feed: () => getMemoryPrices(), research: researchDb })
+        reRoute('/api/memory-prices', () => memoryPrices.get())
         // Tightening monitor (server/tightening.js): duration supply, auction
         // absorption, the dollar's stock and flow, and the three derived views
         // (the tell, divergence, sequence). FRED via the shared cache plus two

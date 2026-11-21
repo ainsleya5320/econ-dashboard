@@ -27,7 +27,7 @@ Back to the [master map](../../CLAUDE.md).
 - [gpu-rentals.json](../../gpu-rentals.json): GPU rental spot prices, daily (server/aiPulse.js)
 - [ornn-data.json](../../ornn-data.json): Ornn GPU rental indices and per-lab token price index
 - [semi-h100-index.json](../../semi-h100-index.json): SemiAnalysis 1-year contract GPU prices
-- [memory-prices.json](../../memory-prices.json): TrendForce DRAM and NAND spot prices, append-only
+- [memory-prices.json](../../memory-prices.json): TrendForce spot prices (DRAM chips and modules, graphics DRAM, and from 2026-11-21 NAND flash, TLC wafers and memory cards), one snapshot a day with that day's contract tables under `contracts`; append-only
 - [hyperscaler-capex.json](../../hyperscaler-capex.json): quarterly hyperscaler capex from FMP
 - [sp500-data.json](../../sp500-data.json): S&P 500 screener profiles and metrics (FMP)
 - [sp500-people.json](../../sp500-people.json): per-company headcount, revenue and profit, the people screener (server/peopleScreener.js)
