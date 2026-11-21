@@ -8,18 +8,16 @@ import DAMODARAN from "../lib/damodaran.json";
 import { EarningsWeekAhead } from "./stocks/ResearchPanels.jsx";
 import { chainModel, chainHeadline } from "./AIEconomyTab.jsx";
 import { ValuationLensesCard, useDamodaranMonthly, damPct, damColor } from "../components/MarketFairValue.jsx";
-import FourMarkets from "./FourMarkets.jsx";
-import RegimeAnalogs from "./RegimeAnalogs.jsx";
+import RegimeSummary from "./RegimeSummary.jsx";
 
 // ============================================================================
 // COCKPIT — "terminal" layout (2026-09 revamp, option A)
 // Market on the left, my book on the right:
 //   LEFT   Today hero (SPY + regime + every asset on one bar scale) → a KPI
 //          band (ERP · Damodaran · earnings yield by index · yield curve ·
-//          real yield) → Four markets (stocks, bonds, currencies and commodities read
-//          together: regime, clarity and stance; FourMarkets.jsx) →
-//          regime analogs (when has the market looked like this before, and
-//          what followed; RegimeAnalogs.jsx) →
+//          real yield) → the regime card (RegimeSummary.jsx: the wind, how sure,
+//          the Fed and the curve, the four markets, the signal tape, analogs;
+//          a summary of the Regime Map page, which it links to) →
 //          rates strip → Fear & Greed meter → implied move → commodities,
 //          with the full charts folded away at the bottom.
 //   RIGHT  a sticky rail: the watchlist (shared with Stocks & Options), its
@@ -594,7 +592,7 @@ function ThemePulse({ rows }) {
   );
 }
 
-function OverviewTab({ fmpKey, onNavigate, onTicker }) {
+function OverviewTab({ fmpKey, onNavigate, onOpen, onTicker }) {
   const [data, setData] = useState(null);
   const [indexYields, setIndexYields] = useState([]);
   const [erp, setErp] = useState(null);
@@ -740,11 +738,8 @@ function OverviewTab({ fmpKey, onNavigate, onTicker }) {
           <RealYieldCard ey={(indexYields.find(i => /s&p/i.test(i.name || "")) || indexYields[0])?.earningsYield ?? null} />
         </div>
 
-        {/* Four markets: the wind (liquidity, growth ahead) and how sure to be, beside the valuation band above */}
-        <FourMarkets erp={erp} />
-
-        {/* Regime analogs: when has the cross-asset picture looked like this before, and what followed */}
-        <RegimeAnalogs />
+        {/* Regime: one card summarising the Regime Map page (four markets read together, the Fed turn, analogs) */}
+        <RegimeSummary erp={erp} onOpen={onOpen} />
 
         {/* Rates strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 8 }}>

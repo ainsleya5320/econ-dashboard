@@ -14,6 +14,7 @@ import RealEstateTab from "./tabs/RealEstateTab.jsx";
 import OptionsTab from "./tabs/OptionsTab.jsx";
 import BondsTab, { BOND_VIEWS } from "./tabs/BondsTab.jsx";
 import OverviewTab from "./tabs/OverviewTab.jsx";
+import RegimeMapTab, { REGIME_VIEWS } from "./tabs/RegimeMapTab.jsx";
 import HistoricalTab from "./tabs/HistoricalTab.jsx";
 import ForecastsTab from "./tabs/ForecastsTab.jsx";
 import AIEconomyTab from "./tabs/AIEconomyTab.jsx";
@@ -98,10 +99,12 @@ export default function Dashboard() {
   // Label every table from its own thead so it can reflow to cards on a phone.
   useResponsiveTables();
   const [fredStatus, setFredStatus] = useState("idle"); const [isLive, setIsLive] = useState(false);
-  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['stocks','gurus','options','bonds','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
+  const [tab, setTab] = useState(() => { const view=new URLSearchParams(window.location.search).get('view'); return ['realestate','research'].includes(view)?'realestate':['regime','stocks','gurus','options','bonds','news','economy','world','intl','commodities','ai','forecasts','history'].includes(view)?view:'overview'; });
   // Bonds' view (Treasuries, Rates & mortgages, Corporate credit): ?view=bonds&sub=… or a link from U.S. Economy
   const [bondsView, setBondsView] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get('view') === 'bonds' && BOND_VIEWS.includes(p.get('sub')) ? p.get('sub') : 'treasuries'; });
-  const openTab = (id, view) => { if (id === 'bonds' && view) setBondsView(view); setTab(id); window.scrollTo(0, 0); };
+  // Regime Map's view (Four markets, Analogs): ?view=regime&sub=… or a link from the Cockpit's regime card
+  const [regimeView, setRegimeView] = useState(() => { const p = new URLSearchParams(window.location.search); return p.get('view') === 'regime' && REGIME_VIEWS.includes(p.get('sub')) ? p.get('sub') : 'markets'; });
+  const openTab = (id, view) => { if (id === 'bonds' && view) setBondsView(view); if (id === 'regime' && view) setRegimeView(view); setTab(id); window.scrollTo(0, 0); };
   useEffect(() => { if (tab === "research") setTab("realestate"); }, [tab]);
   const [marketStrip, setMarketStrip] = useState(null);   // SPY / 10Y / VIX for the persistent top strip
   const [pendingTicker, setPendingTicker] = useState(() => { const p=new URLSearchParams(window.location.search),s=p.get('symbol')?.toUpperCase(); return p.get('view')==='stocks'&&/^[A-Z][A-Z0-9.\-]{0,14}$/.test(s||'')?s:null; }); // global ticker search → opens in Stocks
@@ -421,7 +424,7 @@ export default function Dashboard() {
 
   // Navigation grouped by the investing question each area answers
   const NAV_GROUPS = [
-    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "news", label: "News Desk" }, { id: "ideas", label: "Ideas ↗", href: "/ideas" }] },
+    { label: "Today",     items: [{ id: "overview", label: "Cockpit" }, { id: "regime", label: "Regime Map" }, { id: "news", label: "News Desk" }, { id: "ideas", label: "Ideas ↗", href: "/ideas" }] },
     { label: "Valuation", items: [{ id: "stocks", label: "Stocks" }, { id: "gurus", label: "Gurus" }, { id: "realestate", label: "Real Estate" }] },
     { label: "Income",    items: [{ id: "options", label: "Options" }, { id: "bonds", label: "Bonds" }] },
     { label: "Macro",     items: [{ id: "economy", label: "U.S. Economy" }, { id: "world", label: "World" }, { id: "intl", label: "International" }, { id: "commodities", label: "Commodities" }] },
@@ -500,7 +503,8 @@ export default function Dashboard() {
 
           <div style={{ marginTop: 4 }}>
           <TabErrorBoundary key={tab}>
-            {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onTicker={goTicker} />}
+            {tab === "overview" && <OverviewTab fmpKey={fmpKey} onNavigate={setTab} onOpen={openTab} onTicker={goTicker} />}
+            {tab === "regime" && <RegimeMapTab view={regimeView} onView={setRegimeView} />}
             {tab === "news" && <NewsDeskTab />}
             {tab === "economy" && <USEconomyTab openTab={openTab} md={md} td={td} gd={gd} cd={cd} csm={csm} hd={hd} zillowData={zillowData} fredKey={fredKey} fmpKey={fmpKey} choroplethCache={choroplethCache} choroplethMetric={choroplethMetric} setChoroplethMetric={setChoroplethMetric} fetchChoroplethData={fetchChoroplethData} choroplethLoading={choroplethLoading} choroplethProgress={choroplethProgress} />}
             {tab === "world" && <WorldTab />}

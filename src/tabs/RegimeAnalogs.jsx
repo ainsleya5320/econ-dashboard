@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { finite, C, VizCard, Kpi, Legend } from "./options/ui.jsx";
 import "./options/OptionsResearch.css";
+import { REG_COLOR } from "./regime/shared.jsx";
 
 // ============================================================================
-// REGIME ANALOGS — Cockpit, under Four markets: when has the market looked like
+// REGIME ANALOGS — Regime Map → Analogs: when has the market looked like
 // this before? Each node is 13 weeks of sixteen cross-asset readings; today is
 // compared with every earlier node since 1999 (server/regimeAnalogs.js).
 //   map        every node, coloured by regime and sized by how violent the 13
@@ -20,7 +21,6 @@ import "./options/OptionsResearch.css";
 // every regime is also written out, never colour alone.
 // ============================================================================
 
-const REG_COLOR = { credit: "var(--oc-2)", scare: "var(--oc-5)", tightening: "var(--oc-4)", reflation: "var(--oc-3)", easing: "var(--oc-1)", quiet: "var(--text-muted)" };
 const pct = (v, dp = 1) => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(dp)}%` : "—");
 const bp = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.round(Math.abs(v * 100))} bp` : "—");
 const share = v => (finite(v) ? `${Math.round(v * 100)}%` : "—");
@@ -71,7 +71,7 @@ function RegimeMap({ d, selected, onSelect }) {
   };
   const h = hover != null ? d.nodes[hover] : null;
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", maxWidth: 1000, margin: "0 auto" }}>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Every 13-week window since 1999 as a node, similar windows near each other; today and its closest analogs are marked" style={{ display: "block" }}
         onMouseMove={move} onMouseLeave={() => setHover(null)} onClick={() => { if (hover != null && analogAt[hover]) onSelect(analogAt[hover].rank); }}>
         {d.edges.map(([a, b]) => <line key={`${a}-${b}`} x1={X(d.nodes[a])} y1={Y(d.nodes[a])} x2={X(d.nodes[b])} y2={Y(d.nodes[b])} stroke="var(--text-muted)" strokeWidth="0.6" opacity="0.16" />)}

@@ -1,5 +1,5 @@
 // ============================================================================
-// FOUR MARKETS — Cockpit: stocks, bonds, currencies and commodities read
+// FOUR MARKETS — Regime Map: stocks, bonds, currencies and commodities read
 // together, in the manner Stanley Druckenmiller describes (the framing and the
 // rules below are this dashboard's, not his): the markets are the forecast,
 // liquidity moves the whole market more than earnings do, look 12 to 24 months
@@ -23,8 +23,9 @@
 // The playbook: what stocks, bonds, the dollar and commodities did over the
 // next 26 weeks from every past week in each cell, and how clarity sorted the
 // outcomes. Only data available at each week is used for that week's reading.
-// Also: the yield-curve regime and the Fed turn (server/curveTurn.js), run to
-// the latest close rather than last Friday, since a selloff does not wait.
+// Also: the yield-curve regime and the Fed turn (server/curveTurn.js).
+// The grid is every Friday plus the latest close as a last, partial week, so
+// nothing here waits for the week to end.
 //
 // Sources: FRED (rates, spreads, Fed balance sheet, the dollar, the yen,
 // copper, oil) via the shared cache; Financial Modeling Prep daily closes for
@@ -354,11 +355,13 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     const [{ symbols: etf, errors }, ...fredSeries] = await Promise.all([prices(), ...FRED_IDS.map(id => fred(id, 9000)), ...extraFred.map(id => fred(id, 900).catch(() => []))])
     const F = Object.fromEntries([...FRED_IDS, ...extraFred].map((id, i) => [id, fredSeries[i] || []]))
     const end = [etf.SPY?.at(-1)?.d, F.DGS10.at(-1)?.d].filter(Boolean).sort()[0]
-    const weeks = fridays(START, end)
+    // Fridays, plus the latest close as a last, partial week when it is past the last Friday: a selloff does not
+    // wait for the week to end, so every reading is as of the latest day both prices and yields are in
+    const fr = fridays(START, end), weeks = end > fr.at(-1) ? [...fr, end] : fr
     raw = { etf, F, end }   // the daily inputs, for server/regimeAnalogs.js
     const w = {}
     for (const s of ETFS) w[s] = onWeeks(etf[s] || [], weeks)
-    for (const id of FRED_IDS) w[id] = onWeeks(F[id], weeks, id === 'PCOPPUSDM' ? 45 : ['WALCL', 'WTREGEN'].includes(id) ? 10 : 7)
+    for (const id of FRED_IDS) w[id] = onWeeks(F[id], weeks, id === 'PCOPPUSDM' ? 45 : ['WALCL', 'WTREGEN', 'DTWEXBGS', 'DTWEXM', 'DEXJPUS'].includes(id) ? 10 : 7)
     w.dollar = splice(w.DTWEXBGS, w.DTWEXM)
     // copper: the copper futures ETF from late 2011, the IMF's monthly copper price before it (it arrives two months late)
     w.copper = splice(w.CPER, w.PCOPPUSDM)
@@ -395,13 +398,8 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
     while (since > 0 && rows[since - 1].cell === last.cell) since--
     const book = playbook(rows, px)
     // the yield-curve regime and the Fed-turn read (server/curveTurn.js)
-    // A selloff does not wait for Friday: these two run on the same grid with the latest close added as a last,
-    // partial week, so the state is as of the latest day both prices and yields are in
-    const live = end > weeks.at(-1) ? [...weeks, end] : weeks
-    const lw = live === weeks ? w : { SPY: onWeeks(etf.SPY || [], live), TLT: onWeeks(etf.TLT || [], live), DBC: onWeeks(etf.DBC || [], live),
-      DGS2: onWeeks(F.DGS2, live, 7), DGS10: onWeeks(F.DGS10, live, 7), DFF: onWeeks(F.DFF, live, 7), dollar: splice(onWeeks(F.DTWEXBGS, live, 12), onWeeks(F.DTWEXM, live, 12)) }
-    const { curve, turn } = curveAndTurn(lw, live, { stocks: lw.SPY, bonds: lw.TLT, currencies: lw.dollar, commodities: lw.DBC })
-    curve.asOf = turn.asOf = live.at(-1)
+    const { curve, turn } = curveAndTurn(w, weeks, { stocks: w.SPY, bonds: w.TLT, currencies: w.dollar, commodities: w.DBC })
+    curve.asOf = turn.asOf = weeks.at(-1)
     return {
       built: new Date(now()).toISOString(), asOf: last.d, errors,
       now: { cell: last.cell, cellLabel: CELLS[last.cell]?.label || null, liquidity: last.liq, growth: last.growth, liqAgree: last.liqAgree, growthAgree: last.growthAgree, clarity: last.clarity, flips: last.flips,
@@ -410,7 +408,8 @@ export function createCrossAsset({ dir, fred, FMP_KEY, UA = 'econ-dashboard', no
       history: rows.map(r => [r.d, r.liq, r.growth, r.clarity, r.cell ? Object.keys(CELLS).indexOf(r.cell) : null]),
       cells: CELLS, playbook: book, curve, turn, stances: STANCES.map(([min, label, note]) => ({ min: Math.max(0, min), label, note })),
       method: [
-        'Each signal is the market\'s 13-week move divided by its typical 13-week move over the prior three years (at least one year needed), clipped to ±2, and signed so that + means easier money or a stronger economy ahead. Cuts priced is a level: 50 basis points of cuts priced scores +1.',
+        'Weekly, on Fridays, with the latest close added as a last, partial week: every reading is as of the latest day both prices and yields are in.',
+      'Each signal is the market\'s 13-week move divided by its typical 13-week move over the prior three years (at least one year needed), clipped to ±2, and signed so that + means easier money or a stronger economy ahead. Cuts priced is a level: 50 basis points of cuts priced scores +1.',
         'Each axis is the average of its signals, with at least two on file. The signs of the two axes place the week in a cell.',
         'Clarity, 0 to 100: for each axis, agreement (half the signals agreeing counts 0, all of them 1) times strength (an average score of 0.75 or more counts in full); the two axes averaged; then each change of cell in the past eight weeks takes off a fifth, to a floor of 0.4.',
         'Trend: a market above its 40-week average with positive 26-week momentum is in an uptrend; below with negative momentum, a downtrend; otherwise turning.',

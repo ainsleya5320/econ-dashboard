@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { finite, C, VizCard, Kpi, Seg, Legend, Spark } from "./options/ui.jsx";
 import "./options/OptionsResearch.css";
+import { CELL_ORDER, CELL_COLOR, STATE, CURVE_COLOR, TURN_COLOR, Chip, ScoreBar } from "./regime/shared.jsx";
 
 // ============================================================================
-// FOUR MARKETS — the Cockpit's macro read, in the manner Stanley Druckenmiller
+// FOUR MARKETS — Regime Map → Four markets: the macro read, in the manner Stanley Druckenmiller
 // describes: stocks, bonds, currencies and commodities read together, the
 // markets as the forecast, liquidity first, the trend respected, and position
 // size set by how clear the picture is. The rules are this dashboard's.
@@ -32,17 +33,11 @@ import "./options/OptionsResearch.css";
 // use the four categorical slots in a fixed order. Every grade is written out.
 // ============================================================================
 
-const CELL_ORDER = ["easing-improving", "easing-deteriorating", "tightening-improving", "tightening-deteriorating"];
-const CELL_COLOR = { "easing-improving": "var(--oc-3)", "easing-deteriorating": "var(--oc-1)", "tightening-improving": "var(--oc-4)", "tightening-deteriorating": "var(--oc-2)" };
 const MARKETS = ["stocks", "bonds", "currencies", "commodities"];
 const MARKET_NAME = { stocks: "Stocks", bonds: "Bonds", currencies: "Currencies", commodities: "Commodities" };
-const STATE = { uptrend: ["Uptrend", C[1]], downtrend: ["Downtrend", C[2]], "turning up": ["Turning up", "var(--text-muted)"], "turning down": ["Turning down", "var(--text-muted)"] };
 const EVENT_TONE = { "new-high": C[1], "cross-up": C[1], "near-high": C[1], "new-low": C[2], "cross-down": C[2], "near-low": C[2] };
-const SECTIONS = [["stocks", "Stocks"], ["bonds", "Bonds"], ["currencies", "Currencies"], ["commodities", "Commodities"], ["curve", "Yield curve"], ["turn", "Fed turn"], ["leaders", "Momentum leaderboard"], ["map", "Regime map"], ["playbook", "Playbook"], ["method", "Method"]];
+const SECTIONS = [["stocks", "Stocks"], ["bonds", "Bonds"], ["currencies", "Currencies"], ["commodities", "Commodities"], ["curve", "Yield curve"], ["turn", "Fed turn"], ["leaders", "Momentum leaderboard"], ["map", "Liquidity × growth plane"], ["playbook", "Playbook"], ["method", "Method"]];
 const STORE = "fourMarkets.open.v1";
-// curve regimes and Fed-turn states in fixed categorical slots; "no clear move" and "no test" are neutral grey
-const CURVE_COLOR = { "bull-steep": "var(--oc-1)", "bear-flat": "var(--oc-2)", "bull-flat": "var(--oc-3)", "bear-steep": "var(--oc-4)", none: "var(--border-subtle)" };
-const TURN_COLOR = { blink: "var(--oc-1)", firm: "var(--oc-2)", easing: "var(--oc-3)", testing: "var(--oc-4)", calm: "var(--border-subtle)" };
 const TELLS = [["twoYear", "2-year yield falling hard"], ["dollar", "Dollar rolling over"], ["curve", "Curve bull-steepening"]];
 const pct = (v, dp = 0) => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(dp)}%` : "—");
 const bp = v => (finite(v) ? `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.round(Math.abs(v * 100))} bp` : "—");
@@ -58,21 +53,6 @@ const shortRead = b => (!b?.event ? "Inside range" : SHORT[b.event] + (b.cross &
 const axisWord = (v, up, down) => (!finite(v) ? "unread" : Math.abs(v) < 0.25 ? `on the line, leaning ${v >= 0 ? up : down}` : v >= 0 ? up : down);
 const loadOpen = () => { try { return JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch { return {}; } };
 const saveOpen = o => { try { localStorage.setItem(STORE, JSON.stringify(o)); } catch { /* private window: not remembered */ } };
-
-function Chip({ label, color }) {
-  return <span className="otag" style={{ display: "inline-flex", alignItems: "center", gap: 5, borderColor: color, color: "var(--text-primary)", whiteSpace: "nowrap" }}><i aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: color, display: "inline-block" }} />{label}</span>;
-}
-
-// one score on the shared −2…+2 scale: blue to the right (supportive), orange to the left (a headwind)
-function ScoreBar({ v, width = 110 }) {
-  const mid = width / 2, s = x => (Math.min(2, Math.abs(x)) / 2) * (mid - 2);
-  return (
-    <svg width={width} height={12} role="img" aria-label={finite(v) ? `score ${sc(v)}` : "no reading"} style={{ display: "block" }}>
-      <line x1={mid} x2={mid} y1={0} y2={12} stroke="var(--text-muted)" />
-      {finite(v) && v !== 0 && <rect x={v > 0 ? mid + 1 : mid - 1 - s(v)} y={2} width={Math.max(2, s(v))} height={8} rx={2} fill={v > 0 ? C[1] : C[2]} />}
-    </svg>
-  );
-}
 
 // where the close sits in its 52-week range: a hairline from low to high and a dot
 function RangeDot({ pos, width = 70 }) {
@@ -440,7 +420,7 @@ export default function FourMarkets({ erp }) {
           </div>
         </Section>
 
-        <Section id="map" title="Regime map" open={!!open.map} onToggle={toggle}
+        <Section id="map" title="Liquidity × growth plane" open={!!open.map} onToggle={toggle}
           summary={<><Chip label={n.cellLabel} color={cellColor} /><span>liquidity {sc(n.liquidity)} · growth {sc(n.growth)}</span><span>{n.weeksInCell} weeks in this regime</span></>}>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <RegimeMap history={d.history} cells={d.cells} />

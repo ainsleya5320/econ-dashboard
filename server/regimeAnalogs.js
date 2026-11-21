@@ -1,5 +1,5 @@
 // ============================================================================
-// REGIME ANALOGS — Cockpit: when has the market looked like this before?
+// REGIME ANALOGS — Regime Map: when has the market looked like this before?
 // Every four weeks since 1999 the past 13 weeks (63 trading days) are reduced
 // to one vector of sixteen cross-asset readings, and today's vector is compared
 // with every earlier one.
