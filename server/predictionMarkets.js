@@ -58,7 +58,7 @@ export function createPredictionMarkets({ UA }) {
     return {
       ticker: m.ticker, label: m.yes_sub_title || m.subtitle || m.title, strike: num(m.floor_strike), cap: num(m.cap_strike),
       bid, ask, last, p: mid(bid, ask, last),
-      volume: num(m.volume_fp) ?? num(m.volume), openInterest: num(m.open_interest_fp) ?? num(m.open_interest),
+      volume: num(m.volume_fp) ?? num(m.volume), volume24h: num(m.volume_24h_fp) ?? num(m.volume_24h), openInterest: num(m.open_interest_fp) ?? num(m.open_interest),
       closes: m.close_time || null, rules: m.rules_primary || null,
     }
   }

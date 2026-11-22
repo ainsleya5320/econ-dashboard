@@ -45,6 +45,7 @@ import { createGatewayShares } from './server/gatewayShares.js'
 import { createTokenLedger } from './server/tokenLedger.js'
 import { createTokenElasticity } from './server/tokenElasticity.js'
 import { createQualityPrice } from './server/qualityPrice.js'
+import { createKalshiGpu } from './server/kalshiGpu.js'
 import { createAiLabor } from './server/aiLabor.js'
 import { createAiDollars } from './server/aiDollars.js'
 import { createTightening } from './server/tightening.js'
@@ -4024,9 +4025,14 @@ export default defineConfig({
         // cannot all be true at once. One engine; the check modules in server/tensions/checks
         // say which board they belong to (AI Economy or U.S. Economy). Checks read the other
         // feeds through these getters rather than over HTTP.
+        const predictionMarkets = createPredictionMarkets({ UA })
+        // AI Economy → Compute → GPU prices (server/kalshiGpu.js): Kalshi's monthly GPU rental-price contracts read as a
+        // market-implied price per chip and month, beside the Ornn index they settle on
+        const kalshiGpu = createKalshiGpu({ dir: __dirname, markets: predictionMarkets, feeds: { ornn: () => fetchOrnn() } })
+        reRoute('/api/kalshi-gpu', () => kalshiGpu.get())
         const tensions = createTensions({
           fetchFredSeries, UA, dir: __dirname, EIA_KEY,
-          markets: createPredictionMarkets({ UA }),
+          markets: predictionMarkets,
           sources: {
             aiPulse: () => aiPulse.get(), capexReturns: () => capexReturns.get(), commodityPulse: () => commodityPulse.get(),
             damodaranErp: () => damodaranErp.get(), follyMarkets: () => follyMarkets.get(), fxFundamentals: () => fxFundamentals.get(),

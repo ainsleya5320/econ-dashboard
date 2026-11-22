@@ -7,6 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
+import KalshiGpu from "./ai/KalshiGpu.jsx";
 import DarkOutput from "./ai/DarkOutput.jsx";
 import BuildOut from "./ai/BuildOut.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
@@ -2120,7 +2121,12 @@ function ComputeSection({ id, title, sub, open: all, onToggle, children }) {
   );
 }
 function ComputeTab() {
-  const [open, setOpen] = useState(() => { try { return JSON.parse(localStorage.getItem(COMPUTE_STORE) || "null") || { balance: true }; } catch { return { balance: true }; } });
+  // ?section=prices (with ?view=ai&sub=compute) opens that section on arrival, on top of the remembered ones
+  const [open, setOpen] = useState(() => {
+    let o; try { o = JSON.parse(localStorage.getItem(COMPUTE_STORE) || "null") || { balance: true }; } catch { o = { balance: true }; }
+    const want = new URLSearchParams(window.location.search).get("section");
+    return want && COMPUTE_SECTIONS.some(([id]) => id === want) ? { ...o, [want]: true } : o;
+  });
   const [bal, setBal] = useState(null);
   useEffect(() => { let live = true; fetch("/api/compute-balance").then(r => r.json()).then(j => { if (live && !j.error) setBal(j); }).catch(() => {}); return () => { live = false; }; }, []);
   const save = n => { try { localStorage.setItem(COMPUTE_STORE, JSON.stringify(n)); } catch { /* private window: not remembered */ } return n; };
@@ -2153,6 +2159,8 @@ function ComputeTab() {
       <GpuRentalsPanel />
       <SH>The GPU-Hour, Every Way It's Sold — Spot, List, Contract, Futures</SH>
       <GpuMarkets />
+      <SH>The Prediction Market — Kalshi's Monthly Contracts on the GPU-Hour</SH>
+      <KalshiGpu />
       <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
       <NebiusSpot />
     </ComputeSection>
