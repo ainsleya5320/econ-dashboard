@@ -3525,6 +3525,7 @@ const ORNN_GPUS = [
   { id: 'B300',      key: 'b300',  color: '#e879f9' },
   { id: 'A100 SXM4', key: 'a100',  color: '#4ade80' },
   { id: 'RTX 5090',  key: 'rtx5090', color: '#94a3b8' },
+  { id: 'RTX PRO 6000 WS', key: 'rtx6000', color: '#a3a3a3' },
 ]
 const ORNN_LABS = ['anthropic', 'openai', 'google', 'deepseek', 'z-ai', 'qwen', 'moonshotai', 'minimax', 'mistralai', 'meta-llama', 'xiaomi']
 
