@@ -7,7 +7,7 @@ import LabRevenueTracker, { wedgeSummary } from "../components/LabRevenueTracker
 import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPulseTab.jsx";
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
-import KalshiGpu from "./ai/KalshiGpu.jsx";
+import GpuPredictionMarkets from "./ai/GpuPredictionMarkets.jsx";
 import JevonsTracker from "./ai/JevonsTracker.jsx";
 import DarkOutput from "./ai/DarkOutput.jsx";
 import BuildOut from "./ai/BuildOut.jsx";
@@ -2172,8 +2172,8 @@ function ComputeTab() {
       <GpuRentalsPanel />
       <SH>The GPU-Hour, Every Way It's Sold — Spot, List, Contract, Futures</SH>
       <GpuMarkets />
-      <SH>The Prediction Market — Kalshi's Monthly Contracts on the GPU-Hour</SH>
-      <KalshiGpu />
+      <SH>Prediction Markets — Polymarket and Kalshi on the GPU-Hour</SH>
+      <GpuPredictionMarkets />
       <SH>Nebius Spot — the Live Price of a Preemptible GPU-Hour</SH>
       <NebiusSpot />
     </ComputeSection>

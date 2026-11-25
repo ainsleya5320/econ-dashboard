@@ -119,10 +119,21 @@ export function survival(markets, R = RULES) {
   return env.map(({ raw, ...x }) => ({ ...x, p: fin(x.p) ? x.p : null }))
 }
 
-// the market's median and how well it is supported
+// where the pooled odds cross `level`, interpolated between the two strikes around it
+export function crossing(known, level) {
+  const k = known.findIndex(x => x.p < level)
+  if (k <= 0) return null
+  const a = known[k - 1], b = known[k]
+  return { at: a.strike + (b.strike - a.strike) * ((a.p - level) / (a.p - b.p)), a, b }
+}
+
+// the market's median and how well it is supported; `band` is the middle half of the odds (the prices with a 75% and a
+// 25% chance of being exceeded), given only when all four strikes around them are read from the order book
 export function implied(markets, R = RULES) {
   const s = survival(markets, R), known = s.filter(x => fin(x.p)), L = R.level
-  const out = { implied: null, read: null, between: null, gaps: false, legs: [], floor: null, ceiling: null, lo: null, hi: null, strikes: s }
+  const out = { implied: null, read: null, between: null, gaps: false, legs: [], band: null, floor: null, ceiling: null, lo: null, hi: null, strikes: s }
+  const q1 = crossing(known, 0.75), q3 = crossing(known, 0.25)
+  if (q1 && q3 && [q1.a, q1.b, q3.a, q3.b].every(x => x.read !== 'trade')) out.band = [q1.at, q3.at]
   // what resting orders pin the median to
   for (const x of s) { if (x.lo >= L) out.lo = x.strike; if (x.hi <= L && out.hi == null) out.hi = x.strike }
   if (!known.length) return out
@@ -161,7 +172,8 @@ export function realised(rows, key, target) {
 export function monthRow(event, markets, R = RULES) {
   const r = implied(markets, R), sum = k => markets.reduce((a, x) => a + (fin(x[k]) ? x[k] : 0), 0)
   return {
-    event: event.event, month: monthOf(event.event), implied: rnd(r.implied, 2), read: r.read, between: r.between, gaps: r.gaps, legs: r.legs, tradedOn: null,
+    event: event.event, month: event.month || monthOf(event.event), implied: rnd(r.implied, 2), read: r.read, between: r.between, gaps: r.gaps, legs: r.legs, tradedOn: null,
+    band: r.band && r.band.map(v => rnd(v, 2)),
     floor: r.floor, ceiling: r.ceiling, lo: r.lo, hi: r.hi,
     volume: Math.round(sum('volume')), volume24h: Math.round(sum('volume24h')), openInterest: Math.round(sum('openInterest')),
     strikes: r.strikes.map(x => ({ strike: x.strike, bid: x.bid, ask: x.ask, last: x.last, volume: Math.round(x.volume || 0), p: rnd(x.p, 3), read: x.read })),

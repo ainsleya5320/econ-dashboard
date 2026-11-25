@@ -47,6 +47,7 @@ import { mergeRankings, fillLegacyVariants, completeDates } from './server/orRan
 import { createTokenElasticity } from './server/tokenElasticity.js'
 import { createQualityPrice } from './server/qualityPrice.js'
 import { createKalshiGpu } from './server/kalshiGpu.js'
+import { createPolymarketGpu } from './server/polymarketGpu.js'
 import { createJevonsTracker } from './server/jevonsTracker.js'
 import { createAiLabor } from './server/aiLabor.js'
 import { createAiDollars } from './server/aiDollars.js'
@@ -3521,6 +3522,7 @@ const ORNN_GPUS = [
   { id: 'H100 SXM',  key: 'h100',  color: '#818cf8' },
   { id: 'H200',      key: 'h200',  color: '#22d3ee' },
   { id: 'B200',      key: 'b200',  color: '#f97316' },
+  { id: 'B300',      key: 'b300',  color: '#e879f9' },
   { id: 'A100 SXM4', key: 'a100',  color: '#4ade80' },
   { id: 'RTX 5090',  key: 'rtx5090', color: '#94a3b8' },
 ]
@@ -4017,6 +4019,9 @@ export default defineConfig({
         // market-implied price per chip and month, beside the Ornn index they settle on
         const kalshiGpu = createKalshiGpu({ dir: __dirname, markets: predictionMarkets, feeds: { ornn: () => fetchOrnn() } })
         reRoute('/api/kalshi-gpu', () => kalshiGpu.get())
+        // the same question on Polymarket (server/polymarketGpu.js): monthly average-price ladders for the H100, B200 and B300, out to December 2028
+        const polymarketGpu = createPolymarketGpu({ dir: __dirname, markets: predictionMarkets, feeds: { ornn: () => fetchOrnn() } })
+        reRoute('/api/polymarket-gpu', () => polymarketGpu.get())
         const tensions = createTensions({
           fetchFredSeries, UA, dir: __dirname, EIA_KEY,
           markets: predictionMarkets,
