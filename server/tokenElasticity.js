@@ -22,7 +22,20 @@
 // price response; the honest reading is whether spend rose while price fell,
 // and how far. The gateway read divides spend by tokens to get price, so noise
 // in the token count biases its slope towards −1. Each read prints its sample.
+//
+// The router read and the archive's variants. The archive holds one row per
+// model VARIANT per date (standard, batch, free); a model's tokens here are
+// the sum over its variants, all priced at the model's standard list price
+// (batch and free tokens too, which overstates the level a little). Snapshots
+// from before 24 November 2026 lost variants to a merge-key collision, often
+// the main one, which understated volume and spend unevenly from week to week.
+// This module does not repair that itself: the rows it is handed already carry
+// an estimate for each lost variant, interpolated or carried from that
+// variant's own stored days (server/orRankings.js sets out the rule and its
+// limits). So every snapshot before that date is part measured, part estimate;
+// the series' `estimated` field is the share of a snapshot's tokens that is.
 // ============================================================================
+import { completeDates } from './orRankings.js'
 
 const H = 3600e3, DAY = 864e5
 const fin = v => v != null && Number.isFinite(v)
@@ -43,9 +56,9 @@ export function ols(pairs) {
 // the archive's rows → complete 7-day snapshots at least a week apart, newest last
 export function weeklySnapshots(rows) {
   const by = new Map()
-  for (const r of rows || []) { const m = by.get(r.date) || new Map(); const c = m.get(r.model_permaslug) || { P: 0, C: 0, K: 0 }; c.P += r.total_prompt_tokens || 0; c.C += r.total_completion_tokens || 0; c.K += r.total_native_tokens_cached || 0; m.set(r.model_permaslug, c); by.set(r.date, m) }
-  const dates = [...by.keys()].sort(), max = Math.max(0, ...dates.map(d => by.get(d).size))
-  const full = dates.filter(d => by.get(d).size >= 0.6 * max)
+  // a model's variants are summed; E is the part of its tokens that is an estimate for a variant the old merge lost
+  for (const r of rows || []) { const m = by.get(r.date) || new Map(); const c = m.get(r.model_permaslug) || { P: 0, C: 0, K: 0, E: 0 }; c.P += r.total_prompt_tokens || 0; c.C += r.total_completion_tokens || 0; c.K += r.total_native_tokens_cached || 0; if (r.filled) c.E += (r.total_prompt_tokens || 0) + (r.total_completion_tokens || 0); m.set(r.model_permaslug, c); by.set(r.date, m) }
+  const full = completeDates(rows)
   const out = []
   for (let k = full.length - 1; k >= 0; k--) if (!out.length || Date.parse(out[0].d) - Date.parse(full[k]) >= 7 * DAY) out.unshift({ d: full[k], models: by.get(full[k]) })
   return out
@@ -53,17 +66,17 @@ export function weeklySnapshots(rows) {
 
 // one snapshot priced at list: spend, tokens, the effective price per million, and the mix behind it
 export function priceSnapshot(snap, bySlug) {
-  let tok = 0, spend = 0, all = 0, cached = 0, prompt = 0, out = 0, open = 0
+  let tok = 0, spend = 0, all = 0, cached = 0, prompt = 0, out = 0, open = 0, est = 0
   for (const [slug, c] of snap.models) {
     const t = c.P + c.C
-    all += t
+    all += t; est += c.E || 0
     const m = bySlug[slug], input = perM(m?.pricing?.prompt), output = perM(m?.pricing?.completion)
     if (!fin(input) || !fin(output)) continue
     const cacheRead = perM(m.pricing.input_cache_read) ?? input, k = Math.min(c.K, c.P)
     tok += t; prompt += c.P; cached += k; out += c.C; if (m.hugging_face_id) open += t
     spend += ((c.P - k) * input + k * cacheRead + c.C * output) / 1e6
   }
-  return tok > 0 ? { d: snap.d, tokens: tok, spend: rnd(spend, 0), price: rnd((spend / tok) * 1e6, 4), cachedShare: prompt ? rnd(cached / prompt, 4) : null, outputShare: rnd(out / tok, 4), openShare: rnd(open / tok, 4), coverage: all ? rnd(tok / all, 3) : null, models: snap.models.size } : null
+  return tok > 0 ? { d: snap.d, tokens: tok, spend: rnd(spend, 0), price: rnd((spend / tok) * 1e6, 4), cachedShare: prompt ? rnd(cached / prompt, 4) : null, outputShare: rnd(out / tok, 4), openShare: rnd(open / tok, 4), coverage: all ? rnd(tok / all, 3) : null, estimated: all ? rnd(est / all, 3) : null, models: snap.models.size } : null
 }
 
 // the weekly series → what happened over the whole span, and the week-to-week slope
@@ -74,7 +87,7 @@ export function routerRead(series) {
   const steps = s.slice(1).map((x, i) => [Math.log(x.price / s[i].price), Math.log(x.tokens / s[i].tokens)])
   return { from: a.d, to: b.d, weeks: s.length, priceChange: rnd(b.price / a.price - 1, 4), volumeMultiple: rnd(b.tokens / a.tokens, 2), spendMultiple: rnd(b.spend / a.spend, 2),
     arc: Math.abs(dP) > 0.02 ? rnd(dQ / dP, 2) : null, weekly: ols(steps), spendUpWhilePriceDown: b.price < a.price && b.spend > a.spend,
-    cached: [a.cachedShare, b.cachedShare], output: [a.outputShare, b.outputShare], open: [a.openShare, b.openShare] }
+    cached: [a.cachedShare, b.cachedShare], output: [a.outputShare, b.outputShare], open: [a.openShare, b.openShare], estimated: [a.estimated ?? null, b.estimated ?? null] }
 }
 
 // Vercel weekly shares by lab → four-week changes in relative price and token share, pooled
@@ -116,9 +129,10 @@ export function createTokenElasticity({ UA = 'econ-dashboard', feeds, now = () =
     const bySlug = {}
     for (const m of cat || []) if (!bySlug[m.canonical_slug] || !/^~|:/.test(m.id)) bySlug[m.canonical_slug] = m
     const series = hist && cat ? weeklySnapshots(hist.rows).map(s => priceSnapshot(s, bySlug)).filter(Boolean) : []
+    const estMax = Math.max(0, ...series.map(x => x.estimated || 0))
     const router = routerRead(series), gateway = gw ? gatewayRead(gw.weekly, gw.shown) : null, business = businessRead(ramp?.tokenHistory)
     const reads = [
-      router && { id: 'router', label: 'OpenRouter, mix-weighted list price', span: `${router.from} to ${router.to}`, priceChange: router.priceChange, volume: router.volumeMultiple - 1, spend: router.spendMultiple - 1, elasticity: router.arc, spendUp: router.spendUpWhilePriceDown, n: `${router.weeks} weekly snapshots` },
+      router && { id: 'router', label: 'OpenRouter, mix-weighted list price', span: `${router.from} to ${router.to}`, priceChange: router.priceChange, volume: router.volumeMultiple - 1, spend: router.spendMultiple - 1, elasticity: router.arc, spendUp: router.spendUpWhilePriceDown, n: `${router.weeks} weekly snapshots${estMax > 0 ? `; up to ${Math.round(estMax * 100)}% of a snapshot's tokens are estimates` : ''}` },
       business && { id: 'business', label: 'Ramp customers, realized price', span: `month to the week ending ${business.latest.week}`, priceChange: business.latest.priceChange, volume: business.latest.volumeGrowth, spend: business.latest.spendGrowth, elasticity: business.latest.arc, spendUp: business.latest.priceChange < 0 && business.latest.spendGrowth > 0, n: `${business.rows.length} month${business.rows.length === 1 ? '' : 's'} on file` },
       gateway?.fit && { id: 'gateway', label: 'Vercel gateway, across labs', span: `four-week changes, ${gw.from} to ${gw.asOf}`, priceChange: null, volume: null, spend: null, elasticity: gateway.fit.slope, spendUp: gateway.fit.slope < -1, n: `${gateway.fit.n} lab-periods, R² ${gateway.fit.r2}` },
     ].filter(Boolean)
@@ -128,6 +142,7 @@ export function createTokenElasticity({ UA = 'econ-dashboard', feeds, now = () =
       notes: [
         'Elasticity here is the change in volume over the change in price (in logs). Beyond −1, volume rises by more than price falls and spending goes up; between 0 and −1, spending falls.',
         'OpenRouter: every model\'s prompt, cached and output tokens over complete seven-day snapshots, priced at today\'s list prices. The archive does not break out cached tokens after April, so all input is priced at the full input price, which overstates the level but not the direction. Because list prices are held fixed, the measured price change is all mix: cheaper models, more caching, less output. Models no longer in the catalogue are left out; the coverage column says how much is priced.',
+        "A model’s standard, batch and free variants are added together and priced at its standard list price. Until 24 November 2026 the archive kept only one variant of a model per day, often not the main one, so in every earlier snapshot the missing variants are estimates read off the same variant’s neighbouring days; the estimated share of each snapshot’s tokens is in the series.",
         'Adoption grows volume whatever the price does, so these elasticities overstate the pure response to price. The sturdier statement is the direction: did spending rise while the price fell.',
         'Vercel: a lab\'s relative price is its share of spend over its share of tokens. The slope is pooled over non-overlapping four-week changes for labs with at least 1% of tokens. Because price is spend divided by tokens, noise in tokens pulls the slope towards −1: treat it as a sign, not a number.',
         'Ramp: one reading a month, as Ramp publishes it; the archive of months starts in November 2026.',

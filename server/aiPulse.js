@@ -17,9 +17,17 @@
 //   scores   demand (token growth + breadth), efficiency (token price
 //            trend), compute cost (rental trend) — 0–100, with verdicts
 // Cached 1h (Artificial Analysis 12h), disk-backed; complete builds only.
+//
+// The rankings rows hold one row per model VARIANT per date (standard, batch,
+// free). Per-model figures here are sums over a model's variants and the model
+// count is of models, not rows. Snapshots from before 24 November 2026 lost
+// variants to a merge-key collision; the rows arrive with those variants
+// already estimated (server/orRankings.js says how), so a model's change
+// against an older snapshot is against an estimate where that row is marked.
 // ============================================================================
 import fs from 'node:fs'
 import path from 'node:path'
+import { completeDates } from './orRankings.js'
 
 const H = 60 * 60 * 1000, TTL = 1 * H, AA_TTL = 12 * H
 const fin = v => v != null && Number.isFinite(v)
@@ -125,14 +133,13 @@ export function createAiPulse({ getRankingsWithHistory, fetchOrnn, getSemiH100, 
       const tok = (r.total_prompt_tokens || 0) + (r.total_completion_tokens || 0)
       const lab = String(r.model_permaslug || '').split('/')[0]
       const a = byDate.get(r.date) || { total: 0, prompt: 0, completion: 0, reasoning: 0, cached: 0, requests: 0, tools: 0, models: 0 }
-      a.total += tok; a.prompt += r.total_prompt_tokens || 0; a.completion += r.total_completion_tokens || 0; a.reasoning += r.total_native_tokens_reasoning || 0; a.cached += r.total_native_tokens_cached || 0; a.requests += r.count || 0; a.tools += r.total_tool_calls || 0; a.models += 1
+      a.total += tok; a.prompt += r.total_prompt_tokens || 0; a.completion += r.total_completion_tokens || 0; a.reasoning += r.total_native_tokens_reasoning || 0; a.cached += r.total_native_tokens_cached || 0; a.requests += r.count || 0; a.tools += r.total_tool_calls || 0
       byDate.set(r.date, a)
       const m = byDateModel.get(r.date) || new Map(); const slug = r.model_permaslug; const cur = m.get(slug) || { slug, lab, tok: 0, completion: 0, reasoning: 0, requests: 0 }
       cur.tok += tok; cur.completion += r.total_completion_tokens || 0; cur.reasoning += r.total_native_tokens_reasoning || 0; cur.requests += r.count || 0; m.set(slug, cur); byDateModel.set(r.date, m)
     }
-    const allDates = [...byDate.keys()].sort()
-    const maxModels = Math.max(...allDates.map(d => byDate.get(d).models))
-    const full = allDates.filter(d => byDate.get(d).models >= 0.6 * maxModels)
+    for (const [d, a] of byDate) a.models = byDateModel.get(d).size      // models, not rows: a model has a row per variant
+    const full = completeDates(rows)
     if (!full.length) throw new Error('no complete OpenRouter snapshot')
     const latest = last(full)
     const L = byDate.get(latest)

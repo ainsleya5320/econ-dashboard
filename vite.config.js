@@ -43,6 +43,7 @@ import { createMemoryPrices, parseTables as parseMemoryTables, itemsOf as memory
 import { createTokenMarket } from './server/tokenMarket.js'
 import { createGatewayShares } from './server/gatewayShares.js'
 import { createTokenLedger } from './server/tokenLedger.js'
+import { mergeRankings, fillLegacyVariants, completeDates } from './server/orRankings.js'
 import { createTokenElasticity } from './server/tokenElasticity.js'
 import { createQualityPrice } from './server/qualityPrice.js'
 import { createKalshiGpu } from './server/kalshiGpu.js'
@@ -1302,6 +1303,13 @@ const todayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+// The merge key, the old variant collision and what readers are handed for the
+// dates it damaged are all set out in server/orRankings.js.
+function rankingsResult(stored, marketShare, keyedFrom, source) {
+  const { rows, filled } = fillLegacyVariants(stored, { keyedFrom })
+  return { rows, marketShare, source, updated: Date.now(), dates: new Set(rows.map(r => r.date)).size, completeDates: completeDates(rows), variantKeyedFrom: keyedFrom, filled }
+}
+
 async function getRankingsWithHistory() {
   if (orRankingsCache.data && Date.now() - orRankingsCache.ts < OR_RANKINGS_TTL) return orRankingsCache.data
 
@@ -1316,48 +1324,23 @@ async function getRankingsWithHistory() {
     console.warn('OpenRouter rankings fetch failed:', e.message)
     // Fall back to archive only
     const archive = loadRankingsHistory()
-    const result = { rows: archive.rows, marketShare: archive.marketShare || [], source: 'archive-only', updated: Date.now() }
+    const result = rankingsResult(archive.rows || [], archive.marketShare || [], archive.variantKeyedFrom || null, 'archive-only')
     orRankingsCache = { data: result, ts: Date.now() }
     return result
   }
 
-  // Load archive and merge
+  // Load archive and merge: one row per date, model and variant
   const archive = loadRankingsHistory()
-  // Key: `${date}|${model_permaslug}` → row
-  const merged = new Map()
-  for (const row of archive.rows || []) {
-    const d = normDate(row.date)
-    if (!d || !row.model_permaslug) continue
-    merged.set(`${d}|${row.model_permaslug}`, { ...row, date: d })
-  }
-  const today = todayStr()
-  let added = 0, updatedToday = 0
-  for (const row of fresh) {
-    const d = normDate(row.date)
-    if (!d || !row.model_permaslug) continue
-    const key = `${d}|${row.model_permaslug}`
-    const existed = merged.has(key)
-    // For past dates: only insert if not already archived (archive is authoritative for "closed" days).
-    // For today: always overwrite (latest snapshot for today-so-far).
-    if (d === today || !existed) {
-      merged.set(key, { ...row, date: d })
-      if (existed) updatedToday++
-      else added++
-    }
-  }
+  const { rows, added, updatedToday, mainDate } = mergeRankings(archive.rows, fresh, { today: todayStr(), normDate })
+  // the first date written with the variant in the key; complete snapshots before it lost variants
+  const variantKeyedFrom = archive.variantKeyedFrom || mainDate
 
-  const rows = Array.from(merged.values())
-  // Sort by date ascending
-  rows.sort((a, b) => a.date.localeCompare(b.date))
+  // Persist what was captured (never the estimates) — include market-share so
+  // the archive retains it if a later live fetch fails
+  saveRankingsHistory({ rows, marketShare, variantKeyedFrom, lastUpdated: Date.now() })
 
-  // Persist (non-blocking best-effort) — include market-share so the archive
-  // retains it if a later live fetch fails
-  saveRankingsHistory({ rows, marketShare, lastUpdated: Date.now() })
-
-  const uniqueDates = new Set(rows.map(r => r.date)).size
-  console.log(`OpenRouter rankings: +${added} new, ~${updatedToday} today updated, ${rows.length} total archived across ${uniqueDates} dates · ${marketShare.length} weeks market-share`)
-
-  const result = { rows, marketShare, source: 'live+archive', updated: Date.now(), dates: uniqueDates }
+  const result = rankingsResult(rows, marketShare, variantKeyedFrom, 'live+archive')
+  console.log(`OpenRouter rankings: +${added} new, ~${updatedToday} today updated, ${rows.length} total archived across ${result.dates} dates · ${marketShare.length} weeks market-share · ${result.filled.rows} variant rows estimated on ${result.filled.dates} dates before ${variantKeyedFrom}`)
   orRankingsCache = { data: result, ts: Date.now() }
   return result
 }

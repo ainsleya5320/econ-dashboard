@@ -1594,26 +1594,35 @@ function ApiUsagePanels() {
     return { rows, last, yrAgo };
   }, [data]);
 
-  // Top individual models (latest snapshot date)
+  // Top individual models: the latest complete snapshot against the one a week before it.
+  // A date holds one row per model VARIANT (standard, batch, free), each a trailing-7-day
+  // total, so a model is the sum of its rows; dates that hold only stragglers are skipped.
   const topModels = useMemo(() => {
     const rows = data?.rows || [];
-    if (!rows.length) return { latest: null, models: [], totalWeek: 0 };
-    const dates = [...new Set(rows.map(r => r.date))].sort();
+    if (!rows.length) return { latest: null, prior: null, models: [], totalWeek: 0 };
+    const dates = data.completeDates?.length ? data.completeDates : [...new Set(rows.map(r => r.date))].sort();
     const latest = dates[dates.length - 1];
-    const prior = dates.length > 1 ? dates[dates.length - 2] : null;
-    const priorMap = new Map();
-    if (prior) rows.filter(r => r.date === prior).forEach(r => priorMap.set(r.model_permaslug, (r.total_prompt_tokens || 0) + (r.total_completion_tokens || 0)));
-    const models = rows.filter(r => r.date === latest).map(r => {
-      const tot = (r.total_prompt_tokens || 0) + (r.total_completion_tokens || 0);
-      const parts = (r.model_permaslug || "").split("/");
+    const prior = [...dates].reverse().find(d => Date.parse(latest) - Date.parse(d) >= 7 * 86400000) || null;
+    const sumBySlug = date => {
+      const m = new Map();
+      for (const r of rows) if (r.date === date) {
+        const c = m.get(r.model_permaslug) || { tokens: 0, requests: 0 };
+        c.tokens += (r.total_prompt_tokens || 0) + (r.total_completion_tokens || 0); c.requests += r.count || 0;
+        m.set(r.model_permaslug, c);
+      }
+      return m;
+    };
+    const priorMap = prior ? sumBySlug(prior) : new Map();
+    const models = [...sumBySlug(latest)].map(([slug, c]) => {
+      const parts = (slug || "").split("/");
       const provider = parts[0] || "—";
       const name = parts.slice(1).join("/").replace(/-\d{8}$/, "");
-      const priorTot = priorMap.get(r.model_permaslug);
-      const wow = priorTot ? ((tot - priorTot) / priorTot) * 100 : null;
-      return { slug: r.model_permaslug, name, provider, tokens: tot, requests: r.count || 0, wow };
+      const priorTot = priorMap.get(slug)?.tokens;
+      const wow = priorTot ? ((c.tokens - priorTot) / priorTot) * 100 : null;
+      return { slug, name, provider, tokens: c.tokens, requests: c.requests, wow };
     }).sort((a, b) => b.tokens - a.tokens);
     const totalWeek = models.reduce((s, m) => s + m.tokens, 0);
-    return { latest, models, totalWeek };
+    return { latest, prior, models, totalWeek };
   }, [data]);
 
   if (loading && !data) return <div style={{ padding: 50, textAlign: "center", color: "#94a3b8", fontFamily: fonts.heading, fontSize: 14 }}>Loading OpenRouter API usage…</div>;
@@ -1719,7 +1728,7 @@ function ApiUsagePanels() {
 
 
     {/* Top individual models */}
-    <SH>Top Models by API Token Usage{topModels.latest ? ` — ${topModels.latest}` : ""}</SH>
+    <SH>Top Models by API Token Usage{topModels.latest ? ` — 7 days to ${topModels.latest}${topModels.prior ? `, WoW against ${topModels.prior}` : ""}` : ""}</SH>
     <div style={{ background: cardBg, border: cardBorder, borderRadius: 14, overflow: "auto", marginBottom: 14 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
         <thead>
