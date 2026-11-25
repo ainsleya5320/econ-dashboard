@@ -46,6 +46,7 @@ import { createTokenLedger } from './server/tokenLedger.js'
 import { createTokenElasticity } from './server/tokenElasticity.js'
 import { createQualityPrice } from './server/qualityPrice.js'
 import { createKalshiGpu } from './server/kalshiGpu.js'
+import { createJevonsTracker } from './server/jevonsTracker.js'
 import { createAiLabor } from './server/aiLabor.js'
 import { createAiDollars } from './server/aiDollars.js'
 import { createTightening } from './server/tightening.js'
@@ -3991,6 +3992,9 @@ export default defineConfig({
         // AI Economy → Tokens (server/qualityPrice.js): the price of a fixed capability, Epoch 2021–2025 and this year's catalogue
         const qualityPrice = createQualityPrice({ dir: __dirname, UA })
         reRoute('/api/quality-price', () => qualityPrice.get())
+        // AI Economy → Tokens (server/jevonsTracker.js): lab by lab on OpenRouter, daily tokens priced at what was paid; does spend rise as price falls
+        const jevonsTracker = createJevonsTracker({ dir: __dirname })
+        reRoute('/api/jevons', () => jevonsTracker.get())
         // AI Economy → Dark Output (server/aiLabor.js): job cuts employers tie to AI, restructuring 8-Ks, and payroll freed against new AI revenue
         const aiLabor = createAiLabor({ dir: __dirname, fred: fetchFredSeries })
         reRoute('/api/ai-labor', () => aiLabor.get())

@@ -8,6 +8,7 @@ import AiPulseTab, { GpuRentalsPanel, AaModelsPanel, useAiPulse } from "./AiPuls
 import NebiusSpot from "./ai/NebiusSpot.jsx";
 import GpuMarkets from "./ai/GpuMarkets.jsx";
 import KalshiGpu from "./ai/KalshiGpu.jsx";
+import JevonsTracker from "./ai/JevonsTracker.jsx";
 import DarkOutput from "./ai/DarkOutput.jsx";
 import BuildOut from "./ai/BuildOut.jsx";
 import GpuEconomicsPanel from "./ai/GpuEconomics.jsx";
@@ -2063,6 +2064,9 @@ function TokenDemandTab() {
 
     <SH>When Tokens Get Cheaper, Does Spending Rise? — the Elasticity Test</SH>
     <TokenElasticity />
+
+    <SH>Jevons by Lab — OpenRouter Day by Day, at the Price Paid</SH>
+    <JevonsTracker />
 
     <SH>Managed Inference — the Vercel AI Gateway beside OpenRouter</SH>
     <GatewayShares />
