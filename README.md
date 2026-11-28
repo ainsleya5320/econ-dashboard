@@ -18,6 +18,8 @@ npm run dev
 ```
 
 4. Open http://localhost:5180 in your browser
+
+   On Windows, double-clicking `start-dashboard.cmd` does steps 3 and 4 and keeps the server running: it restarts the server if it stops, and only opens the page if the server is already up. Leave its window open; close it to stop the server.
 5. Enter your API keys in the dashboard:
    - **FRED key**: Free at https://fred.stlouisfed.org/docs/api/api_key.html
    - **FMP key**: Free at https://site.financialmodelingprep.com (250 requests/day)
